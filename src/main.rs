@@ -1,8 +1,11 @@
+mod config;
 mod storage;
 
+use config::Config;
 use storage::{Entry, EntryType, Line, TodoItem};
 
 use std::io;
+use std::path::PathBuf;
 use chrono::{Days, Local, NaiveDate};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
@@ -688,6 +691,23 @@ impl App {
 }
 
 fn main() -> Result<(), io::Error> {
+    let args: Vec<String> = std::env::args().collect();
+    let cli_file = args.get(1).map(PathBuf::from);
+
+    let config = Config::load().unwrap_or_default();
+
+    let journal_path = if let Some(path) = cli_file {
+        if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir()?.join(path)
+        }
+    } else {
+        config.get_journal_path()
+    };
+
+    storage::set_journal_path(journal_path);
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;

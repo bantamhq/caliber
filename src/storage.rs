@@ -2,6 +2,20 @@ use chrono::NaiveDate;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+
+static JOURNAL_PATH: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn set_journal_path(path: PathBuf) {
+    let _ = JOURNAL_PATH.set(path);
+}
+
+pub fn get_active_journal_path() -> PathBuf {
+    JOURNAL_PATH
+        .get()
+        .cloned()
+        .unwrap_or_else(get_journal_path)
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntryType {
@@ -130,7 +144,7 @@ pub fn save_day_lines(date: NaiveDate, lines: &[Line]) -> io::Result<()> {
 pub fn get_data_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("bullet")
+        .join("caliber")
 }
 
 pub fn get_journal_path() -> PathBuf {
@@ -142,7 +156,7 @@ fn day_header(date: NaiveDate) -> String {
 }
 
 pub fn load_journal() -> io::Result<String> {
-    let path = get_journal_path();
+    let path = get_active_journal_path();
     if path.exists() {
         fs::read_to_string(path)
     } else {
@@ -151,7 +165,7 @@ pub fn load_journal() -> io::Result<String> {
 }
 
 pub fn save_journal(content: &str) -> io::Result<()> {
-    let path = get_journal_path();
+    let path = get_active_journal_path();
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
