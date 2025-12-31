@@ -18,43 +18,24 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph},
 };
 use unicode_width::UnicodeWidthStr;
 
 use app::{App, Mode};
 use config::Config;
 
-fn calculate_wrapped_position(full_text: &str, cursor_pos: usize, width: usize) -> (usize, usize) {
-    let mut row = 0;
-    let mut col = 0;
-    let mut char_idx = 0;
-
-    for word in full_text.split_inclusive(' ') {
-        let word_width = word.width();
-        let word_chars = word.chars().count();
-
-        if col > 0 && col + word_width > width {
-            row += 1;
-            col = 0;
-        }
-
-        if char_idx + word_chars > cursor_pos {
-            let chars_into_word = cursor_pos - char_idx;
-            let width_into_word: usize = word
-                .chars()
-                .take(chars_into_word)
-                .collect::<String>()
-                .width();
-            col += width_into_word;
-            return (row, col);
-        }
-
-        col += word_width;
-        char_idx += word_chars;
+fn ensure_selected_visible(scroll_offset: &mut usize, selected: usize, entry_count: usize, visible_height: usize) {
+    if entry_count == 0 {
+        *scroll_offset = 0;
+        return;
     }
-
-    (row, col)
+    if selected < *scroll_offset {
+        *scroll_offset = selected;
+    }
+    if selected >= *scroll_offset + visible_height {
+        *scroll_offset = selected - visible_height + 1;
+    }
 }
 
 fn main() -> Result<(), io::Error> {
@@ -135,7 +116,13 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                 .constraints([Constraint::Min(3), Constraint::Length(1)])
                 .split(size);
 
+            let title = if is_tasks_mode {
+                " Tasks ".to_string()
+            } else {
+                app.current_date.format(" %m/%d/%y ").to_string()
+            };
             let main_block = Block::default()
+                .title(title)
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::White));
 
@@ -152,6 +139,17 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
 
             f.render_widget(main_block, chunks[0]);
 
+            let visible_height = content_area.height as usize;
+
+            if !is_tasks_mode {
+                ensure_selected_visible(
+                    &mut app.scroll_offset,
+                    app.selected,
+                    app.entry_indices.len(),
+                    visible_height,
+                );
+            }
+
             let lines = if is_tasks_mode {
                 ui::render_tasks_view(&app)
             } else {
@@ -162,42 +160,26 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                 && app.mode == Mode::Edit
                 && let Some(ref buffer) = app.edit_buffer
                 && let Some(entry) = app.get_selected_entry()
+                && app.selected >= app.scroll_offset
             {
-                let width = content_area.width as usize;
-
-                let mut visual_row: usize = 0;
-                for (i, line) in lines.iter().enumerate() {
-                    if i == app.selected + 1 {
-                        break;
-                    }
-                    let line_width = line.to_string().width();
-                    visual_row += if line_width == 0 {
-                        1
-                    } else {
-                        line_width.div_ceil(width)
-                    };
-                }
-
+                let screen_row = app.selected - app.scroll_offset;
                 let prefix = entry.prefix();
-                let full_text = format!("{}{}", prefix, buffer.content());
-                let cursor_pos = prefix.chars().count() + buffer.cursor_char_pos();
-
-                let (wrap_row, wrap_col) =
-                    calculate_wrapped_position(&full_text, cursor_pos, width);
+                let cursor_col = prefix.width() + buffer.cursor_display_pos();
 
                 #[allow(clippy::cast_possible_truncation)]
-                let cursor_x = content_area.x + wrap_col as u16;
+                let cursor_x = content_area.x + cursor_col as u16;
                 #[allow(clippy::cast_possible_truncation)]
-                let cursor_y = content_area.y + (visual_row + wrap_row) as u16;
+                let cursor_y = content_area.y + screen_row as u16;
 
-                if cursor_x <= content_area.x + content_area.width
+                if cursor_x < content_area.x + content_area.width
                     && cursor_y < content_area.y + content_area.height
                 {
                     f.set_cursor_position((cursor_x, cursor_y));
                 }
             }
 
-            let content = Paragraph::new(lines).wrap(Wrap { trim: true });
+            #[allow(clippy::cast_possible_truncation)]
+            let content = Paragraph::new(lines).scroll((app.scroll_offset as u16, 0));
             f.render_widget(content, content_area);
 
             let footer = Paragraph::new(ui::render_footer(&app));

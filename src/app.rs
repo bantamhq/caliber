@@ -33,6 +33,7 @@ pub struct App {
     pub help_scroll: usize,
     pub help_visible_height: usize,
     pub original_lines: Option<Vec<Line>>,
+    pub scroll_offset: usize,
 }
 
 impl App {
@@ -57,6 +58,7 @@ impl App {
             help_scroll: 0,
             help_visible_height: 0,
             original_lines: None,
+            scroll_offset: 0,
         })
     }
 
@@ -116,6 +118,7 @@ impl App {
         self.selected = self.entry_indices.len().saturating_sub(1);
         self.edit_buffer = None;
         self.mode = Mode::Daily;
+        self.scroll_offset = 0;
 
         Ok(())
     }
@@ -207,6 +210,7 @@ impl App {
             let content = buffer.into_content();
             if content.trim().is_empty() {
                 self.delete_selected();
+                self.scroll_offset = 0;
             } else if let Some(entry) = self.get_selected_entry_mut() {
                 entry.content = content;
                 self.save();

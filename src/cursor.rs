@@ -1,6 +1,5 @@
-/// Wraps edit buffer with character-based cursor positioning.
-/// Rust strings are byte-indexed, but cursor movement must be character-based
-/// to correctly handle multi-byte UTF-8 (emojis, non-ASCII text).
+use unicode_width::UnicodeWidthStr;
+
 pub struct CursorBuffer {
     content: String,
     cursor_char_pos: usize,
@@ -29,8 +28,17 @@ impl CursorBuffer {
             .map_or(self.content.len(), |(i, _)| i)
     }
 
+    #[cfg(test)]
     pub fn cursor_char_pos(&self) -> usize {
         self.cursor_char_pos
+    }
+
+    pub fn cursor_display_pos(&self) -> usize {
+        self.content
+            .chars()
+            .take(self.cursor_char_pos)
+            .collect::<String>()
+            .width()
     }
 
     pub fn content(&self) -> &str {

@@ -58,12 +58,6 @@ pub fn render_tasks_view(app: &App) -> Vec<RatatuiLine<'static>> {
 pub fn render_daily_view(app: &App) -> Vec<RatatuiLine<'static>> {
     let mut lines = Vec::new();
 
-    let date_str = app.current_date.format("%m/%d/%y").to_string();
-    lines.push(RatatuiLine::from(Span::styled(
-        date_str,
-        Style::default().fg(Color::Cyan),
-    )));
-
     for (entry_idx, &line_idx) in app.entry_indices.iter().enumerate() {
         if let Line::Entry(entry) = &app.lines[line_idx] {
             let is_selected = entry_idx == app.selected;
