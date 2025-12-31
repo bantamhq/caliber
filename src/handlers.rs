@@ -72,9 +72,9 @@ pub fn handle_normal_key(app: &mut App, key: KeyCode) -> io::Result<()> {
 
 pub fn handle_editing_key(app: &mut App, key: KeyCode) {
     match key {
-        KeyCode::Tab => app.cycle_entry_type(),
-        KeyCode::Enter => app.commit_and_add_new(),
-        KeyCode::Esc => app.exit_edit(),
+        KeyCode::BackTab => app.cycle_entry_type(),
+        KeyCode::Tab => app.commit_and_add_new(),
+        KeyCode::Enter | KeyCode::Esc => app.exit_edit(),
         KeyCode::Backspace => {
             if let Some(ref mut buffer) = app.edit_buffer
                 && !buffer.delete_char_before()

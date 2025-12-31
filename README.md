@@ -32,7 +32,9 @@ caliber init         # Create config file
 | `d` | Delete entry |
 | `h/l` or `[/]` | Previous/next day |
 | `t` | Go to today |
+| `g` | Gather completed tasks to top |
 | `Tab` | Switch to Tasks view |
+| `?` | Show help |
 | `:goto` or `:gt` | Go to date (YYYY/MM/DD or MM/DD) |
 | `:q` | Quit |
 
@@ -40,9 +42,11 @@ caliber init         # Create config file
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Save and add new entry below |
-| `Tab` | Toggle entry type (task/note/event) |
-| `Esc` | Save and return to Daily |
+| `Enter` | Save and exit |
+| `Tab` | Save and add new entry below |
+| `⇧Tab` | Toggle entry type (task/note/event) |
+| `←/→` | Move cursor |
+| `Esc` | Cancel and return to Daily |
 
 ### Tasks View
 
@@ -52,8 +56,10 @@ Shows incomplete tasks across all days.
 |-----|--------|
 | `j/k` | Move down/up |
 | `x` | Toggle task |
+| `r` | Refresh list |
 | `Enter` | Go to selected day |
 | `Tab` | Return to Daily |
+| `?` | Show help |
 
 ## Journal Format
 

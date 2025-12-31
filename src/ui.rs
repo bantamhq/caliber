@@ -120,11 +120,13 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
         Mode::Edit => RatatuiLine::from(vec![
             Span::styled(" EDIT ", Style::default().fg(Color::Black).bg(Color::Green)),
             Span::styled("  Enter", Style::default().fg(Color::Gray)),
-            Span::styled(" Save and new  ", Style::default().fg(Color::DarkGray)),
+            Span::styled(" Save  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Tab", Style::default().fg(Color::Gray)),
-            Span::styled(" Toggle entry type  ", Style::default().fg(Color::DarkGray)),
+            Span::styled(" Save and new  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("⇧Tab", Style::default().fg(Color::Gray)),
+            Span::styled(" Toggle type  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Esc", Style::default().fg(Color::Gray)),
-            Span::styled(" Daily mode", Style::default().fg(Color::DarkGray)),
+            Span::styled(" Cancel", Style::default().fg(Color::DarkGray)),
         ]),
         Mode::Daily => RatatuiLine::from(vec![
             Span::styled(" DAILY ", Style::default().fg(Color::Black).bg(Color::Blue)),
@@ -231,14 +233,14 @@ pub fn get_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(
         RatatuiLine::from(Span::styled("--- Edit ---", header_style)).alignment(Alignment::Center),
     );
+    lines.push(help_line("Enter", "Save and exit", key_style, desc_style));
+    lines.push(help_line("Tab", "Save and new", key_style, desc_style));
     lines.push(help_line(
-        "Enter",
-        "Save and add new",
+        "⇧Tab",
+        "Toggle entry type",
         key_style,
         desc_style,
     ));
-    lines.push(help_line("Tab", "Toggle entry type", key_style, desc_style));
-    lines.push(help_line("Esc", "Save and exit", key_style, desc_style));
     lines.push(help_line("←/→", "Move cursor", key_style, desc_style));
     lines.push(RatatuiLine::from(""));
 
