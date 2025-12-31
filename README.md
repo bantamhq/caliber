@@ -34,6 +34,7 @@ caliber init         # Create config file
 | `h/l` or `[/]` | Previous/next day |
 | `t` | Go to today |
 | `Tab` | Switch to Todos view |
+| `:goto` or `:gt` | Go to date (YYYY/MM/DD or MM/DD) |
 | `:q` | Quit |
 
 ### Editing

@@ -6,7 +6,7 @@ use storage::{Entry, EntryType, Line, TodoItem};
 
 use std::io;
 use std::path::PathBuf;
-use chrono::{Days, Local, NaiveDate};
+use chrono::{Datelike, Days, Local, NaiveDate};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -233,6 +233,14 @@ impl App {
         self.goto_day(Local::now().date_naive())
     }
 
+    fn parse_goto_date(input: &str) -> Option<NaiveDate> {
+        if let Ok(date) = NaiveDate::parse_from_str(input, "%Y/%m/%d") {
+            return Some(date);
+        }
+        let current_year = Local::now().year();
+        NaiveDate::parse_from_str(&format!("{}/{}", current_year, input), "%Y/%m/%d").ok()
+    }
+
     fn add_entry(&mut self, entry: Entry, at_bottom: bool) {
         let insert_pos = if at_bottom || self.entry_indices.is_empty() {
             self.lines.len()
@@ -363,13 +371,23 @@ impl App {
 
     fn execute_command(&mut self) -> io::Result<()> {
         let cmd = self.command_buffer.trim();
-        match cmd {
+        let parts: Vec<&str> = cmd.splitn(2, ' ').collect();
+        let command = parts.first().copied().unwrap_or("");
+        let arg = parts.get(1).copied().unwrap_or("").trim();
+
+        match command {
             "q" | "quit" => {
                 self.save();
                 self.should_quit = true;
             }
-            "today" | "t" => {
-                self.goto_today()?;
+            "goto" | "gt" => {
+                if arg.is_empty() {
+                    self.status_message = Some("Usage: :goto YYYY/MM/DD or :goto MM/DD".to_string());
+                } else if let Some(date) = Self::parse_goto_date(arg) {
+                    self.goto_day(date)?;
+                } else {
+                    self.status_message = Some(format!("Invalid date: {}", arg));
+                }
             }
             _ => {}
         }
@@ -791,13 +809,6 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                 .border_style(Style::default().fg(Color::White));
 
             let inner = main_block.inner(chunks[0]);
-            let inner_layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(1),
-                    Constraint::Length(1),
-                ])
-                .split(inner);
 
             let content_area = Layout::default()
                 .direction(Direction::Horizontal)
@@ -806,7 +817,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                     Constraint::Min(1),
                     Constraint::Length(1),
                 ])
-                .split(inner_layout[0])[1];
+                .split(inner)[1];
 
             f.render_widget(main_block, chunks[0]);
 
@@ -846,6 +857,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
         if event::poll(std::time::Duration::from_millis(100))?
             && let Event::Key(key) = event::read()?
         {
+            app.status_message = None;
             match app.mode {
                 Mode::Command => app.handle_command_key(key.code)?,
                 Mode::Daily => {
@@ -863,4 +875,46 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod goto_tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_goto_date() {
+        // YYYY/MM/DD format
+        let result = App::parse_goto_date("2025/12/30");
+        assert!(result.is_some(), "2025/12/30 should parse");
+        assert_eq!(result.unwrap(), NaiveDate::from_ymd_opt(2025, 12, 30).unwrap());
+
+        // MM/DD format (uses current year)
+        let result = App::parse_goto_date("12/30");
+        assert!(result.is_some(), "12/30 should parse");
+
+        // Invalid formats should return None
+        assert!(App::parse_goto_date("12/30/2025").is_none());
+        assert!(App::parse_goto_date("12/30/25").is_none());
+    }
+
+    #[test]
+    fn test_command_parsing() {
+        let cmd = "gt 12/30";
+        let parts: Vec<&str> = cmd.splitn(2, ' ').collect();
+        let command = parts.first().copied().unwrap_or("");
+        let arg = parts.get(1).copied().unwrap_or("").trim();
+
+        assert_eq!(command, "gt");
+        assert_eq!(arg, "12/30");
+
+        // With invalid date
+        let cmd = "gt 12/30/2025";
+        let parts: Vec<&str> = cmd.splitn(2, ' ').collect();
+        let command = parts.first().copied().unwrap_or("");
+        let arg = parts.get(1).copied().unwrap_or("").trim();
+
+        assert_eq!(command, "gt");
+        assert_eq!(arg, "12/30/2025");
+        assert!(App::parse_goto_date(arg).is_none(), "12/30/2025 should NOT parse");
+    }
 }
