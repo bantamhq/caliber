@@ -2,6 +2,12 @@
 name = "caliber"
 version = "0.1.0"
 edition = "2024"
+description = "A simple, bullet journal-inspired way to capture tasks and notes in the terminal"
+license = "MIT"
+repository = "https://github.com/kylemorck/caliber"
+readme = "README.md"
+keywords = ["tui", "terminal", "bullet-journal", "todo", "productivity"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 ratatui = "0.29"
