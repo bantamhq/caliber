@@ -20,9 +20,38 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
+use unicode_width::UnicodeWidthStr;
 
 use app::{App, Mode};
 use config::Config;
+
+fn calculate_wrapped_position(full_text: &str, cursor_pos: usize, width: usize) -> (usize, usize) {
+    let mut row = 0;
+    let mut col = 0;
+    let mut char_idx = 0;
+
+    for word in full_text.split_inclusive(' ') {
+        let word_width = word.width();
+        let word_chars = word.chars().count();
+
+        if col > 0 && col + word_width > width {
+            row += 1;
+            col = 0;
+        }
+
+        if char_idx + word_chars > cursor_pos {
+            let chars_into_word = cursor_pos - char_idx;
+            let width_into_word: usize = word.chars().take(chars_into_word).collect::<String>().width();
+            col += width_into_word;
+            return (row, col);
+        }
+
+        col += word_width;
+        char_idx += word_chars;
+    }
+
+    (row, col)
+}
 
 fn main() -> Result<(), io::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -130,14 +159,33 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                     && let Some(ref buffer) = app.edit_buffer
                     && let Some(entry) = app.get_selected_entry()
                 {
-                    let prefix_len = entry.prefix().chars().count();
-                    let cursor_col = prefix_len + buffer.cursor_char_pos();
+                    let width = content_area.width as usize;
+
+                    let mut visual_row: usize = 0;
+                    for (i, line) in lines.iter().enumerate() {
+                        if i == app.selected + 1 {
+                            break;
+                        }
+                        let line_width = line.to_string().width();
+                        visual_row += if line_width == 0 {
+                            1
+                        } else {
+                            (line_width + width - 1) / width
+                        };
+                    }
+
+                    let prefix = entry.prefix();
+                    let full_text = format!("{}{}", prefix, buffer.content());
+                    let cursor_pos = prefix.chars().count() + buffer.cursor_char_pos();
+
+                    let (wrap_row, wrap_col) = calculate_wrapped_position(&full_text, cursor_pos, width);
 
                     #[allow(clippy::cast_possible_truncation)]
-                    let cursor_x = content_area.x + cursor_col as u16;
+                    let cursor_x = content_area.x + wrap_col as u16;
                     #[allow(clippy::cast_possible_truncation)]
-                    let cursor_y = content_area.y + (app.selected + 1) as u16;
-                    if cursor_x < content_area.x + content_area.width
+                    let cursor_y = content_area.y + (visual_row + wrap_row) as u16;
+
+                    if cursor_x <= content_area.x + content_area.width
                         && cursor_y < content_area.y + content_area.height
                     {
                         f.set_cursor_position((cursor_x, cursor_y));
