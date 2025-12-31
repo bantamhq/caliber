@@ -42,8 +42,8 @@ impl App {
         Ok(Self {
             current_date,
             lines,
+            selected: entry_indices.len().saturating_sub(1),
             entry_indices,
-            selected: 0,
             edit_buffer: None,
             mode: Mode::Daily,
             command_buffer: String::new(),
@@ -110,7 +110,7 @@ impl App {
         self.current_date = date;
         self.lines = storage::load_day_lines(date)?;
         self.entry_indices = Self::compute_entry_indices(&self.lines);
-        self.selected = 0;
+        self.selected = self.entry_indices.len().saturating_sub(1);
         self.edit_buffer = None;
         self.mode = Mode::Daily;
 
