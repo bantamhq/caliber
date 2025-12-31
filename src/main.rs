@@ -14,7 +14,7 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line as RatatuiLine, Span},
     widgets::{Block, Borders, Paragraph},
@@ -23,7 +23,7 @@ use ratatui::{
 
 #[derive(PartialEq, Clone)]
 enum Mode {
-    Normal,
+    Daily,
     Editing,
     Command,
     Todos,
@@ -146,7 +146,7 @@ impl App {
             entry_indices,
             selected: 0,
             edit_buffer: None,
-            mode: Mode::Normal,
+            mode: Mode::Daily,
             command_buffer: String::new(),
             should_quit: false,
             status_message: None,
@@ -210,7 +210,7 @@ impl App {
         self.entry_indices = Self::compute_entry_indices(&self.lines);
         self.selected = 0;
         self.edit_buffer = None;
-        self.mode = Mode::Normal;
+        self.mode = Mode::Daily;
 
         Ok(())
     }
@@ -265,14 +265,21 @@ impl App {
     }
 
     fn commit_and_continue(&mut self) {
+        let Some(buffer) = self.edit_buffer.take() else { return };
+        let content = buffer.into_content();
+
+        if content.trim().is_empty() {
+            self.delete_selected();
+            self.mode = Mode::Daily;
+            return;
+        }
+
         let entry_type = self.get_selected_entry()
             .map(|e| e.entry_type.clone())
             .unwrap_or(EntryType::Task { completed: false });
 
-        if let Some(buffer) = self.edit_buffer.take()
-            && let Some(entry) = self.get_selected_entry_mut()
-        {
-            entry.content = buffer.into_content();
+        if let Some(entry) = self.get_selected_entry_mut() {
+            entry.content = content;
         }
         self.save();
 
@@ -297,13 +304,16 @@ impl App {
     }
 
     fn commit_edit(&mut self) {
-        if let Some(buffer) = self.edit_buffer.take()
-            && let Some(entry) = self.get_selected_entry_mut()
-        {
-            entry.content = buffer.into_content();
+        if let Some(buffer) = self.edit_buffer.take() {
+            let content = buffer.into_content();
+            if content.trim().is_empty() {
+                self.delete_selected();
+            } else if let Some(entry) = self.get_selected_entry_mut() {
+                entry.content = content;
+                self.save();
+            }
         }
-        self.save();
-        self.mode = Mode::Normal;
+        self.mode = Mode::Daily;
     }
 
     fn cancel_edit(&mut self) {
@@ -315,7 +325,7 @@ impl App {
             self.delete_selected();
         }
         self.edit_buffer = None;
-        self.mode = Mode::Normal;
+        self.mode = Mode::Daily;
     }
 
     fn delete_selected(&mut self) {
@@ -364,7 +374,7 @@ impl App {
             _ => {}
         }
         self.command_buffer.clear();
-        self.mode = Mode::Normal;
+        self.mode = Mode::Daily;
         Ok(())
     }
 
@@ -377,7 +387,7 @@ impl App {
     }
 
     fn exit_todos_mode(&mut self) {
-        self.mode = Mode::Normal;
+        self.mode = Mode::Daily;
     }
 
     fn todo_move_up(&mut self) {
@@ -396,7 +406,7 @@ impl App {
         if let Some(item) = self.todo_items.get(self.todo_selected) {
             let date = item.date;
             self.goto_day(date)?;
-            self.mode = Mode::Normal;
+            self.mode = Mode::Daily;
         }
         Ok(())
     }
@@ -439,7 +449,7 @@ impl App {
 
         for (idx, item) in self.todo_items.iter().enumerate() {
             if last_date != Some(item.date) {
-                let date_str = item.date.format("%m/%d").to_string();
+                let date_str = item.date.format("%m/%d/%y").to_string();
                 lines.push(RatatuiLine::from(Span::styled(
                     date_str,
                     Style::default().fg(Color::Cyan)
@@ -448,22 +458,25 @@ impl App {
             }
 
             let is_selected = idx == self.todo_selected;
-            let checkbox = if item.completed { "- [x] " } else { "- [ ] " };
-            let content = format!("  {}{}", checkbox, item.content);
-
-            let style = if item.completed {
-                if is_selected {
-                    Style::default().fg(Color::DarkGray).add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                }
-            } else if is_selected {
-                Style::default().add_modifier(Modifier::REVERSED)
+            let content_style = if item.completed {
+                Style::default().fg(Color::DarkGray)
             } else {
                 Style::default()
             };
 
-            lines.push(RatatuiLine::from(Span::styled(content, style)));
+            if is_selected {
+                let checkbox = if item.completed { " [x] " } else { " [ ] " };
+                lines.push(RatatuiLine::from(vec![
+                    Span::styled("→", Style::default().fg(Color::Cyan)),
+                    Span::styled(format!("{}{}", checkbox, item.content), content_style),
+                ]));
+            } else {
+                let checkbox = if item.completed { "- [x] " } else { "- [ ] " };
+                lines.push(RatatuiLine::from(Span::styled(
+                    format!("{}{}", checkbox, item.content),
+                    content_style,
+                )));
+            }
         }
 
         if lines.is_empty() {
@@ -479,41 +492,49 @@ impl App {
     fn render_day_view(&self) -> Vec<RatatuiLine<'static>> {
         let mut lines = Vec::new();
 
+        let date_str = self.current_date.format("%m/%d/%y").to_string();
+        lines.push(RatatuiLine::from(Span::styled(
+            date_str,
+            Style::default().fg(Color::Cyan)
+        )));
+
         for (entry_idx, &line_idx) in self.entry_indices.iter().enumerate() {
             if let Line::Entry(entry) = &self.lines[line_idx] {
                 let is_selected = entry_idx == self.selected;
+                let is_editing = is_selected && self.mode == Mode::Editing;
 
-                let content = if is_selected && self.mode == Mode::Editing {
-                    if let Some(ref buffer) = self.edit_buffer {
-                        format!("{}{}", entry.prefix(), buffer.content)
-                    } else {
-                        format!("{}{}", entry.prefix(), entry.content)
-                    }
-                } else {
-                    format!("{}{}", entry.prefix(), entry.content)
-                };
-
-                let style = if is_selected {
-                    if self.mode == Mode::Editing {
-                        Style::default()
-                    } else {
-                        Style::default().add_modifier(Modifier::REVERSED)
-                    }
+                let content_style = if matches!(entry.entry_type, EntryType::Task { completed: true }) {
+                    Style::default().fg(Color::DarkGray)
                 } else {
                     Style::default()
                 };
 
-                let style = if matches!(entry.entry_type, EntryType::Task { completed: true }) {
-                    style.fg(Color::DarkGray)
+                let text = if is_editing {
+                    if let Some(ref buffer) = self.edit_buffer {
+                        buffer.content.clone()
+                    } else {
+                        entry.content.clone()
+                    }
                 } else {
-                    style
+                    entry.content.clone()
                 };
 
-                lines.push(RatatuiLine::from(Span::styled(content, style)));
+                if is_selected && !is_editing {
+                    let rest_of_prefix = entry.prefix().chars().skip(1).collect::<String>();
+                    lines.push(RatatuiLine::from(vec![
+                        Span::styled("→", Style::default().fg(Color::Cyan)),
+                        Span::styled(format!("{}{}", rest_of_prefix, text), content_style),
+                    ]));
+                } else {
+                    lines.push(RatatuiLine::from(Span::styled(
+                        format!("{}{}", entry.prefix(), text),
+                        content_style,
+                    )));
+                }
             }
         }
 
-        if lines.is_empty() {
+        if self.entry_indices.is_empty() {
             lines.push(RatatuiLine::from(Span::styled(
                 "(no entries - press n for task, o for note, e for event)",
                 Style::default().fg(Color::DarkGray)
@@ -531,12 +552,13 @@ impl App {
         let Some(ref buffer) = self.edit_buffer else { return };
         let Some(entry) = self.get_selected_entry() else { return };
 
-        if self.selected < lines.len() {
+        let line_idx = self.selected + 1; // +1 for date header
+        if line_idx < lines.len() {
             let before = buffer.text_before_cursor();
             let cursor_char = buffer.char_at_cursor().unwrap_or(' ');
             let after = buffer.text_after_cursor();
 
-            lines[self.selected] = RatatuiLine::from(vec![
+            lines[line_idx] = RatatuiLine::from(vec![
                 Span::raw(format!("{}{}", entry.prefix(), before)),
                 Span::styled(
                     cursor_char.to_string(),
@@ -559,43 +581,45 @@ impl App {
             Mode::Editing => {
                 RatatuiLine::from(vec![
                     Span::styled(" EDITING ", Style::default().fg(Color::Black).bg(Color::Green)),
-                    Span::styled("  Enter", Style::default().fg(Color::DarkGray)),
+                    Span::styled("  Enter", Style::default().fg(Color::Gray)),
                     Span::styled(" commit  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("Tab", Style::default().fg(Color::DarkGray)),
-                    Span::styled(" add another  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("Esc", Style::default().fg(Color::DarkGray)),
+                    Span::styled("Tab", Style::default().fg(Color::Gray)),
+                    Span::styled(" add same  ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("Esc", Style::default().fg(Color::Gray)),
                     Span::styled(" cancel", Style::default().fg(Color::DarkGray)),
                 ])
             }
-            Mode::Normal => {
+            Mode::Daily => {
                 RatatuiLine::from(vec![
-                    Span::styled(" NORMAL ", Style::default().fg(Color::Black).bg(Color::Blue)),
-                    Span::styled("  n", Style::default().fg(Color::DarkGray)),
+                    Span::styled(" DAILY ", Style::default().fg(Color::Black).bg(Color::Blue)),
+                    Span::styled("  n", Style::default().fg(Color::Gray)),
                     Span::styled(" task  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("o", Style::default().fg(Color::DarkGray)),
+                    Span::styled("o", Style::default().fg(Color::Gray)),
                     Span::styled(" note  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("e", Style::default().fg(Color::DarkGray)),
+                    Span::styled("e", Style::default().fg(Color::Gray)),
                     Span::styled(" event  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("Enter", Style::default().fg(Color::DarkGray)),
-                    Span::styled(" edit  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("x", Style::default().fg(Color::DarkGray)),
+                    Span::styled("x", Style::default().fg(Color::Gray)),
                     Span::styled(" toggle  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("d", Style::default().fg(Color::DarkGray)),
+                    Span::styled("d", Style::default().fg(Color::Gray)),
                     Span::styled(" delete  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("Tab", Style::default().fg(Color::DarkGray)),
+                    Span::styled("j/k", Style::default().fg(Color::Gray)),
+                    Span::styled(" down/up  ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("Enter", Style::default().fg(Color::Gray)),
+                    Span::styled(" edit  ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("Tab", Style::default().fg(Color::Gray)),
                     Span::styled(" todos", Style::default().fg(Color::DarkGray)),
                 ])
             }
             Mode::Todos => {
                 RatatuiLine::from(vec![
                     Span::styled(" TODOS ", Style::default().fg(Color::Black).bg(Color::Magenta)),
-                    Span::styled("  j/k", Style::default().fg(Color::DarkGray)),
-                    Span::styled(" navigate  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("x", Style::default().fg(Color::DarkGray)),
-                    Span::styled(" complete  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("Enter", Style::default().fg(Color::DarkGray)),
+                    Span::styled("  j/k", Style::default().fg(Color::Gray)),
+                    Span::styled(" down/up  ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("x", Style::default().fg(Color::Gray)),
+                    Span::styled(" toggle  ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("Enter", Style::default().fg(Color::Gray)),
                     Span::styled(" go to day  ", Style::default().fg(Color::DarkGray)),
-                    Span::styled("Tab/Esc", Style::default().fg(Color::DarkGray)),
+                    Span::styled("Tab/Esc", Style::default().fg(Color::Gray)),
                     Span::styled(" back", Style::default().fg(Color::DarkGray)),
                 ])
             }
@@ -607,11 +631,11 @@ impl App {
             KeyCode::Enter => self.execute_command()?,
             KeyCode::Esc => {
                 self.command_buffer.clear();
-                self.mode = Mode::Normal;
+                self.mode = Mode::Daily;
             }
             KeyCode::Backspace => {
                 if self.command_buffer.is_empty() {
-                    self.mode = Mode::Normal;
+                    self.mode = Mode::Daily;
                 } else {
                     self.command_buffer.pop();
                 }
@@ -654,7 +678,7 @@ impl App {
                 {
                     self.delete_selected();
                     self.edit_buffer = None;
-                    self.mode = Mode::Normal;
+                    self.mode = Mode::Daily;
                 }
             }
             KeyCode::Left => {
@@ -752,7 +776,6 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
     let mut app = App::new()?;
 
     loop {
-        let date_display = app.current_date.format("%m/%d/%y").to_string();
         let is_todos_mode = app.mode == Mode::Todos;
 
         terminal.draw(|f| {
@@ -763,23 +786,14 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                 .constraints([Constraint::Min(3), Constraint::Length(1)])
                 .split(size);
 
-            let title = if is_todos_mode {
-                " Todos ".to_string()
-            } else {
-                format!(" {} ", date_display)
-            };
-
             let main_block = Block::default()
-                .title(Span::styled(title, Style::default().fg(Color::Cyan)))
-                .title_alignment(Alignment::Left)
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::White));
 
             let inner = main_block.inner(chunks[0]);
-            let padded = Layout::default()
+            let inner_layout = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(1),
                     Constraint::Min(1),
                     Constraint::Length(1),
                 ])
@@ -788,11 +802,11 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
             let content_area = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Length(2),
+                    Constraint::Length(1),
                     Constraint::Min(1),
-                    Constraint::Length(2),
+                    Constraint::Length(1),
                 ])
-                .split(padded[1])[1];
+                .split(inner_layout[0])[1];
 
             f.render_widget(main_block, chunks[0]);
 
@@ -813,7 +827,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                     let cursor_col = prefix_len + buffer.cursor_char_pos;
 
                     let cursor_x = content_area.x + cursor_col as u16;
-                    let cursor_y = content_area.y + app.selected as u16;
+                    let cursor_y = content_area.y + (app.selected + 1) as u16; // +1 for date header
                     if cursor_x < content_area.x + content_area.width
                         && cursor_y < content_area.y + content_area.height
                     {
@@ -834,7 +848,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
         {
             match app.mode {
                 Mode::Command => app.handle_command_key(key.code)?,
-                Mode::Normal => {
+                Mode::Daily => {
                     let shift = key.modifiers.contains(KeyModifiers::SHIFT);
                     app.handle_normal_key(key.code, shift)?;
                 }
