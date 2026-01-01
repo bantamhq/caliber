@@ -306,23 +306,37 @@ pub fn get_help_lines() -> Vec<RatatuiLine<'static>> {
     ));
     lines.push(help_line("d", "Delete entry", key_style, desc_style));
     lines.push(help_line("u", "Undo delete", key_style, desc_style));
-    lines.push(help_line("j/k", "Navigate up/down", key_style, desc_style));
-    lines.push(help_line("g/G", "Jump to first/last", key_style, desc_style));
-    lines.push(help_line("h/l|[]", "Previous/next day", key_style, desc_style));
+    lines.push(help_line("j/k", "Navigate down/up", key_style, desc_style));
+    lines.push(help_line(
+        "g/G",
+        "Jump to first/last",
+        key_style,
+        desc_style,
+    ));
+    lines.push(help_line(
+        "h/l|[]",
+        "Previous/next day",
+        key_style,
+        desc_style,
+    ));
     lines.push(help_line("t", "Go to today", key_style, desc_style));
-    lines.push(help_line("s", "Sort completed to top", key_style, desc_style));
+    lines.push(help_line(
+        "s",
+        "Sort completed to top",
+        key_style,
+        desc_style,
+    ));
     lines.push(help_line("m", "Move mode", key_style, desc_style));
     lines.push(help_line("Tab", "Tasks view", key_style, desc_style));
     lines.push(help_line(":", "Command mode", key_style, desc_style));
     lines.push(RatatuiLine::from(""));
 
     // Move mode
-    lines.push(
-        RatatuiLine::from(Span::styled("[Move]", header_style)).alignment(Alignment::Center),
-    );
+    lines
+        .push(RatatuiLine::from(Span::styled("[Move]", header_style)).alignment(Alignment::Center));
     lines.push(help_line(
         "j/k|↕",
-        "Move entry up/down",
+        "Move entry down/up",
         key_style,
         desc_style,
     ));
@@ -331,9 +345,8 @@ pub fn get_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(RatatuiLine::from(""));
 
     // Edit mode
-    lines.push(
-        RatatuiLine::from(Span::styled("[Edit]", header_style)).alignment(Alignment::Center),
-    );
+    lines
+        .push(RatatuiLine::from(Span::styled("[Edit]", header_style)).alignment(Alignment::Center));
     lines.push(help_line("Enter", "Save and exit", key_style, desc_style));
     lines.push(help_line("Tab", "Save and new", key_style, desc_style));
     lines.push(help_line(
@@ -350,7 +363,12 @@ pub fn get_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(
         RatatuiLine::from(Span::styled("[Tasks]", header_style)).alignment(Alignment::Center),
     );
-    lines.push(help_line("j/k|↕", "Navigate up/down", key_style, desc_style));
+    lines.push(help_line(
+        "j/k|↕",
+        "Navigate down/up",
+        key_style,
+        desc_style,
+    ));
     lines.push(help_line("x", "Toggle task", key_style, desc_style));
     lines.push(help_line("r", "Refresh list", key_style, desc_style));
     lines.push(help_line("Enter", "Go to day", key_style, desc_style));

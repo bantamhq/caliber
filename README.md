@@ -25,28 +25,30 @@ caliber init         # Create config file
 | Key | Action |
 |-----|--------|
 | `Enter` | New entry at end |
-| `i` | Insert entry below current |
+| `o` | New entry below current |
 | `e` | Edit selected entry |
 | `j/k` | Navigate down/up |
+| `g/G` | Jump to first/last entry |
 | `x` | Toggle task complete |
 | `d` | Delete entry |
-| `h/l` or `[/]` | Previous/next day |
+| `u` | Undo delete |
+| `h/l` or `[]` | Previous/next day |
 | `t` | Go to today |
-| `g` | Gather completed tasks to top |
-| `o` | Order mode (rearrange entries) |
+| `s` | Sort completed tasks to top |
+| `m` | Move mode (rearrange entries) |
 | `Tab` | Switch to Tasks view |
 | `?` | Show help |
 | `:goto` or `:gt` | Go to date (YYYY/MM/DD or MM/DD) |
 | `:q` | Quit |
 
-### Order Mode
+### Move Mode
 
 Rearrange entries within a day.
 
 | Key | Action |
 |-----|--------|
-| `j/k` | Move entry up/down |
-| `o` or `Enter` | Save new order |
+| `j/k` | Move entry down/up |
+| `m` or `Enter` | Save new order |
 | `Esc` | Cancel |
 
 ### Edit Mode
@@ -54,10 +56,10 @@ Rearrange entries within a day.
 | Key | Action |
 |-----|--------|
 | `Enter` | Save and exit |
-| `Tab` | Save and add new entry below |
-| `⇧Tab` | Toggle entry type (task/note/event) |
+| `Tab` | Save and add new entry below (same type) |
+| `Shift+Tab` | Toggle entry type (task/note/event) |
 | `←/→` | Move cursor |
-| `Esc` | Cancel and return to Daily |
+| `Esc` | Cancel (discard changes) |
 
 ### Tasks View
 
@@ -65,7 +67,7 @@ Shows incomplete tasks across all days.
 
 | Key | Action |
 |-----|--------|
-| `j/k` | Move down/up |
+| `j/k` | Navigate down/up |
 | `x` | Toggle task |
 | `r` | Refresh list |
 | `Enter` | Go to selected day |
