@@ -77,7 +77,9 @@ pub fn handle_daily_key(app: &mut App, key: KeyCode) -> io::Result<()> {
 pub fn handle_editing_key(app: &mut App, key: KeyCode) {
     match key {
         KeyCode::BackTab => {
-            if app.filter_edit_target.is_some() {
+            if app.filter_quick_add_date.is_some() {
+                app.cycle_quick_add_type();
+            } else if app.filter_edit_target.is_some() {
                 let _ = app.filter_cycle_entry_type();
             } else {
                 app.cycle_entry_type();
@@ -136,6 +138,7 @@ pub fn handle_filter_key(app: &mut App, key: KeyCode) -> io::Result<()> {
         KeyCode::Char('d') => app.filter_delete()?,
         KeyCode::Char('r') => app.refresh_filter()?,
         KeyCode::Char(':') => app.mode = Mode::Command,
+        KeyCode::Enter => app.filter_quick_add(),
         _ => {}
     }
     Ok(())

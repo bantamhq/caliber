@@ -62,10 +62,10 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
         Style::default().fg(Color::Cyan),
     )));
 
-    let is_editing = app.mode == Mode::Edit;
+    let is_editing = app.mode == Mode::Edit && app.filter_quick_add_date.is_none();
 
     for (idx, item) in app.filter_items.iter().enumerate() {
-        let is_selected = idx == app.filter_selected;
+        let is_selected = idx == app.filter_selected && app.filter_quick_add_date.is_none();
         let is_editing_this = is_selected && is_editing;
 
         let content_style = if item.completed {
@@ -142,7 +142,32 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
         }
     }
 
-    if app.filter_items.is_empty() {
+    if app.filter_quick_add_date.is_some() {
+        let text = if let Some(ref buffer) = app.edit_buffer {
+            buffer.content().to_string()
+        } else {
+            String::new()
+        };
+        let prefix = app.filter_quick_add_type.prefix();
+        let prefix_width = prefix.width();
+        let available = width.saturating_sub(prefix_width);
+        let wrapped = wrap_text(&text, available);
+
+        if wrapped.is_empty() {
+            lines.push(RatatuiLine::from(Span::raw(prefix.to_string())));
+        } else {
+            for (i, line_text) in wrapped.iter().enumerate() {
+                if i == 0 {
+                    lines.push(RatatuiLine::from(format!("{prefix}{line_text}")));
+                } else {
+                    let indent = " ".repeat(prefix_width);
+                    lines.push(RatatuiLine::from(format!("{indent}{line_text}")));
+                }
+            }
+        }
+    }
+
+    if app.filter_items.is_empty() && app.filter_quick_add_date.is_none() {
         lines.push(RatatuiLine::from(Span::styled(
             "(no matches)",
             Style::default().fg(Color::DarkGray),
@@ -487,6 +512,12 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
         desc_style,
     ));
     lines.push(help_line("g/G", "Jump first/last", key_style, desc_style));
+    lines.push(help_line(
+        "Enter",
+        "Quick add to today",
+        key_style,
+        desc_style,
+    ));
     lines.push(help_line("e", "Edit entry", key_style, desc_style));
     lines.push(help_line("x", "Toggle task", key_style, desc_style));
     lines.push(help_line("d", "Delete entry", key_style, desc_style));

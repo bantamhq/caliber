@@ -113,7 +113,8 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
 
     loop {
         let is_filter_mode = app.mode == Mode::Filter
-            || (app.mode == Mode::Edit && app.filter_edit_target.is_some())
+            || (app.mode == Mode::Edit
+                && (app.filter_edit_target.is_some() || app.filter_quick_add_date.is_some()))
             || (app.mode == Mode::FilterInput && !app.filter_query.is_empty());
 
         terminal.draw(|f| {
@@ -183,7 +184,39 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
             if app.mode == Mode::Edit
                 && let Some(ref buffer) = app.edit_buffer
             {
-                if let Some(item) = app
+                if app.filter_quick_add_date.is_some() {
+                    // Quick-add: cursor at bottom of filter list
+                    let prefix_width = app.filter_quick_add_type.prefix().len();
+                    let text_width = content_width.saturating_sub(prefix_width);
+
+                    let (cursor_row, cursor_col) = cursor_position_in_wrap(
+                        buffer.content(),
+                        buffer.cursor_display_pos(),
+                        text_width,
+                    );
+
+                    let entry_start_line = app.filter_items.len() + 1; // +1 for header
+                    let cursor_line = entry_start_line + cursor_row;
+
+                    if cursor_line >= app.filter_scroll_offset + visible_height {
+                        app.filter_scroll_offset = cursor_line - visible_height + 1;
+                    }
+
+                    if cursor_line >= app.filter_scroll_offset {
+                        let screen_row = cursor_line - app.filter_scroll_offset;
+
+                        #[allow(clippy::cast_possible_truncation)]
+                        let cursor_x = content_area.x + (prefix_width + cursor_col) as u16;
+                        #[allow(clippy::cast_possible_truncation)]
+                        let cursor_y = content_area.y + screen_row as u16;
+
+                        if cursor_x < content_area.x + content_area.width
+                            && cursor_y < content_area.y + content_area.height
+                        {
+                            f.set_cursor_position((cursor_x, cursor_y));
+                        }
+                    }
+                } else if let Some(item) = app
                     .filter_edit_target
                     .as_ref()
                     .and_then(|_| app.filter_items.get(app.filter_selected))

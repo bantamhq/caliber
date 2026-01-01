@@ -37,6 +37,8 @@ pub struct App {
     pub filter_selected: usize,
     pub filter_scroll_offset: usize,
     pub filter_edit_target: Option<(NaiveDate, usize)>,
+    pub filter_quick_add_date: Option<NaiveDate>,
+    pub filter_quick_add_type: EntryType,
 }
 
 impl App {
@@ -67,6 +69,8 @@ impl App {
             filter_selected: 0,
             filter_scroll_offset: 0,
             filter_edit_target: None,
+            filter_quick_add_date: None,
+            filter_quick_add_type: EntryType::Task { completed: false },
         })
     }
 
@@ -191,6 +195,29 @@ impl App {
         };
         let content = buffer.into_content();
 
+        // Handle filter quick-add mode
+        if let Some(date) = self.filter_quick_add_date {
+            if !content.trim().is_empty() {
+                if let Ok(mut lines) = storage::load_day_lines(date) {
+                    let entry = Entry {
+                        entry_type: self.filter_quick_add_type.clone(),
+                        content,
+                    };
+                    lines.push(Line::Entry(entry));
+                    let _ = storage::save_day_lines(date, &lines);
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                }
+                let _ = self.refresh_filter();
+                self.filter_selected = self.filter_items.len().saturating_sub(1);
+            }
+            // Start a new quick-add entry (reset type to task)
+            self.filter_quick_add_type = EntryType::Task { completed: false };
+            self.edit_buffer = Some(CursorBuffer::empty());
+            return;
+        }
+
         // Empty entries are auto-deleted to avoid cluttering the journal with blank lines
         if content.trim().is_empty() {
             let was_at_end = self.selected == self.entry_indices.len() - 1;
@@ -231,10 +258,35 @@ impl App {
     }
 
     pub fn exit_edit(&mut self) {
-        if let Some((date, line_index)) = self.filter_edit_target.take() {
+        if let Some(date) = self.filter_quick_add_date.take() {
             if let Some(buffer) = self.edit_buffer.take() {
                 let content = buffer.into_content();
-                if !content.trim().is_empty() {
+                if !content.trim().is_empty()
+                    && let Ok(mut lines) = storage::load_day_lines(date)
+                {
+                    let entry = Entry {
+                        entry_type: self.filter_quick_add_type.clone(),
+                        content,
+                    };
+                    lines.push(Line::Entry(entry));
+                    let _ = storage::save_day_lines(date, &lines);
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                }
+            }
+            let _ = self.refresh_filter();
+            self.filter_selected = self.filter_items.len().saturating_sub(1);
+            self.mode = Mode::Filter;
+        } else if let Some((date, line_index)) = self.filter_edit_target.take() {
+            if let Some(buffer) = self.edit_buffer.take() {
+                let content = buffer.into_content();
+                if content.trim().is_empty() {
+                    let _ = storage::delete_entry(date, line_index);
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                } else {
                     match storage::update_entry_content(date, line_index, content) {
                         Ok(false) => {
                             self.status_message = Some(format!(
@@ -245,7 +297,6 @@ impl App {
                             self.status_message = Some(format!("Failed to save: {e}"));
                         }
                         Ok(true) => {
-                            // Keep current day in sync if edited entry was from current day
                             if date == self.current_date {
                                 let _ = self.reload_current_day();
                             }
@@ -273,7 +324,7 @@ impl App {
 
     pub fn cancel_edit(&mut self) {
         self.edit_buffer = None;
-        if self.filter_edit_target.take().is_some() {
+        if self.filter_quick_add_date.take().is_some() || self.filter_edit_target.take().is_some() {
             self.mode = Mode::Filter;
         } else {
             if let Some(entry) = self.get_selected_entry()
@@ -333,35 +384,28 @@ impl App {
     }
 
     pub fn gather_completed_tasks(&mut self) {
-        let task_indices: Vec<usize> = self
+        // Extract completed tasks
+        let completed: Vec<Line> = self
             .lines
             .iter()
-            .enumerate()
-            .filter_map(|(i, line)| match line {
-                Line::Entry(e) if matches!(e.entry_type, EntryType::Task { .. }) => Some(i),
-                _ => None,
+            .filter(|line| {
+                matches!(line, Line::Entry(e) if matches!(e.entry_type, EntryType::Task { completed: true }))
             })
+            .cloned()
             .collect();
 
-        if task_indices.is_empty() {
+        if completed.is_empty() {
             return;
         }
 
-        let mut tasks: Vec<Entry> = task_indices
-            .iter()
-            .filter_map(|&i| {
-                if let Line::Entry(e) = &self.lines[i] {
-                    Some(e.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        // Remove completed tasks from their current positions
+        self.lines.retain(|line| {
+            !matches!(line, Line::Entry(e) if matches!(e.entry_type, EntryType::Task { completed: true }))
+        });
 
-        tasks.sort_by_key(|e| !matches!(e.entry_type, EntryType::Task { completed: true }));
-
-        for (slot, &line_idx) in task_indices.iter().enumerate() {
-            self.lines[line_idx] = Line::Entry(tasks[slot].clone());
+        // Insert completed tasks at the beginning
+        for (i, line) in completed.into_iter().enumerate() {
+            self.lines.insert(i, line);
         }
 
         self.entry_indices = Self::compute_entry_indices(&self.lines);
@@ -468,7 +512,7 @@ impl App {
         self.filter_query = self.filter_buffer.clone();
         let filter = storage::parse_filter_query(&self.filter_query);
         self.filter_items = storage::collect_filtered_entries(&filter)?;
-        self.filter_selected = 0;
+        self.filter_selected = self.filter_items.len().saturating_sub(1);
         self.filter_scroll_offset = 0;
         self.mode = Mode::Filter;
         Ok(())
@@ -618,6 +662,22 @@ impl App {
         self.filter_edit_target = Some((item.source_date, item.line_index));
         self.edit_buffer = Some(CursorBuffer::new(item.content.clone()));
         self.mode = Mode::Edit;
+    }
+
+    pub fn filter_quick_add(&mut self) {
+        let today = Local::now().date_naive();
+        self.filter_quick_add_date = Some(today);
+        self.filter_quick_add_type = EntryType::Task { completed: false };
+        self.edit_buffer = Some(CursorBuffer::empty());
+        self.mode = Mode::Edit;
+    }
+
+    pub fn cycle_quick_add_type(&mut self) {
+        self.filter_quick_add_type = match self.filter_quick_add_type {
+            EntryType::Task { .. } => EntryType::Note,
+            EntryType::Note => EntryType::Event,
+            EntryType::Event => EntryType::Task { completed: false },
+        };
     }
 
     pub fn filter_cycle_entry_type(&mut self) -> io::Result<()> {
