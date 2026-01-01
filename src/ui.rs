@@ -575,7 +575,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(help_line("t", "Go to today", key_style, desc_style));
     lines.push(help_line(
         "s",
-        "Sort completed to top",
+        "Sort entries",
         key_style,
         desc_style,
     ));

@@ -785,7 +785,7 @@ impl App {
         }
     }
 
-    pub fn gather_completed_tasks(&mut self) {
+    pub fn sort_entries(&mut self) {
         let completed: Vec<Line> = self
             .lines
             .iter()

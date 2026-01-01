@@ -108,7 +108,7 @@ pub fn handle_normal_key(app: &mut App, key: KeyCode) -> io::Result<()> {
             KeyCode::Char('h' | '[') => app.prev_day()?,
             KeyCode::Char('l' | ']') => app.next_day()?,
             KeyCode::Char('t') => app.goto_today()?,
-            KeyCode::Char('s') => app.gather_completed_tasks(),
+            KeyCode::Char('s') => app.sort_entries(),
             KeyCode::Char('m') => app.enter_order_mode(),
             _ => {}
         },
