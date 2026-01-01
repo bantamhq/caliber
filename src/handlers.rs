@@ -52,20 +52,23 @@ pub fn handle_normal_key(app: &mut App, key: KeyCode) -> io::Result<()> {
         KeyCode::Char(':') => app.mode = Mode::Command,
         KeyCode::Tab => app.enter_tasks_mode()?,
         KeyCode::Enter => app.new_task(true),
-        KeyCode::Char('i') => app.new_task(false),
+        KeyCode::Char('o') => app.new_task(false),
         KeyCode::Char('e') => app.edit_selected(),
         KeyCode::Char('x') => app.toggle_task(),
         KeyCode::Char('d') => {
             app.delete_selected();
             app.save();
         }
+        KeyCode::Char('u') => app.undo(),
         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
+        KeyCode::Char('g') => app.jump_to_first(),
+        KeyCode::Char('G') => app.jump_to_last(),
         KeyCode::Char('h' | '[') => app.prev_day()?,
         KeyCode::Char('l' | ']') => app.next_day()?,
         KeyCode::Char('t') => app.goto_today()?,
-        KeyCode::Char('g') => app.gather_completed_tasks(),
-        KeyCode::Char('o') => app.enter_order_mode(),
+        KeyCode::Char('s') => app.gather_completed_tasks(),
+        KeyCode::Char('m') => app.enter_order_mode(),
         _ => {}
     }
     Ok(())
@@ -75,7 +78,8 @@ pub fn handle_editing_key(app: &mut App, key: KeyCode) {
     match key {
         KeyCode::BackTab => app.cycle_entry_type(),
         KeyCode::Tab => app.commit_and_add_new(),
-        KeyCode::Enter | KeyCode::Esc => app.exit_edit(),
+        KeyCode::Enter => app.exit_edit(),
+        KeyCode::Esc => app.cancel_edit(),
         KeyCode::Backspace => {
             if let Some(ref mut buffer) = app.edit_buffer
                 && !buffer.delete_char_before()
@@ -122,7 +126,7 @@ pub fn handle_tasks_key(app: &mut App, key: KeyCode) -> io::Result<()> {
 
 pub fn handle_order_key(app: &mut App, key: KeyCode) {
     match key {
-        KeyCode::Char('o') | KeyCode::Enter => app.exit_order_mode(true),
+        KeyCode::Char('m') | KeyCode::Enter => app.exit_order_mode(true),
         KeyCode::Esc => app.exit_order_mode(false),
         KeyCode::Up | KeyCode::Char('k') => app.order_move_up(),
         KeyCode::Down | KeyCode::Char('j') => app.order_move_down(),

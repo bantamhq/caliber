@@ -35,6 +35,7 @@ pub struct App {
     pub original_lines: Option<Vec<Line>>,
     pub scroll_offset: usize,
     pub task_scroll_offset: usize,
+    pub last_deleted: Option<(usize, Entry)>,
 }
 
 impl App {
@@ -61,6 +62,7 @@ impl App {
             original_lines: None,
             scroll_offset: 0,
             task_scroll_offset: 0,
+            last_deleted: None,
         })
     }
 
@@ -191,12 +193,24 @@ impl App {
             return;
         }
 
+        let entry_type = self
+            .get_selected_entry()
+            .map(|e| e.entry_type.clone())
+            .unwrap_or(EntryType::Task { completed: false });
+
         if let Some(entry) = self.get_selected_entry_mut() {
             entry.content = content;
         }
         self.save();
 
-        self.add_entry(Entry::new_task(""), false);
+        let new_entry = Entry {
+            entry_type: match entry_type {
+                EntryType::Task { .. } => EntryType::Task { completed: false },
+                other => other,
+            },
+            content: String::new(),
+        };
+        self.add_entry(new_entry, false);
     }
 
     pub fn edit_selected(&mut self) {
@@ -221,17 +235,43 @@ impl App {
         self.mode = Mode::Daily;
     }
 
+    pub fn cancel_edit(&mut self) {
+        self.edit_buffer = None;
+        if let Some(entry) = self.get_selected_entry()
+            && entry.content.is_empty()
+        {
+            self.delete_selected();
+            self.scroll_offset = 0;
+        }
+        self.mode = Mode::Daily;
+    }
+
     pub fn delete_selected(&mut self) {
         if self.entry_indices.is_empty() {
             return;
         }
 
         let line_idx = self.entry_indices[self.selected];
+        if let Line::Entry(entry) = &self.lines[line_idx] {
+            self.last_deleted = Some((line_idx, entry.clone()));
+        }
         self.lines.remove(line_idx);
         self.entry_indices = Self::compute_entry_indices(&self.lines);
 
         if !self.entry_indices.is_empty() && self.selected >= self.entry_indices.len() {
             self.selected = self.entry_indices.len() - 1;
+        }
+    }
+
+    pub fn undo(&mut self) {
+        if let Some((line_idx, entry)) = self.last_deleted.take() {
+            let insert_idx = line_idx.min(self.lines.len());
+            self.lines.insert(insert_idx, Line::Entry(entry));
+            self.entry_indices = Self::compute_entry_indices(&self.lines);
+            if let Some(pos) = self.entry_indices.iter().position(|&i| i == insert_idx) {
+                self.selected = pos;
+            }
+            self.save();
         }
     }
 
@@ -285,7 +325,6 @@ impl App {
         }
 
         self.entry_indices = Self::compute_entry_indices(&self.lines);
-        self.selected = 0;
         self.save();
     }
 
@@ -338,6 +377,16 @@ impl App {
     pub fn move_down(&mut self) {
         if !self.entry_indices.is_empty() && self.selected < self.entry_indices.len() - 1 {
             self.selected += 1;
+        }
+    }
+
+    pub fn jump_to_first(&mut self) {
+        self.selected = 0;
+    }
+
+    pub fn jump_to_last(&mut self) {
+        if !self.entry_indices.is_empty() {
+            self.selected = self.entry_indices.len() - 1;
         }
     }
 
