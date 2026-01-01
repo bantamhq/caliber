@@ -136,10 +136,26 @@ pub fn handle_filter_key(app: &mut App, key: KeyCode) -> io::Result<()> {
 
 pub fn handle_filter_input_key(app: &mut App, key: KeyCode) -> io::Result<()> {
     match key {
-        KeyCode::Enter => app.execute_filter()?,
-        KeyCode::Esc => app.cancel_filter_input(),
+        KeyCode::Enter => {
+            if app.filter_buffer.is_empty() {
+                app.cancel_filter_input();
+            } else {
+                app.execute_filter()?;
+            }
+        }
+        KeyCode::Esc => {
+            if app.filter_buffer.is_empty() {
+                app.cancel_filter_input();
+            } else {
+                app.filter_buffer.clear();
+            }
+        }
         KeyCode::Backspace => {
-            app.filter_buffer.pop();
+            if app.filter_buffer.is_empty() {
+                app.cancel_filter_input();
+            } else {
+                app.filter_buffer.pop();
+            }
         }
         KeyCode::Char(c) => app.filter_buffer.push(c),
         _ => {}

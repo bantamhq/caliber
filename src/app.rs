@@ -596,6 +596,10 @@ impl App {
             return Ok(());
         };
 
+        if !matches!(item.entry_type, EntryType::Task { .. }) {
+            return Ok(());
+        }
+
         let date = item.source_date;
         let line_index = item.line_index;
 

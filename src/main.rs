@@ -199,7 +199,8 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
 
     loop {
         let is_filter_mode = app.mode == Mode::Filter
-            || (app.mode == Mode::Edit && app.filter_edit_target.is_some());
+            || (app.mode == Mode::Edit && app.filter_edit_target.is_some())
+            || (app.mode == Mode::FilterInput && !app.filter_query.is_empty());
 
         terminal.draw(|f| {
             let size = f.area();
