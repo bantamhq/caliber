@@ -70,6 +70,7 @@ impl App {
         })
     }
 
+    #[must_use]
     pub fn compute_entry_indices(lines: &[Line]) -> Vec<usize> {
         lines
             .iter()
@@ -108,6 +109,9 @@ impl App {
         }
     }
 
+    /// Saves current day's lines to storage, displaying any error as a status message.
+    /// Unlike internal storage operations that propagate errors, this is designed for
+    /// use in handlers where user feedback is preferred over error propagation.
     pub fn save(&mut self) {
         if let Err(e) = storage::save_day_lines(self.current_date, &self.lines) {
             self.status_message = Some(format!("Failed to save: {e}"));
@@ -187,6 +191,7 @@ impl App {
         };
         let content = buffer.into_content();
 
+        // Empty entries are auto-deleted to avoid cluttering the journal with blank lines
         if content.trim().is_empty() {
             let was_at_end = self.selected == self.entry_indices.len() - 1;
             self.delete_selected();
@@ -230,7 +235,7 @@ impl App {
             if let Some(buffer) = self.edit_buffer.take() {
                 let content = buffer.into_content();
                 if !content.trim().is_empty() {
-                    match Self::update_entry_in_storage(date, line_index, content) {
+                    match storage::update_entry_content(date, line_index, content) {
                         Ok(false) => {
                             self.status_message = Some(format!(
                                 "Failed to update: no entry at index {line_index} for {date}"
@@ -253,6 +258,7 @@ impl App {
         } else {
             if let Some(buffer) = self.edit_buffer.take() {
                 let content = buffer.into_content();
+                // Empty entries are auto-deleted to avoid cluttering the journal
                 if content.trim().is_empty() {
                     self.delete_selected();
                     self.scroll_offset = 0;
@@ -278,20 +284,6 @@ impl App {
             }
             self.mode = Mode::Daily;
         }
-    }
-
-    fn update_entry_in_storage(date: NaiveDate, line_index: usize, content: String) -> io::Result<bool> {
-        let mut lines = storage::load_day_lines(date)?;
-        let updated = if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
-            entry.content = content;
-            true
-        } else {
-            false
-        };
-        if updated {
-            storage::save_day_lines(date, &lines)?;
-        }
-        Ok(updated)
     }
 
     pub fn delete_selected(&mut self) {
@@ -603,7 +595,7 @@ impl App {
         let date = item.source_date;
         let line_index = item.line_index;
 
-        Self::toggle_entry_in_storage(date, line_index)?;
+        storage::toggle_entry_complete(date, line_index)?;
 
         let item = &mut self.filter_items[self.filter_selected];
         item.completed = !item.completed;
@@ -636,7 +628,7 @@ impl App {
         let date = item.source_date;
         let line_index = item.line_index;
 
-        let new_type = Self::cycle_entry_in_storage(date, line_index)?;
+        let new_type = storage::cycle_entry_type(date, line_index)?;
 
         if let Some(new_type) = new_type {
             let item = &mut self.filter_items[self.filter_selected];
@@ -659,8 +651,15 @@ impl App {
         let date = item.source_date;
         let line_index = item.line_index;
 
-        Self::delete_entry_in_storage(date, line_index)?;
+        storage::delete_entry(date, line_index)?;
         self.filter_items.remove(self.filter_selected);
+
+        // Adjust line indices for remaining items from the same date
+        for item in &mut self.filter_items {
+            if item.source_date == date && item.line_index > line_index {
+                item.line_index -= 1;
+            }
+        }
 
         if !self.filter_items.is_empty() && self.filter_selected >= self.filter_items.len() {
             self.filter_selected = self.filter_items.len() - 1;
@@ -671,38 +670,6 @@ impl App {
         }
 
         Ok(())
-    }
-
-    fn toggle_entry_in_storage(date: NaiveDate, line_index: usize) -> io::Result<()> {
-        let mut lines = storage::load_day_lines(date)?;
-        if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
-            entry.toggle_complete();
-        }
-        storage::save_day_lines(date, &lines)
-    }
-
-    fn cycle_entry_in_storage(date: NaiveDate, line_index: usize) -> io::Result<Option<EntryType>> {
-        let mut lines = storage::load_day_lines(date)?;
-        let new_type = if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
-            entry.entry_type = match entry.entry_type {
-                EntryType::Task { .. } => EntryType::Note,
-                EntryType::Note => EntryType::Event,
-                EntryType::Event => EntryType::Task { completed: false },
-            };
-            Some(entry.entry_type.clone())
-        } else {
-            None
-        };
-        storage::save_day_lines(date, &lines)?;
-        Ok(new_type)
-    }
-
-    fn delete_entry_in_storage(date: NaiveDate, line_index: usize) -> io::Result<()> {
-        let mut lines = storage::load_day_lines(date)?;
-        if line_index < lines.len() {
-            lines.remove(line_index);
-        }
-        storage::save_day_lines(date, &lines)
     }
 
     fn reload_current_day(&mut self) -> io::Result<()> {

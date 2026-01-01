@@ -1,16 +1,13 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line as RatatuiLine, Span},
 };
-use regex::Regex;
 
 use crate::app::{App, Mode};
-use crate::storage::{EntryType, Line};
-
-static TAG_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"#([a-zA-Z][a-zA-Z0-9_-]*)").unwrap());
-static LATER_DATE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"@(\d{1,2}/\d{1,2})").unwrap());
+use crate::storage::{EntryType, LATER_DATE_REGEX, Line, TAG_REGEX};
 
 fn style_content(text: &str, base_style: Style) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
@@ -87,12 +84,7 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
             item.content.clone()
         };
 
-        let prefix = match &item.entry_type {
-            EntryType::Task { completed: false } => "- [ ] ",
-            EntryType::Task { completed: true } => "- [x] ",
-            EntryType::Note => "- ",
-            EntryType::Event => "* ",
-        };
+        let prefix = item.entry_type.prefix();
         let prefix_width = prefix.width();
 
         let date_suffix = format!(" ({})", item.source_date.format("%m/%d"));
@@ -106,7 +98,10 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
                     if i == 0 {
                         let mut spans = vec![Span::styled(prefix.to_string(), content_style)];
                         spans.push(Span::styled(line_text.clone(), content_style));
-                        spans.push(Span::styled(date_suffix.clone(), Style::default().fg(Color::DarkGray)));
+                        spans.push(Span::styled(
+                            date_suffix.clone(),
+                            Style::default().fg(Color::DarkGray),
+                        ));
                         lines.push(RatatuiLine::from(spans));
                     } else {
                         let indent = " ".repeat(prefix_width);
@@ -128,7 +123,10 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
                 let mut spans = vec![Span::styled("→", Style::default().fg(Color::Cyan))];
                 spans.push(Span::styled(sel_prefix.to_string(), content_style));
                 spans.extend(style_content(&display_text, content_style));
-                spans.push(Span::styled(date_suffix, Style::default().fg(Color::DarkGray)));
+                spans.push(Span::styled(
+                    date_suffix,
+                    Style::default().fg(Color::DarkGray),
+                ));
                 lines.push(RatatuiLine::from(spans));
             }
         } else {
@@ -136,7 +134,10 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
             let display_text = truncate_text(&text, available);
             let mut spans = vec![Span::styled(prefix.to_string(), content_style)];
             spans.extend(style_content(&display_text, content_style));
-            spans.push(Span::styled(date_suffix, Style::default().fg(Color::DarkGray)));
+            spans.push(Span::styled(
+                date_suffix,
+                Style::default().fg(Color::DarkGray),
+            ));
             lines.push(RatatuiLine::from(spans));
         }
     }
@@ -187,7 +188,6 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
             let prefix_width = prefix.width();
 
             if is_editing {
-                // Wrap editing entry to multiple lines
                 let wrapped = wrap_text(&text, width.saturating_sub(prefix_width));
                 for (i, line_text) in wrapped.iter().enumerate() {
                     if i == 0 {
@@ -196,7 +196,6 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
                             content_style,
                         )));
                     } else {
-                        // Continuation lines: indent to align with content
                         let indent = " ".repeat(prefix_width);
                         lines.push(RatatuiLine::from(Span::styled(
                             format!("{indent}{line_text}"),
@@ -394,8 +393,10 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         .split(vertical[1])[1]
 }
 
+static HELP_LINES: LazyLock<Vec<RatatuiLine<'static>>> = LazyLock::new(build_help_lines);
+
 #[allow(clippy::vec_init_then_push)]
-pub fn get_help_lines() -> Vec<RatatuiLine<'static>> {
+fn build_help_lines() -> Vec<RatatuiLine<'static>> {
     let header_style = Style::default().fg(Color::Cyan);
     let key_style = Style::default().fg(Color::Yellow);
     let desc_style = Style::default().fg(Color::White);
@@ -500,7 +501,12 @@ pub fn get_help_lines() -> Vec<RatatuiLine<'static>> {
         RatatuiLine::from(Span::styled("[Filter Syntax]", header_style))
             .alignment(Alignment::Center),
     );
-    lines.push(help_line("!tasks", "Incomplete tasks", key_style, desc_style));
+    lines.push(help_line(
+        "!tasks",
+        "Incomplete tasks",
+        key_style,
+        desc_style,
+    ));
     lines.push(help_line(
         "!tasks/done",
         "Completed tasks",
@@ -535,13 +541,14 @@ fn help_line(key: &str, desc: &str, key_style: Style, desc_style: Style) -> Rata
 }
 
 pub fn get_help_total_lines() -> usize {
-    get_help_lines().len()
+    HELP_LINES.len()
 }
 
 pub fn render_help_content(scroll: usize, visible_height: usize) -> Vec<RatatuiLine<'static>> {
-    get_help_lines()
-        .into_iter()
+    HELP_LINES
+        .iter()
         .skip(scroll)
         .take(visible_height)
+        .cloned()
         .collect()
 }

@@ -24,6 +24,7 @@ use unicode_width::UnicodeWidthStr;
 
 use app::{App, Mode};
 use config::Config;
+use cursor::cursor_position_in_wrap;
 
 fn ensure_selected_visible(
     scroll_offset: &mut usize,
@@ -41,93 +42,6 @@ fn ensure_selected_visible(
     if selected >= *scroll_offset + visible_height {
         *scroll_offset = selected - visible_height + 1;
     }
-}
-
-fn cursor_position_in_wrap(
-    text: &str,
-    cursor_display_pos: usize,
-    max_width: usize,
-) -> (usize, usize) {
-    use unicode_width::UnicodeWidthStr;
-
-    if max_width == 0 {
-        return (0, cursor_display_pos);
-    }
-
-    let mut row = 0;
-    let mut line_width = 0;
-    let mut total_width = 0;
-
-    for word in text.split_inclusive(' ') {
-        let word_width = word.width();
-        let word_start = total_width;
-
-        // Determine if this word fits or needs new line
-        let (word_row, word_line_start) = if line_width + word_width <= max_width {
-            // Word fits on current line
-            let start_col = line_width;
-            line_width += word_width;
-            (row, start_col)
-        } else if line_width == 0 {
-            // Word is too long but line is empty - will be broken by character
-            (row, 0)
-        } else {
-            // Start new line with this word
-            row += 1;
-            line_width = word_width;
-            (row, 0)
-        };
-
-        // Check if cursor is within this word
-        let word_end = word_start + word_width;
-        if cursor_display_pos >= word_start && cursor_display_pos < word_end {
-            // Cursor is in this word - but we need to handle character breaking for long words
-            if line_width == 0 || word_width <= max_width || word_line_start > 0 {
-                // Word fits on a line normally
-                return (word_row, word_line_start + (cursor_display_pos - word_start));
-            } else {
-                // Word is being broken by character - simulate character-by-character
-                let mut char_row = word_row;
-                let mut char_col = word_line_start;
-                let mut char_pos = word_start;
-
-                for ch in word.chars() {
-                    let ch_width = ch.to_string().width();
-
-                    if char_pos == cursor_display_pos {
-                        return (char_row, char_col);
-                    }
-
-                    if char_col + ch_width > max_width && char_col > 0 {
-                        char_row += 1;
-                        char_col = 0;
-                    }
-
-                    char_col += ch_width;
-                    char_pos += ch_width;
-                }
-            }
-        }
-
-        // Handle character breaking for overly long words (update row/line_width)
-        if word_width > max_width && word_line_start == 0 {
-            let mut char_col = 0;
-            for ch in word.chars() {
-                let ch_width = ch.to_string().width();
-                if char_col + ch_width > max_width && char_col > 0 {
-                    row += 1;
-                    char_col = 0;
-                }
-                char_col += ch_width;
-            }
-            line_width = char_col;
-        }
-
-        total_width = word_end;
-    }
-
-    // Cursor is at the end of text - stays on current line
-    (row, line_width)
 }
 
 fn main() -> Result<(), io::Error> {
@@ -254,6 +168,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
                     app.entry_indices.len() + 1,
                     visible_height,
                 );
+                // Keep date header visible when first entry is selected
                 if app.selected == 0 {
                     app.scroll_offset = 0;
                 }
@@ -268,14 +183,12 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
             if app.mode == Mode::Edit
                 && let Some(ref buffer) = app.edit_buffer
             {
-                if let Some(item) = app.filter_edit_target.as_ref().and_then(|_| {
-                    app.filter_items.get(app.filter_selected)
-                }) {
-                    let prefix_width = match &item.entry_type {
-                        storage::EntryType::Task { .. } => 6,
-                        storage::EntryType::Note => 2,
-                        storage::EntryType::Event => 2,
-                    };
+                if let Some(item) = app
+                    .filter_edit_target
+                    .as_ref()
+                    .and_then(|_| app.filter_items.get(app.filter_selected))
+                {
+                    let prefix_width = item.entry_type.prefix().len();
                     let date_suffix_width = 8;
                     let text_width = content_width.saturating_sub(prefix_width + date_suffix_width);
 
@@ -419,7 +332,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
             }
         })?;
 
-        if event::poll(std::time::Duration::from_millis(100))?
+        if event::poll(std::time::Duration::from_millis(16))?
             && let Event::Key(key) = event::read()?
         {
             app.status_message = None;

@@ -87,6 +87,87 @@ impl CursorBuffer {
     }
 }
 
+/// Calculates the (row, column) position of a cursor within word-wrapped text.
+/// Used to position the terminal cursor correctly when editing wrapped content.
+#[must_use]
+pub fn cursor_position_in_wrap(
+    text: &str,
+    cursor_display_pos: usize,
+    max_width: usize,
+) -> (usize, usize) {
+    if max_width == 0 {
+        return (0, cursor_display_pos);
+    }
+
+    let mut row = 0;
+    let mut line_width = 0;
+    let mut total_width = 0;
+
+    for word in text.split_inclusive(' ') {
+        let word_width = word.width();
+        let word_start = total_width;
+
+        let (word_row, word_line_start) = if line_width + word_width <= max_width {
+            let start_col = line_width;
+            line_width += word_width;
+            (row, start_col)
+        } else if line_width == 0 {
+            (row, 0)
+        } else {
+            row += 1;
+            line_width = word_width;
+            (row, 0)
+        };
+
+        let word_end = word_start + word_width;
+        if cursor_display_pos >= word_start && cursor_display_pos < word_end {
+            if line_width == 0 || word_width <= max_width || word_line_start > 0 {
+                return (
+                    word_row,
+                    word_line_start + (cursor_display_pos - word_start),
+                );
+            } else {
+                let mut char_row = word_row;
+                let mut char_col = word_line_start;
+                let mut char_pos = word_start;
+
+                for ch in word.chars() {
+                    let ch_width = ch.to_string().width();
+
+                    if char_pos == cursor_display_pos {
+                        return (char_row, char_col);
+                    }
+
+                    if char_col + ch_width > max_width && char_col > 0 {
+                        char_row += 1;
+                        char_col = 0;
+                    }
+
+                    char_col += ch_width;
+                    char_pos += ch_width;
+                }
+            }
+        }
+
+        if word_width > max_width && word_line_start == 0 {
+            let mut char_col = 0;
+            for ch in word.chars() {
+                let ch_width = ch.to_string().width();
+                if char_col + ch_width > max_width && char_col > 0 {
+                    row += 1;
+                    char_col = 0;
+                }
+                char_col += ch_width;
+            }
+            line_width = char_col;
+        }
+
+        total_width = word_end;
+    }
+
+    (row, line_width)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

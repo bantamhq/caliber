@@ -1,8 +1,9 @@
 use chrono::NaiveDate;
+use regex::Regex;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 
 static JOURNAL_PATH: OnceLock<PathBuf> = OnceLock::new();
 
@@ -21,6 +22,18 @@ pub enum EntryType {
     Event,
 }
 
+impl EntryType {
+    #[must_use]
+    pub fn prefix(&self) -> &'static str {
+        match self {
+            Self::Task { completed: false } => "- [ ] ",
+            Self::Task { completed: true } => "- [x] ",
+            Self::Note => "- ",
+            Self::Event => "* ",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
     pub entry_type: EntryType,
@@ -36,12 +49,7 @@ impl Entry {
     }
 
     pub fn prefix(&self) -> &'static str {
-        match &self.entry_type {
-            EntryType::Task { completed: false } => "- [ ] ",
-            EntryType::Task { completed: true } => "- [x] ",
-            EntryType::Note => "- ",
-            EntryType::Event => "* ",
-        }
+        self.entry_type.prefix()
     }
 
     pub fn toggle_complete(&mut self) {
@@ -91,6 +99,7 @@ fn parse_line(line: &str) -> Line {
     Line::Raw(line.to_string())
 }
 
+#[must_use]
 pub fn parse_lines(content: &str) -> Vec<Line> {
     content.lines().map(parse_line).collect()
 }
@@ -102,6 +111,7 @@ fn serialize_line(line: &Line) -> String {
     }
 }
 
+#[must_use]
 pub fn serialize_lines(lines: &[Line]) -> String {
     lines
         .iter()
@@ -118,6 +128,62 @@ pub fn load_day_lines(date: NaiveDate) -> io::Result<Vec<Line>> {
 pub fn save_day_lines(date: NaiveDate, lines: &[Line]) -> io::Result<()> {
     let content = serialize_lines(lines);
     save_day(date, &content)
+}
+
+/// Updates an entry's content at a specific line index for a given date.
+/// Returns Ok(true) if update succeeded, Ok(false) if no entry at that index.
+pub fn update_entry_content(
+    date: NaiveDate,
+    line_index: usize,
+    content: String,
+) -> io::Result<bool> {
+    let mut lines = load_day_lines(date)?;
+    let updated = if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
+        entry.content = content;
+        true
+    } else {
+        false
+    };
+    if updated {
+        save_day_lines(date, &lines)?;
+    }
+    Ok(updated)
+}
+
+/// Toggles the completion status of a task at a specific line index.
+pub fn toggle_entry_complete(date: NaiveDate, line_index: usize) -> io::Result<()> {
+    let mut lines = load_day_lines(date)?;
+    if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
+        entry.toggle_complete();
+    }
+    save_day_lines(date, &lines)
+}
+
+/// Cycles the entry type (Task -> Note -> Event -> Task) at a specific line index.
+/// Returns the new entry type if successful.
+pub fn cycle_entry_type(date: NaiveDate, line_index: usize) -> io::Result<Option<EntryType>> {
+    let mut lines = load_day_lines(date)?;
+    let new_type = if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
+        entry.entry_type = match entry.entry_type {
+            EntryType::Task { .. } => EntryType::Note,
+            EntryType::Note => EntryType::Event,
+            EntryType::Event => EntryType::Task { completed: false },
+        };
+        Some(entry.entry_type.clone())
+    } else {
+        None
+    };
+    save_day_lines(date, &lines)?;
+    Ok(new_type)
+}
+
+/// Deletes an entry at a specific line index for a given date.
+pub fn delete_entry(date: NaiveDate, line_index: usize) -> io::Result<()> {
+    let mut lines = load_day_lines(date)?;
+    if line_index < lines.len() {
+        lines.remove(line_index);
+    }
+    save_day_lines(date, &lines)
 }
 
 pub fn get_journal_path() -> PathBuf {
@@ -315,9 +381,6 @@ pub fn save_day(date: NaiveDate, content: &str) -> io::Result<()> {
     save_journal(&updated)
 }
 
-use once_cell::sync::Lazy;
-use regex::Regex;
-
 #[derive(Debug, Clone)]
 pub struct FilterItem {
     pub source_date: NaiveDate,
@@ -341,8 +404,13 @@ pub struct Filter {
     pub tags: Vec<String>,
 }
 
-static TAG_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"#([a-zA-Z][a-zA-Z0-9_-]*)").unwrap());
+pub static TAG_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"#([a-zA-Z][a-zA-Z0-9_-]*)").unwrap());
 
+pub static LATER_DATE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"@(\d{1,2}/\d{1,2})").unwrap());
+
+#[must_use]
 pub fn extract_tags(content: &str) -> Vec<String> {
     TAG_REGEX
         .captures_iter(content)
@@ -350,6 +418,7 @@ pub fn extract_tags(content: &str) -> Vec<String> {
         .collect()
 }
 
+#[must_use]
 pub fn parse_filter_query(query: &str) -> Filter {
     let mut filter = Filter::default();
 
@@ -441,7 +510,10 @@ fn entry_matches_filter(entry: &Entry, filter: &Filter) -> bool {
     if !filter.tags.is_empty() {
         let entry_tags = extract_tags(&entry.content);
         for required_tag in &filter.tags {
-            if !entry_tags.iter().any(|t| t.eq_ignore_ascii_case(required_tag)) {
+            if !entry_tags
+                .iter()
+                .any(|t| t.eq_ignore_ascii_case(required_tag))
+            {
                 return false;
             }
         }

@@ -36,7 +36,7 @@ caliber init         # Create config file
 | `t` | Go to today |
 | `s` | Sort completed tasks to top |
 | `m` | Move mode (rearrange entries) |
-| `Tab` | Switch to Tasks view |
+| `/` | Filter mode |
 | `?` | Show help |
 | `:goto` or `:gt` | Go to date (YYYY/MM/DD or MM/DD) |
 | `:q` | Quit |
@@ -61,18 +61,35 @@ Rearrange entries within a day.
 | `←/→` | Move cursor |
 | `Esc` | Cancel (discard changes) |
 
-### Tasks View
+### Filter Mode
 
-Shows incomplete tasks across all days.
+Search and filter entries across all days. Press `/` to enter a filter query.
 
 | Key | Action |
 |-----|--------|
 | `j/k` | Navigate down/up |
+| `g/G` | Jump to first/last |
+| `e` | Edit entry |
 | `x` | Toggle task |
-| `r` | Refresh list |
-| `Enter` | Go to selected day |
-| `Tab` | Return to Daily |
+| `d` | Delete entry |
+| `r` | Refresh results |
+| `v` | Jump to day (view in context) |
+| `/` | Edit filter query |
+| `Esc` | Exit filter mode |
 | `?` | Show help |
+
+#### Filter Syntax
+
+| Query | Matches |
+|-------|---------|
+| `!tasks` | Incomplete tasks |
+| `!tasks/done` | Completed tasks |
+| `!tasks/all` | All tasks |
+| `!notes` | Notes only |
+| `!events` | Events only |
+| `#tag` | Entries with tag |
+
+Combine filters: `!tasks #work` finds incomplete tasks tagged #work.
 
 ## Journal Format
 
