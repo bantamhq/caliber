@@ -5,40 +5,95 @@ use chrono::{Datelike, Days, Local, NaiveDate};
 use crate::cursor::CursorBuffer;
 use crate::storage::{self, Entry, EntryType, FilterItem, Line};
 
-#[derive(PartialEq, Clone)]
-pub enum Mode {
-    Daily,
-    Edit,
+/// State specific to the Daily view
+#[derive(Clone)]
+pub struct DailyState {
+    pub selected: usize,
+    pub scroll_offset: usize,
+    pub original_lines: Option<Vec<Line>>,
+}
+
+impl DailyState {
+    #[must_use]
+    pub fn new(entry_count: usize) -> Self {
+        Self {
+            selected: entry_count.saturating_sub(1),
+            scroll_offset: 0,
+            original_lines: None,
+        }
+    }
+}
+
+/// State specific to the Filter view
+#[derive(Clone)]
+pub struct FilterState {
+    pub query: String,
+    pub query_buffer: String,
+    pub items: Vec<FilterItem>,
+    pub selected: usize,
+    pub scroll_offset: usize,
+}
+
+/// Which view is currently active and its state
+#[derive(Clone)]
+pub enum ViewMode {
+    Daily(DailyState),
+    Filter(FilterState),
+}
+
+/// Context for what is being edited
+#[derive(Clone, PartialEq)]
+pub enum EditContext {
+    /// Editing an entry in Daily view
+    Daily { entry_index: usize },
+    /// Editing an existing entry from Filter view
+    FilterEdit {
+        date: NaiveDate,
+        line_index: usize,
+        filter_index: usize,
+    },
+    /// Quick-adding a new entry from Filter view
+    FilterQuickAdd {
+        date: NaiveDate,
+        entry_type: EntryType,
+    },
+}
+
+/// What keyboard handler to use
+#[derive(Clone, PartialEq)]
+pub enum InputMode {
+    Normal,
+    Edit(EditContext),
     Command,
     Order,
-    FilterInput,
-    Filter,
+    QueryInput,
 }
 
 pub struct App {
+    // Core data (always loaded)
     pub current_date: NaiveDate,
     pub lines: Vec<Line>,
     pub entry_indices: Vec<usize>,
-    pub selected: usize,
+
+    // View & Input state
+    pub view: ViewMode,
+    pub input_mode: InputMode,
+
+    // Edit buffer
     pub edit_buffer: Option<CursorBuffer>,
-    pub mode: Mode,
+
+    // Command mode
     pub command_buffer: String,
+
+    // UI state
     pub should_quit: bool,
     pub status_message: Option<String>,
     pub show_help: bool,
     pub help_scroll: usize,
     pub help_visible_height: usize,
-    pub original_lines: Option<Vec<Line>>,
-    pub scroll_offset: usize,
-    pub last_deleted: Option<(usize, Entry)>,
-    pub filter_query: String,
-    pub filter_buffer: String,
-    pub filter_items: Vec<FilterItem>,
-    pub filter_selected: usize,
-    pub filter_scroll_offset: usize,
-    pub filter_edit_target: Option<(NaiveDate, usize)>,
-    pub filter_quick_add_date: Option<NaiveDate>,
-    pub filter_quick_add_type: EntryType,
+
+    // Undo
+    pub last_deleted: Option<(NaiveDate, usize, Entry)>,
 }
 
 impl App {
@@ -50,27 +105,17 @@ impl App {
         Ok(Self {
             current_date,
             lines,
-            selected: entry_indices.len().saturating_sub(1),
-            entry_indices,
+            entry_indices: entry_indices.clone(),
+            view: ViewMode::Daily(DailyState::new(entry_indices.len())),
+            input_mode: InputMode::Normal,
             edit_buffer: None,
-            mode: Mode::Daily,
             command_buffer: String::new(),
             should_quit: false,
             status_message: None,
             show_help: false,
             help_scroll: 0,
             help_visible_height: 0,
-            original_lines: None,
-            scroll_offset: 0,
             last_deleted: None,
-            filter_query: String::new(),
-            filter_buffer: String::new(),
-            filter_items: Vec::new(),
-            filter_selected: 0,
-            filter_scroll_offset: 0,
-            filter_edit_target: None,
-            filter_quick_add_date: None,
-            filter_quick_add_type: EntryType::Task { completed: false },
         })
     }
 
@@ -89,11 +134,10 @@ impl App {
             .collect()
     }
 
-    pub fn get_selected_entry(&self) -> Option<&Entry> {
-        if self.entry_indices.is_empty() {
-            return None;
-        }
-        let line_idx = self.entry_indices.get(self.selected)?;
+    // === Daily Entry Accessors ===
+
+    fn get_daily_entry(&self, entry_index: usize) -> Option<&Entry> {
+        let line_idx = self.entry_indices.get(entry_index)?;
         if let Line::Entry(entry) = &self.lines[*line_idx] {
             Some(entry)
         } else {
@@ -101,11 +145,8 @@ impl App {
         }
     }
 
-    pub fn get_selected_entry_mut(&mut self) -> Option<&mut Entry> {
-        if self.entry_indices.is_empty() {
-            return None;
-        }
-        let line_idx = *self.entry_indices.get(self.selected)?;
+    fn get_daily_entry_mut(&mut self, entry_index: usize) -> Option<&mut Entry> {
+        let line_idx = *self.entry_indices.get(entry_index)?;
         if let Line::Entry(entry) = &mut self.lines[line_idx] {
             Some(entry)
         } else {
@@ -114,13 +155,583 @@ impl App {
     }
 
     /// Saves current day's lines to storage, displaying any error as a status message.
-    /// Unlike internal storage operations that propagate errors, this is designed for
-    /// use in handlers where user feedback is preferred over error propagation.
     pub fn save(&mut self) {
         if let Err(e) = storage::save_day_lines(self.current_date, &self.lines) {
             self.status_message = Some(format!("Failed to save: {e}"));
         }
     }
+
+    // === Navigation (unified) ===
+
+    pub fn move_up(&mut self) {
+        match &mut self.view {
+            ViewMode::Daily(state) => {
+                state.selected = state.selected.saturating_sub(1);
+            }
+            ViewMode::Filter(state) => {
+                state.selected = state.selected.saturating_sub(1);
+            }
+        }
+    }
+
+    pub fn move_down(&mut self) {
+        match &mut self.view {
+            ViewMode::Daily(state) => {
+                if !self.entry_indices.is_empty() && state.selected < self.entry_indices.len() - 1 {
+                    state.selected += 1;
+                }
+            }
+            ViewMode::Filter(state) => {
+                if !state.items.is_empty() && state.selected < state.items.len() - 1 {
+                    state.selected += 1;
+                }
+            }
+        }
+    }
+
+    pub fn jump_to_first(&mut self) {
+        match &mut self.view {
+            ViewMode::Daily(state) => state.selected = 0,
+            ViewMode::Filter(state) => state.selected = 0,
+        }
+    }
+
+    pub fn jump_to_last(&mut self) {
+        match &mut self.view {
+            ViewMode::Daily(state) => {
+                if !self.entry_indices.is_empty() {
+                    state.selected = self.entry_indices.len() - 1;
+                }
+            }
+            ViewMode::Filter(state) => {
+                if !state.items.is_empty() {
+                    state.selected = state.items.len() - 1;
+                }
+            }
+        }
+    }
+
+    // === Unified Entry Operations ===
+
+    /// Delete the currently selected entry (view-aware)
+    pub fn delete_current_entry(&mut self) -> io::Result<()> {
+        match &mut self.view {
+            ViewMode::Daily(state) => {
+                if self.entry_indices.is_empty() {
+                    return Ok(());
+                }
+                let line_idx = self.entry_indices[state.selected];
+                if let Line::Entry(entry) = &self.lines[line_idx] {
+                    self.last_deleted = Some((self.current_date, line_idx, entry.clone()));
+                }
+                self.lines.remove(line_idx);
+                self.entry_indices = Self::compute_entry_indices(&self.lines);
+                if !self.entry_indices.is_empty() && state.selected >= self.entry_indices.len() {
+                    state.selected = self.entry_indices.len() - 1;
+                }
+                self.save();
+            }
+            ViewMode::Filter(state) => {
+                let Some(item) = state.items.get(state.selected) else {
+                    return Ok(());
+                };
+                let date = item.source_date;
+                let line_index = item.line_index;
+                let entry = Entry {
+                    entry_type: item.entry_type.clone(),
+                    content: item.content.clone(),
+                };
+                self.last_deleted = Some((date, line_index, entry));
+
+                storage::delete_entry(date, line_index)?;
+                state.items.remove(state.selected);
+
+                // Adjust line indices for remaining items from the same date
+                for item in &mut state.items {
+                    if item.source_date == date && item.line_index > line_index {
+                        item.line_index -= 1;
+                    }
+                }
+
+                if !state.items.is_empty() && state.selected >= state.items.len() {
+                    state.selected = state.items.len() - 1;
+                }
+
+                if date == self.current_date {
+                    self.reload_current_day()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Toggle task completion (view-aware)
+    pub fn toggle_current_entry(&mut self) -> io::Result<()> {
+        match &mut self.view {
+            ViewMode::Daily(state) => {
+                let line_idx = match self.entry_indices.get(state.selected) {
+                    Some(&idx) => idx,
+                    None => return Ok(()),
+                };
+                if let Line::Entry(entry) = &mut self.lines[line_idx] {
+                    entry.toggle_complete();
+                    self.save();
+                }
+            }
+            ViewMode::Filter(state) => {
+                let Some(item) = state.items.get(state.selected) else {
+                    return Ok(());
+                };
+                if !matches!(item.entry_type, EntryType::Task { .. }) {
+                    return Ok(());
+                }
+                let date = item.source_date;
+                let line_index = item.line_index;
+
+                storage::toggle_entry_complete(date, line_index)?;
+
+                let item = &mut state.items[state.selected];
+                item.completed = !item.completed;
+                if let EntryType::Task { completed } = &mut item.entry_type {
+                    *completed = item.completed;
+                }
+
+                if date == self.current_date {
+                    self.reload_current_day()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Start editing the current entry (view-aware)
+    pub fn edit_current_entry(&mut self) {
+        match &self.view {
+            ViewMode::Daily(state) => {
+                let content = self
+                    .get_daily_entry(state.selected)
+                    .map(|e| e.content.clone());
+                if let Some(content) = content {
+                    let entry_index = state.selected;
+                    self.edit_buffer = Some(CursorBuffer::new(content));
+                    self.input_mode = InputMode::Edit(EditContext::Daily { entry_index });
+                }
+            }
+            ViewMode::Filter(state) => {
+                let Some(item) = state.items.get(state.selected) else {
+                    return;
+                };
+                let ctx = EditContext::FilterEdit {
+                    date: item.source_date,
+                    line_index: item.line_index,
+                    filter_index: state.selected,
+                };
+                self.edit_buffer = Some(CursorBuffer::new(item.content.clone()));
+                self.input_mode = InputMode::Edit(ctx);
+            }
+        }
+    }
+
+    // === Edit Mode Operations ===
+
+    /// Cycle entry type while editing (BackTab)
+    pub fn cycle_edit_entry_type(&mut self) {
+        match &mut self.input_mode {
+            InputMode::Edit(EditContext::Daily { entry_index }) => {
+                let line_idx = match self.entry_indices.get(*entry_index) {
+                    Some(&idx) => idx,
+                    None => return,
+                };
+                if let Line::Entry(entry) = &mut self.lines[line_idx] {
+                    entry.entry_type = match entry.entry_type {
+                        EntryType::Task { .. } => EntryType::Note,
+                        EntryType::Note => EntryType::Event,
+                        EntryType::Event => EntryType::Task { completed: false },
+                    };
+                }
+            }
+            InputMode::Edit(EditContext::FilterEdit {
+                date,
+                line_index,
+                filter_index,
+            }) => {
+                let date = *date;
+                let line_index = *line_index;
+                let filter_index = *filter_index;
+
+                if let Ok(Some(new_type)) = storage::cycle_entry_type(date, line_index)
+                    && let ViewMode::Filter(state) = &mut self.view
+                    && let Some(item) = state.items.get_mut(filter_index)
+                {
+                    item.entry_type = new_type;
+                    item.completed = matches!(item.entry_type, EntryType::Task { completed: true });
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                }
+            }
+            InputMode::Edit(EditContext::FilterQuickAdd { entry_type, .. }) => {
+                *entry_type = match entry_type {
+                    EntryType::Task { .. } => EntryType::Note,
+                    EntryType::Note => EntryType::Event,
+                    EntryType::Event => EntryType::Task { completed: false },
+                };
+            }
+            _ => {}
+        }
+    }
+
+    /// Save and exit edit mode (Enter)
+    pub fn exit_edit(&mut self) {
+        let Some(buffer) = self.edit_buffer.take() else {
+            self.input_mode = InputMode::Normal;
+            return;
+        };
+        let content = buffer.into_content();
+
+        match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
+            InputMode::Edit(EditContext::Daily { entry_index }) => {
+                if content.trim().is_empty() {
+                    self.delete_at_index_daily(entry_index);
+                    if let ViewMode::Daily(state) = &mut self.view {
+                        state.scroll_offset = 0;
+                    }
+                } else if let Some(entry) = self.get_daily_entry_mut(entry_index) {
+                    entry.content = content;
+                    self.save();
+                }
+            }
+            InputMode::Edit(EditContext::FilterEdit {
+                date, line_index, ..
+            }) => {
+                if content.trim().is_empty() {
+                    let _ = storage::delete_entry(date, line_index);
+                } else {
+                    match storage::update_entry_content(date, line_index, content) {
+                        Ok(false) => {
+                            self.status_message = Some(format!(
+                                "Failed to update: no entry at index {line_index} for {date}"
+                            ));
+                        }
+                        Err(e) => {
+                            self.status_message = Some(format!("Failed to save: {e}"));
+                        }
+                        Ok(true) => {}
+                    }
+                }
+                if date == self.current_date {
+                    let _ = self.reload_current_day();
+                }
+                let _ = self.refresh_filter();
+            }
+            InputMode::Edit(EditContext::FilterQuickAdd { date, entry_type }) => {
+                if !content.trim().is_empty()
+                    && let Ok(mut lines) = storage::load_day_lines(date)
+                {
+                    let entry = Entry {
+                        entry_type,
+                        content,
+                    };
+                    lines.push(Line::Entry(entry));
+                    let _ = storage::save_day_lines(date, &lines);
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                }
+                let _ = self.refresh_filter();
+                if let ViewMode::Filter(state) = &mut self.view {
+                    state.selected = state.items.len().saturating_sub(1);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Cancel edit mode without saving (Esc)
+    pub fn cancel_edit(&mut self) {
+        self.edit_buffer = None;
+
+        match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
+            InputMode::Edit(EditContext::Daily { entry_index }) => {
+                if let Some(entry) = self.get_daily_entry(entry_index)
+                    && entry.content.is_empty()
+                {
+                    self.delete_at_index_daily(entry_index);
+                    if let ViewMode::Daily(state) = &mut self.view {
+                        state.scroll_offset = 0;
+                    }
+                }
+            }
+            InputMode::Edit(EditContext::FilterEdit { .. })
+            | InputMode::Edit(EditContext::FilterQuickAdd { .. }) => {
+                // Just return to filter view, no cleanup needed
+            }
+            _ => {}
+        }
+    }
+
+    /// Save and add new entry (Tab)
+    pub fn commit_and_add_new(&mut self) {
+        let Some(buffer) = self.edit_buffer.take() else {
+            return;
+        };
+        let content = buffer.into_content();
+
+        match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
+            InputMode::Edit(EditContext::FilterQuickAdd { date, entry_type }) => {
+                if !content.trim().is_empty()
+                    && let Ok(mut lines) = storage::load_day_lines(date)
+                {
+                    let line_index = lines.len();
+                    let entry = Entry {
+                        entry_type: entry_type.clone(),
+                        content: content.clone(),
+                    };
+                    lines.push(Line::Entry(entry));
+                    let _ = storage::save_day_lines(date, &lines);
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+
+                    // Add to filter items without refreshing (defer filter until exit)
+                    if let ViewMode::Filter(state) = &mut self.view {
+                        state.items.push(FilterItem {
+                            source_date: date,
+                            line_index,
+                            entry_type: entry_type.clone(),
+                            content,
+                            completed: matches!(entry_type, EntryType::Task { completed: true }),
+                        });
+                        state.selected = state.items.len().saturating_sub(1);
+                    }
+                }
+                self.edit_buffer = Some(CursorBuffer::empty());
+                self.input_mode = InputMode::Edit(EditContext::FilterQuickAdd {
+                    date,
+                    entry_type: match entry_type {
+                        EntryType::Task { .. } => EntryType::Task { completed: false },
+                        other => other,
+                    },
+                });
+            }
+            InputMode::Edit(EditContext::Daily { entry_index }) => {
+                if content.trim().is_empty() {
+                    let was_at_end = entry_index == self.entry_indices.len().saturating_sub(1);
+                    self.delete_at_index_daily(entry_index);
+                    if let ViewMode::Daily(state) = &mut self.view
+                        && !was_at_end
+                        && state.selected > 0
+                    {
+                        state.selected -= 1;
+                    }
+                    return;
+                }
+
+                let entry_type = self
+                    .get_daily_entry(entry_index)
+                    .map(|e| e.entry_type.clone())
+                    .unwrap_or(EntryType::Task { completed: false });
+
+                if let Some(entry) = self.get_daily_entry_mut(entry_index) {
+                    entry.content = content;
+                }
+                self.save();
+
+                let new_entry = Entry {
+                    entry_type: match entry_type {
+                        EntryType::Task { .. } => EntryType::Task { completed: false },
+                        other => other,
+                    },
+                    content: String::new(),
+                };
+                self.add_entry_internal(new_entry, false);
+            }
+            _ => {}
+        }
+    }
+
+    // === Daily-Only Operations ===
+
+    fn delete_at_index_daily(&mut self, entry_index: usize) {
+        if entry_index >= self.entry_indices.len() {
+            return;
+        }
+        let line_idx = self.entry_indices[entry_index];
+        if let Line::Entry(entry) = &self.lines[line_idx] {
+            self.last_deleted = Some((self.current_date, line_idx, entry.clone()));
+        }
+        self.lines.remove(line_idx);
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+
+        if let ViewMode::Daily(state) = &mut self.view
+            && !self.entry_indices.is_empty()
+            && state.selected >= self.entry_indices.len()
+        {
+            state.selected = self.entry_indices.len() - 1;
+        }
+    }
+
+    fn add_entry_internal(&mut self, entry: Entry, at_bottom: bool) {
+        let ViewMode::Daily(state) = &mut self.view else {
+            return;
+        };
+
+        let insert_pos = if at_bottom || self.entry_indices.is_empty() {
+            self.lines.len()
+        } else {
+            self.entry_indices[state.selected] + 1
+        };
+
+        self.lines.insert(insert_pos, Line::Entry(entry));
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+
+        state.selected = self
+            .entry_indices
+            .iter()
+            .position(|&idx| idx == insert_pos)
+            .unwrap_or(self.entry_indices.len().saturating_sub(1));
+
+        self.edit_buffer = Some(CursorBuffer::empty());
+        self.input_mode = InputMode::Edit(EditContext::Daily {
+            entry_index: state.selected,
+        });
+    }
+
+    pub fn new_task(&mut self, at_bottom: bool) {
+        self.add_entry_internal(Entry::new_task(""), at_bottom);
+    }
+
+    pub fn undo(&mut self) {
+        let Some((date, line_idx, entry)) = self.last_deleted.take() else {
+            return;
+        };
+
+        match &mut self.view {
+            ViewMode::Daily(state) => {
+                // Only undo if we're on the same day
+                if date != self.current_date {
+                    self.status_message = Some(format!(
+                        "Undo: entry was from {}, go to that day first",
+                        date.format("%m/%d")
+                    ));
+                    self.last_deleted = Some((date, line_idx, entry));
+                    return;
+                }
+                let insert_idx = line_idx.min(self.lines.len());
+                self.lines.insert(insert_idx, Line::Entry(entry));
+                self.entry_indices = Self::compute_entry_indices(&self.lines);
+                if let Some(pos) = self.entry_indices.iter().position(|&i| i == insert_idx) {
+                    state.selected = pos;
+                }
+                self.save();
+            }
+            ViewMode::Filter(state) => {
+                if let Ok(mut lines) = storage::load_day_lines(date) {
+                    let insert_idx = line_idx.min(lines.len());
+                    lines.insert(insert_idx, Line::Entry(entry.clone()));
+                    let _ = storage::save_day_lines(date, &lines);
+
+                    let filter_item = FilterItem {
+                        source_date: date,
+                        line_index: insert_idx,
+                        entry_type: entry.entry_type.clone(),
+                        content: entry.content,
+                        completed: matches!(entry.entry_type, EntryType::Task { completed: true }),
+                    };
+                    state.items.push(filter_item);
+                    state.selected = state.items.len() - 1;
+
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn gather_completed_tasks(&mut self) {
+        let completed: Vec<Line> = self
+            .lines
+            .iter()
+            .filter(|line| {
+                matches!(line, Line::Entry(e) if matches!(e.entry_type, EntryType::Task { completed: true }))
+            })
+            .cloned()
+            .collect();
+
+        if completed.is_empty() {
+            return;
+        }
+
+        self.lines.retain(|line| {
+            !matches!(line, Line::Entry(e) if matches!(e.entry_type, EntryType::Task { completed: true }))
+        });
+
+        for (i, line) in completed.into_iter().enumerate() {
+            self.lines.insert(i, line);
+        }
+
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+        self.save();
+    }
+
+    pub fn enter_order_mode(&mut self) {
+        let ViewMode::Daily(state) = &mut self.view else {
+            return;
+        };
+        if !self.entry_indices.is_empty() {
+            state.original_lines = Some(self.lines.clone());
+            self.input_mode = InputMode::Order;
+        }
+    }
+
+    pub fn exit_order_mode(&mut self, save: bool) {
+        if !matches!(self.view, ViewMode::Daily(_)) {
+            return;
+        }
+        if save {
+            self.save();
+        } else if let ViewMode::Daily(state) = &mut self.view
+            && let Some(original) = state.original_lines.take()
+        {
+            self.lines = original;
+            self.entry_indices = Self::compute_entry_indices(&self.lines);
+        }
+        if let ViewMode::Daily(state) = &mut self.view {
+            state.original_lines = None;
+        }
+        self.input_mode = InputMode::Normal;
+    }
+
+    pub fn order_move_up(&mut self) {
+        let ViewMode::Daily(state) = &mut self.view else {
+            return;
+        };
+        if state.selected == 0 {
+            return;
+        }
+        let curr_line_idx = self.entry_indices[state.selected];
+        let prev_line_idx = self.entry_indices[state.selected - 1];
+        self.lines.swap(curr_line_idx, prev_line_idx);
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+        state.selected -= 1;
+    }
+
+    pub fn order_move_down(&mut self) {
+        let ViewMode::Daily(state) = &mut self.view else {
+            return;
+        };
+        if state.selected >= self.entry_indices.len() - 1 {
+            return;
+        }
+        let curr_line_idx = self.entry_indices[state.selected];
+        let next_line_idx = self.entry_indices[state.selected + 1];
+        self.lines.swap(curr_line_idx, next_line_idx);
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+        state.selected += 1;
+    }
+
+    // === Day Navigation (Daily only) ===
 
     pub fn goto_day(&mut self, date: NaiveDate) -> io::Result<()> {
         if date == self.current_date {
@@ -131,10 +742,9 @@ impl App {
         self.current_date = date;
         self.lines = storage::load_day_lines(date)?;
         self.entry_indices = Self::compute_entry_indices(&self.lines);
-        self.selected = self.entry_indices.len().saturating_sub(1);
         self.edit_buffer = None;
-        self.mode = Mode::Daily;
-        self.scroll_offset = 0;
+        self.view = ViewMode::Daily(DailyState::new(self.entry_indices.len()));
+        self.input_mode = InputMode::Normal;
 
         Ok(())
     }
@@ -157,6 +767,7 @@ impl App {
         self.goto_day(Local::now().date_naive())
     }
 
+    #[must_use]
     pub fn parse_goto_date(input: &str) -> Option<NaiveDate> {
         if let Ok(date) = NaiveDate::parse_from_str(input, "%Y/%m/%d") {
             return Some(date);
@@ -165,314 +776,7 @@ impl App {
         NaiveDate::parse_from_str(&format!("{current_year}/{input}"), "%Y/%m/%d").ok()
     }
 
-    pub fn add_entry(&mut self, entry: Entry, at_bottom: bool) {
-        let insert_pos = if at_bottom || self.entry_indices.is_empty() {
-            self.lines.len()
-        } else {
-            self.entry_indices[self.selected] + 1
-        };
-
-        self.lines.insert(insert_pos, Line::Entry(entry));
-        self.entry_indices = Self::compute_entry_indices(&self.lines);
-
-        self.selected = self
-            .entry_indices
-            .iter()
-            .position(|&idx| idx == insert_pos)
-            .unwrap_or(self.entry_indices.len().saturating_sub(1));
-
-        self.edit_buffer = Some(CursorBuffer::empty());
-        self.mode = Mode::Edit;
-    }
-
-    pub fn new_task(&mut self, at_bottom: bool) {
-        self.add_entry(Entry::new_task(""), at_bottom);
-    }
-
-    pub fn commit_and_add_new(&mut self) {
-        let Some(buffer) = self.edit_buffer.take() else {
-            return;
-        };
-        let content = buffer.into_content();
-
-        // Handle filter quick-add mode
-        if let Some(date) = self.filter_quick_add_date {
-            if !content.trim().is_empty() {
-                if let Ok(mut lines) = storage::load_day_lines(date) {
-                    let entry = Entry {
-                        entry_type: self.filter_quick_add_type.clone(),
-                        content,
-                    };
-                    lines.push(Line::Entry(entry));
-                    let _ = storage::save_day_lines(date, &lines);
-                    if date == self.current_date {
-                        let _ = self.reload_current_day();
-                    }
-                }
-                let _ = self.refresh_filter();
-                self.filter_selected = self.filter_items.len().saturating_sub(1);
-            }
-            // Start a new quick-add entry (reset type to task)
-            self.filter_quick_add_type = EntryType::Task { completed: false };
-            self.edit_buffer = Some(CursorBuffer::empty());
-            return;
-        }
-
-        // Empty entries are auto-deleted to avoid cluttering the journal with blank lines
-        if content.trim().is_empty() {
-            let was_at_end = self.selected == self.entry_indices.len() - 1;
-            self.delete_selected();
-            if !was_at_end && self.selected > 0 {
-                self.selected -= 1;
-            }
-            self.mode = Mode::Daily;
-            return;
-        }
-
-        let entry_type = self
-            .get_selected_entry()
-            .map(|e| e.entry_type.clone())
-            .unwrap_or(EntryType::Task { completed: false });
-
-        if let Some(entry) = self.get_selected_entry_mut() {
-            entry.content = content;
-        }
-        self.save();
-
-        let new_entry = Entry {
-            entry_type: match entry_type {
-                EntryType::Task { .. } => EntryType::Task { completed: false },
-                other => other,
-            },
-            content: String::new(),
-        };
-        self.add_entry(new_entry, false);
-    }
-
-    pub fn edit_selected(&mut self) {
-        let content = self.get_selected_entry().map(|e| e.content.clone());
-        if let Some(content) = content {
-            self.edit_buffer = Some(CursorBuffer::new(content));
-            self.mode = Mode::Edit;
-        }
-    }
-
-    pub fn exit_edit(&mut self) {
-        if let Some(date) = self.filter_quick_add_date.take() {
-            if let Some(buffer) = self.edit_buffer.take() {
-                let content = buffer.into_content();
-                if !content.trim().is_empty()
-                    && let Ok(mut lines) = storage::load_day_lines(date)
-                {
-                    let entry = Entry {
-                        entry_type: self.filter_quick_add_type.clone(),
-                        content,
-                    };
-                    lines.push(Line::Entry(entry));
-                    let _ = storage::save_day_lines(date, &lines);
-                    if date == self.current_date {
-                        let _ = self.reload_current_day();
-                    }
-                }
-            }
-            let _ = self.refresh_filter();
-            self.filter_selected = self.filter_items.len().saturating_sub(1);
-            self.mode = Mode::Filter;
-        } else if let Some((date, line_index)) = self.filter_edit_target.take() {
-            if let Some(buffer) = self.edit_buffer.take() {
-                let content = buffer.into_content();
-                if content.trim().is_empty() {
-                    let _ = storage::delete_entry(date, line_index);
-                    if date == self.current_date {
-                        let _ = self.reload_current_day();
-                    }
-                } else {
-                    match storage::update_entry_content(date, line_index, content) {
-                        Ok(false) => {
-                            self.status_message = Some(format!(
-                                "Failed to update: no entry at index {line_index} for {date}"
-                            ));
-                        }
-                        Err(e) => {
-                            self.status_message = Some(format!("Failed to save: {e}"));
-                        }
-                        Ok(true) => {
-                            if date == self.current_date {
-                                let _ = self.reload_current_day();
-                            }
-                        }
-                    }
-                }
-            }
-            let _ = self.refresh_filter();
-            self.mode = Mode::Filter;
-        } else {
-            if let Some(buffer) = self.edit_buffer.take() {
-                let content = buffer.into_content();
-                // Empty entries are auto-deleted to avoid cluttering the journal
-                if content.trim().is_empty() {
-                    self.delete_selected();
-                    self.scroll_offset = 0;
-                } else if let Some(entry) = self.get_selected_entry_mut() {
-                    entry.content = content;
-                    self.save();
-                }
-            }
-            self.mode = Mode::Daily;
-        }
-    }
-
-    pub fn cancel_edit(&mut self) {
-        self.edit_buffer = None;
-        if self.filter_quick_add_date.take().is_some() || self.filter_edit_target.take().is_some() {
-            self.mode = Mode::Filter;
-        } else {
-            if let Some(entry) = self.get_selected_entry()
-                && entry.content.is_empty()
-            {
-                self.delete_selected();
-                self.scroll_offset = 0;
-            }
-            self.mode = Mode::Daily;
-        }
-    }
-
-    pub fn delete_selected(&mut self) {
-        if self.entry_indices.is_empty() {
-            return;
-        }
-
-        let line_idx = self.entry_indices[self.selected];
-        if let Line::Entry(entry) = &self.lines[line_idx] {
-            self.last_deleted = Some((line_idx, entry.clone()));
-        }
-        self.lines.remove(line_idx);
-        self.entry_indices = Self::compute_entry_indices(&self.lines);
-
-        if !self.entry_indices.is_empty() && self.selected >= self.entry_indices.len() {
-            self.selected = self.entry_indices.len() - 1;
-        }
-    }
-
-    pub fn undo(&mut self) {
-        if let Some((line_idx, entry)) = self.last_deleted.take() {
-            let insert_idx = line_idx.min(self.lines.len());
-            self.lines.insert(insert_idx, Line::Entry(entry));
-            self.entry_indices = Self::compute_entry_indices(&self.lines);
-            if let Some(pos) = self.entry_indices.iter().position(|&i| i == insert_idx) {
-                self.selected = pos;
-            }
-            self.save();
-        }
-    }
-
-    pub fn toggle_task(&mut self) {
-        if let Some(entry) = self.get_selected_entry_mut() {
-            entry.toggle_complete();
-            self.save();
-        }
-    }
-
-    pub fn cycle_entry_type(&mut self) {
-        if let Some(entry) = self.get_selected_entry_mut() {
-            entry.entry_type = match entry.entry_type {
-                EntryType::Task { .. } => EntryType::Note,
-                EntryType::Note => EntryType::Event,
-                EntryType::Event => EntryType::Task { completed: false },
-            };
-        }
-    }
-
-    pub fn gather_completed_tasks(&mut self) {
-        // Extract completed tasks
-        let completed: Vec<Line> = self
-            .lines
-            .iter()
-            .filter(|line| {
-                matches!(line, Line::Entry(e) if matches!(e.entry_type, EntryType::Task { completed: true }))
-            })
-            .cloned()
-            .collect();
-
-        if completed.is_empty() {
-            return;
-        }
-
-        // Remove completed tasks from their current positions
-        self.lines.retain(|line| {
-            !matches!(line, Line::Entry(e) if matches!(e.entry_type, EntryType::Task { completed: true }))
-        });
-
-        // Insert completed tasks at the beginning
-        for (i, line) in completed.into_iter().enumerate() {
-            self.lines.insert(i, line);
-        }
-
-        self.entry_indices = Self::compute_entry_indices(&self.lines);
-        self.save();
-    }
-
-    pub fn enter_order_mode(&mut self) {
-        if !self.entry_indices.is_empty() {
-            self.original_lines = Some(self.lines.clone());
-            self.mode = Mode::Order;
-        }
-    }
-
-    pub fn exit_order_mode(&mut self, save: bool) {
-        if save {
-            self.save();
-        } else if let Some(original) = self.original_lines.take() {
-            self.lines = original;
-            self.entry_indices = Self::compute_entry_indices(&self.lines);
-        }
-        self.original_lines = None;
-        self.mode = Mode::Daily;
-    }
-
-    pub fn order_move_up(&mut self) {
-        if self.selected == 0 {
-            return;
-        }
-        let curr_line_idx = self.entry_indices[self.selected];
-        let prev_line_idx = self.entry_indices[self.selected - 1];
-        self.lines.swap(curr_line_idx, prev_line_idx);
-        self.entry_indices = Self::compute_entry_indices(&self.lines);
-        self.selected -= 1;
-    }
-
-    pub fn order_move_down(&mut self) {
-        if self.selected >= self.entry_indices.len() - 1 {
-            return;
-        }
-        let curr_line_idx = self.entry_indices[self.selected];
-        let next_line_idx = self.entry_indices[self.selected + 1];
-        self.lines.swap(curr_line_idx, next_line_idx);
-        self.entry_indices = Self::compute_entry_indices(&self.lines);
-        self.selected += 1;
-    }
-
-    pub fn move_up(&mut self) {
-        if self.selected > 0 {
-            self.selected -= 1;
-        }
-    }
-
-    pub fn move_down(&mut self) {
-        if !self.entry_indices.is_empty() && self.selected < self.entry_indices.len() - 1 {
-            self.selected += 1;
-        }
-    }
-
-    pub fn jump_to_first(&mut self) {
-        self.selected = 0;
-    }
-
-    pub fn jump_to_last(&mut self) {
-        if !self.entry_indices.is_empty() {
-            self.selected = self.entry_indices.len() - 1;
-        }
-    }
+    // === Command Mode ===
 
     pub fn execute_command(&mut self) -> io::Result<()> {
         let cmd = self.command_buffer.trim();
@@ -498,65 +802,132 @@ impl App {
             _ => {}
         }
         self.command_buffer.clear();
-        self.mode = Mode::Daily;
+        self.input_mode = InputMode::Normal;
         Ok(())
     }
 
+    // === Filter Operations ===
+
     pub fn enter_filter_input(&mut self) {
-        self.filter_buffer = self.filter_query.clone();
-        self.mode = Mode::FilterInput;
+        match &mut self.view {
+            ViewMode::Filter(state) => {
+                // Pre-fill with current query for modification
+                state.query_buffer = state.query.clone();
+            }
+            ViewMode::Daily(_) => {
+                // Use command_buffer temporarily, ensure it's clean
+                self.command_buffer.clear();
+            }
+        }
+
+        self.input_mode = InputMode::QueryInput;
     }
 
     pub fn execute_filter(&mut self) -> io::Result<()> {
         self.save();
-        self.filter_query = self.filter_buffer.clone();
-        let filter = storage::parse_filter_query(&self.filter_query);
-        self.filter_items = storage::collect_filtered_entries(&filter)?;
-        self.filter_selected = self.filter_items.len().saturating_sub(1);
-        self.filter_scroll_offset = 0;
-        self.mode = Mode::Filter;
+
+        let query = match &self.view {
+            ViewMode::Filter(state) => state.query_buffer.clone(),
+            ViewMode::Daily(_) => std::mem::take(&mut self.command_buffer),
+        };
+
+        let filter = storage::parse_filter_query(&query);
+        let items = storage::collect_filtered_entries(&filter)?;
+        let selected = items.len().saturating_sub(1);
+
+        self.view = ViewMode::Filter(FilterState {
+            query,
+            query_buffer: String::new(),
+            items,
+            selected,
+            scroll_offset: 0,
+        });
+        self.input_mode = InputMode::Normal;
         Ok(())
     }
 
     pub fn cancel_filter_input(&mut self) {
-        self.filter_buffer.clear();
-        self.mode = if self.filter_query.is_empty() {
-            Mode::Daily
-        } else {
-            Mode::Filter
-        };
+        match &mut self.view {
+            ViewMode::Filter(state) => {
+                state.query_buffer.clear();
+            }
+            ViewMode::Daily(_) => {
+                self.command_buffer.clear();
+            }
+        }
+        self.input_mode = InputMode::Normal;
     }
 
     pub fn exit_filter(&mut self) {
-        self.filter_query.clear();
-        self.filter_items.clear();
-        self.mode = Mode::Daily;
+        self.view = ViewMode::Daily(DailyState::new(self.entry_indices.len()));
+        self.input_mode = InputMode::Normal;
     }
 
     pub fn refresh_filter(&mut self) -> io::Result<()> {
-        let filter = storage::parse_filter_query(&self.filter_query);
-        self.filter_items = storage::collect_filtered_entries(&filter)?;
-        self.filter_selected = self
-            .filter_selected
-            .min(self.filter_items.len().saturating_sub(1));
-        self.filter_scroll_offset = 0;
+        let ViewMode::Filter(state) = &mut self.view else {
+            return Ok(());
+        };
+
+        let filter = storage::parse_filter_query(&state.query);
+        state.items = storage::collect_filtered_entries(&filter)?;
+        state.selected = state.selected.min(state.items.len().saturating_sub(1));
+        state.scroll_offset = 0;
         Ok(())
     }
 
-    pub fn filter_move_up(&mut self) {
-        if self.filter_selected > 0 {
-            self.filter_selected -= 1;
+    /// Jump from filter to daily view at selected entry
+    pub fn filter_jump_to_day(&mut self) -> io::Result<()> {
+        let ViewMode::Filter(state) = &self.view else {
+            return Ok(());
+        };
+
+        let Some(item) = state.items.get(state.selected) else {
+            return Ok(());
+        };
+
+        let date = item.source_date;
+        let line_index = item.line_index;
+
+        if date != self.current_date {
+            self.current_date = date;
+            self.lines = storage::load_day_lines(date)?;
+            self.entry_indices = Self::compute_entry_indices(&self.lines);
         }
+
+        let selected = self
+            .entry_indices
+            .iter()
+            .position(|&i| i == line_index)
+            .unwrap_or(0);
+
+        self.view = ViewMode::Daily(DailyState {
+            selected,
+            scroll_offset: 0,
+            original_lines: None,
+        });
+        self.input_mode = InputMode::Normal;
+
+        Ok(())
     }
 
-    pub fn filter_move_down(&mut self) {
-        if !self.filter_items.is_empty() && self.filter_selected < self.filter_items.len() - 1 {
-            self.filter_selected += 1;
-        }
+    pub fn filter_quick_add(&mut self) {
+        let today = Local::now().date_naive();
+        self.edit_buffer = Some(CursorBuffer::empty());
+        self.input_mode = InputMode::Edit(EditContext::FilterQuickAdd {
+            date: today,
+            entry_type: EntryType::Task { completed: false },
+        });
     }
 
+    // === Filter View Helpers ===
+
+    #[must_use]
     pub fn filter_visual_line(&self) -> usize {
-        if self.filter_items.is_empty() {
+        let ViewMode::Filter(state) = &self.view else {
+            return 0;
+        };
+
+        if state.items.is_empty() {
             return 0;
         }
 
@@ -564,20 +935,20 @@ impl App {
         let mut last_date = None;
         let mut is_first_of_date = false;
 
-        for (idx, item) in self.filter_items.iter().enumerate() {
+        for (idx, item) in state.items.iter().enumerate() {
             if last_date != Some(item.source_date) {
                 date_headers += 1;
                 last_date = Some(item.source_date);
-                if idx == self.filter_selected {
+                if idx == state.selected {
                     is_first_of_date = true;
                 }
             }
-            if idx == self.filter_selected {
+            if idx == state.selected {
                 break;
             }
         }
 
-        let visual_line = date_headers + self.filter_selected;
+        let visual_line = date_headers + state.selected;
 
         if is_first_of_date && visual_line > 0 {
             visual_line - 1
@@ -586,150 +957,24 @@ impl App {
         }
     }
 
+    #[must_use]
     pub fn filter_total_lines(&self) -> usize {
-        if self.filter_items.is_empty() {
+        let ViewMode::Filter(state) = &self.view else {
+            return 1;
+        };
+
+        if state.items.is_empty() {
             return 1;
         }
 
-        let unique_dates = self
-            .filter_items
+        let unique_dates = state
+            .items
             .iter()
             .map(|item| item.source_date)
             .collect::<std::collections::HashSet<_>>()
             .len();
 
-        unique_dates + self.filter_items.len()
-    }
-
-    pub fn filter_jump_to_day(&mut self) -> io::Result<()> {
-        let Some(item) = self.filter_items.get(self.filter_selected) else {
-            return Ok(());
-        };
-
-        let date = item.source_date;
-        let line_index = item.line_index;
-
-        self.filter_query.clear();
-        self.filter_items.clear();
-
-        if date != self.current_date {
-            self.current_date = date;
-            self.lines = storage::load_day_lines(date)?;
-            self.entry_indices = Self::compute_entry_indices(&self.lines);
-        }
-
-        if let Some(pos) = self.entry_indices.iter().position(|&i| i == line_index) {
-            self.selected = pos;
-        }
-
-        self.mode = Mode::Daily;
-        self.scroll_offset = 0;
-        Ok(())
-    }
-
-    pub fn filter_toggle(&mut self) -> io::Result<()> {
-        let Some(item) = self.filter_items.get(self.filter_selected) else {
-            return Ok(());
-        };
-
-        if !matches!(item.entry_type, EntryType::Task { .. }) {
-            return Ok(());
-        }
-
-        let date = item.source_date;
-        let line_index = item.line_index;
-
-        storage::toggle_entry_complete(date, line_index)?;
-
-        let item = &mut self.filter_items[self.filter_selected];
-        item.completed = !item.completed;
-        if let EntryType::Task { completed } = &mut item.entry_type {
-            *completed = item.completed;
-        }
-
-        if date == self.current_date {
-            self.reload_current_day()?;
-        }
-
-        Ok(())
-    }
-
-    pub fn filter_edit(&mut self) {
-        let Some(item) = self.filter_items.get(self.filter_selected) else {
-            return;
-        };
-
-        self.filter_edit_target = Some((item.source_date, item.line_index));
-        self.edit_buffer = Some(CursorBuffer::new(item.content.clone()));
-        self.mode = Mode::Edit;
-    }
-
-    pub fn filter_quick_add(&mut self) {
-        let today = Local::now().date_naive();
-        self.filter_quick_add_date = Some(today);
-        self.filter_quick_add_type = EntryType::Task { completed: false };
-        self.edit_buffer = Some(CursorBuffer::empty());
-        self.mode = Mode::Edit;
-    }
-
-    pub fn cycle_quick_add_type(&mut self) {
-        self.filter_quick_add_type = match self.filter_quick_add_type {
-            EntryType::Task { .. } => EntryType::Note,
-            EntryType::Note => EntryType::Event,
-            EntryType::Event => EntryType::Task { completed: false },
-        };
-    }
-
-    pub fn filter_cycle_entry_type(&mut self) -> io::Result<()> {
-        let Some(item) = self.filter_items.get(self.filter_selected) else {
-            return Ok(());
-        };
-
-        let date = item.source_date;
-        let line_index = item.line_index;
-
-        let new_type = storage::cycle_entry_type(date, line_index)?;
-
-        if let Some(new_type) = new_type {
-            let item = &mut self.filter_items[self.filter_selected];
-            item.entry_type = new_type;
-            item.completed = matches!(item.entry_type, EntryType::Task { completed: true });
-        }
-
-        if date == self.current_date {
-            self.reload_current_day()?;
-        }
-
-        Ok(())
-    }
-
-    pub fn filter_delete(&mut self) -> io::Result<()> {
-        let Some(item) = self.filter_items.get(self.filter_selected) else {
-            return Ok(());
-        };
-
-        let date = item.source_date;
-        let line_index = item.line_index;
-
-        storage::delete_entry(date, line_index)?;
-        self.filter_items.remove(self.filter_selected);
-
-        // Adjust line indices for remaining items from the same date
-        for item in &mut self.filter_items {
-            if item.source_date == date && item.line_index > line_index {
-                item.line_index -= 1;
-            }
-        }
-
-        if !self.filter_items.is_empty() && self.filter_selected >= self.filter_items.len() {
-            self.filter_selected = self.filter_items.len() - 1;
-        }
-
-        if date == self.current_date {
-            self.reload_current_day()?;
-        }
-
-        Ok(())
+        unique_dates + state.items.len()
     }
 
     fn reload_current_day(&mut self) -> io::Result<()> {

@@ -6,7 +6,7 @@ use ratatui::{
     text::{Line as RatatuiLine, Span},
 };
 
-use crate::app::{App, Mode};
+use crate::app::{App, EditContext, InputMode, ViewMode};
 use crate::storage::{EntryType, LATER_DATE_REGEX, Line, TAG_REGEX};
 
 fn style_content(text: &str, base_style: Style) -> Vec<Span<'static>> {
@@ -54,18 +54,29 @@ fn style_content(text: &str, base_style: Style) -> Vec<Span<'static>> {
 pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
     use unicode_width::UnicodeWidthStr;
 
+    let ViewMode::Filter(state) = &app.view else {
+        return vec![];
+    };
+
     let mut lines = Vec::new();
 
-    let header = format!("Filter: {}", app.filter_query);
+    let header = format!("Filter: {}", state.query);
     lines.push(RatatuiLine::from(Span::styled(
         header,
         Style::default().fg(Color::Cyan),
     )));
 
-    let is_editing = app.mode == Mode::Edit && app.filter_quick_add_date.is_none();
+    let is_quick_adding = matches!(
+        app.input_mode,
+        InputMode::Edit(EditContext::FilterQuickAdd { .. })
+    );
+    let is_editing = matches!(
+        app.input_mode,
+        InputMode::Edit(EditContext::FilterEdit { .. })
+    );
 
-    for (idx, item) in app.filter_items.iter().enumerate() {
-        let is_selected = idx == app.filter_selected && app.filter_quick_add_date.is_none();
+    for (idx, item) in state.items.iter().enumerate() {
+        let is_selected = idx == state.selected && !is_quick_adding;
         let is_editing_this = is_selected && is_editing;
 
         let content_style = if item.completed {
@@ -142,13 +153,13 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
         }
     }
 
-    if app.filter_quick_add_date.is_some() {
+    if let InputMode::Edit(EditContext::FilterQuickAdd { entry_type, .. }) = &app.input_mode {
         let text = if let Some(ref buffer) = app.edit_buffer {
             buffer.content().to_string()
         } else {
             String::new()
         };
-        let prefix = app.filter_quick_add_type.prefix();
+        let prefix = entry_type.prefix();
         let prefix_width = prefix.width();
         let available = width.saturating_sub(prefix_width);
         let wrapped = wrap_text(&text, available);
@@ -167,7 +178,7 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
         }
     }
 
-    if app.filter_items.is_empty() && app.filter_quick_add_date.is_none() {
+    if state.items.is_empty() && !is_quick_adding {
         lines.push(RatatuiLine::from(Span::styled(
             "(no matches)",
             Style::default().fg(Color::DarkGray),
@@ -180,6 +191,10 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
 pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
     use unicode_width::UnicodeWidthStr;
 
+    let ViewMode::Daily(state) = &app.view else {
+        return vec![];
+    };
+
     let mut lines = Vec::new();
 
     let date_header = app.current_date.format("%m/%d/%y").to_string();
@@ -190,8 +205,8 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
 
     for (entry_idx, &line_idx) in app.entry_indices.iter().enumerate() {
         if let Line::Entry(entry) = &app.lines[line_idx] {
-            let is_selected = entry_idx == app.selected;
-            let is_editing = is_selected && app.mode == Mode::Edit;
+            let is_selected = entry_idx == state.selected;
+            let is_editing = is_selected && matches!(app.input_mode, InputMode::Edit(_));
 
             let content_style = if matches!(entry.entry_type, EntryType::Task { completed: true }) {
                 Style::default().fg(Color::DarkGray)
@@ -230,7 +245,7 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
                 }
             } else if is_selected {
                 let rest_of_prefix = prefix.chars().skip(1).collect::<String>();
-                let indicator = if app.mode == Mode::Order {
+                let indicator = if app.input_mode == InputMode::Order {
                     Span::styled("↕", Style::default().fg(Color::Yellow))
                 } else {
                     Span::styled("→", Style::default().fg(Color::Cyan))
@@ -315,7 +330,6 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
                 current_width += ch_width;
             }
         } else {
-            // Start new line with this word
             lines.push(current_line);
             current_line = word.to_string();
             current_width = word_width;
@@ -330,18 +344,24 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
 }
 
 pub fn render_footer(app: &App) -> RatatuiLine<'static> {
-    match app.mode {
-        Mode::Command => RatatuiLine::from(vec![
+    match (&app.view, &app.input_mode) {
+        (_, InputMode::Command) => RatatuiLine::from(vec![
             Span::styled(":", Style::default().fg(Color::Yellow)),
             Span::raw(app.command_buffer.clone()),
             Span::styled("█", Style::default().fg(Color::White)),
         ]),
-        Mode::FilterInput => RatatuiLine::from(vec![
-            Span::styled("/", Style::default().fg(Color::Yellow)),
-            Span::raw(app.filter_buffer.clone()),
-            Span::styled("█", Style::default().fg(Color::White)),
-        ]),
-        Mode::Edit => RatatuiLine::from(vec![
+        (_, InputMode::QueryInput) => {
+            let buffer = match &app.view {
+                ViewMode::Filter(state) => state.query_buffer.clone(),
+                ViewMode::Daily(_) => app.command_buffer.clone(),
+            };
+            RatatuiLine::from(vec![
+                Span::styled("/", Style::default().fg(Color::Yellow)),
+                Span::raw(buffer),
+                Span::styled("█", Style::default().fg(Color::White)),
+            ])
+        }
+        (_, InputMode::Edit(_)) => RatatuiLine::from(vec![
             Span::styled(" EDIT ", Style::default().fg(Color::Black).bg(Color::Green)),
             Span::styled("  Enter", Style::default().fg(Color::Gray)),
             Span::styled(" Save  ", Style::default().fg(Color::DarkGray)),
@@ -352,7 +372,19 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
             Span::styled("Esc", Style::default().fg(Color::Gray)),
             Span::styled(" Cancel", Style::default().fg(Color::DarkGray)),
         ]),
-        Mode::Daily => RatatuiLine::from(vec![
+        (_, InputMode::Order) => RatatuiLine::from(vec![
+            Span::styled(
+                " MOVE ",
+                Style::default().fg(Color::Black).bg(Color::Yellow),
+            ),
+            Span::styled("  j/k|↕", Style::default().fg(Color::Gray)),
+            Span::styled(" Move down/up  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("m/Enter", Style::default().fg(Color::Gray)),
+            Span::styled(" Save  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Esc", Style::default().fg(Color::Gray)),
+            Span::styled(" Cancel", Style::default().fg(Color::DarkGray)),
+        ]),
+        (ViewMode::Daily(_), InputMode::Normal) => RatatuiLine::from(vec![
             Span::styled(" DAILY ", Style::default().fg(Color::Black).bg(Color::Cyan)),
             Span::styled("  Enter", Style::default().fg(Color::Gray)),
             Span::styled(" New entry  ", Style::default().fg(Color::DarkGray)),
@@ -365,7 +397,7 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
             Span::styled("?", Style::default().fg(Color::Gray)),
             Span::styled(" Help", Style::default().fg(Color::DarkGray)),
         ]),
-        Mode::Filter => RatatuiLine::from(vec![
+        (ViewMode::Filter(_), InputMode::Normal) => RatatuiLine::from(vec![
             Span::styled(
                 " FILTER ",
                 Style::default().fg(Color::Black).bg(Color::Magenta),
@@ -382,18 +414,6 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
             Span::styled(" Exit  ", Style::default().fg(Color::DarkGray)),
             Span::styled("?", Style::default().fg(Color::Gray)),
             Span::styled(" Help", Style::default().fg(Color::DarkGray)),
-        ]),
-        Mode::Order => RatatuiLine::from(vec![
-            Span::styled(
-                " MOVE ",
-                Style::default().fg(Color::Black).bg(Color::Yellow),
-            ),
-            Span::styled("  j/k|↕", Style::default().fg(Color::Gray)),
-            Span::styled(" Move down/up  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("m/Enter", Style::default().fg(Color::Gray)),
-            Span::styled(" Save  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("Esc", Style::default().fg(Color::Gray)),
-            Span::styled(" Cancel", Style::default().fg(Color::DarkGray)),
         ]),
     }
 }

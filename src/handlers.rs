@@ -2,7 +2,7 @@ use std::io;
 
 use crossterm::event::KeyCode;
 
-use crate::app::{App, Mode};
+use crate::app::{App, EditContext, InputMode, ViewMode};
 use crate::ui;
 
 pub fn handle_help_key(app: &mut App, key: KeyCode) {
@@ -31,11 +31,11 @@ pub fn handle_command_key(app: &mut App, key: KeyCode) -> io::Result<()> {
         KeyCode::Enter => app.execute_command()?,
         KeyCode::Esc => {
             app.command_buffer.clear();
-            app.mode = Mode::Daily;
+            app.input_mode = InputMode::Normal;
         }
         KeyCode::Backspace => {
             if app.command_buffer.is_empty() {
-                app.mode = Mode::Daily;
+                app.input_mode = InputMode::Normal;
             } else {
                 app.command_buffer.pop();
             }
@@ -46,45 +46,80 @@ pub fn handle_command_key(app: &mut App, key: KeyCode) -> io::Result<()> {
     Ok(())
 }
 
-pub fn handle_daily_key(app: &mut App, key: KeyCode) -> io::Result<()> {
+pub fn handle_normal_key(app: &mut App, key: KeyCode) -> io::Result<()> {
+    // Shared keys (work in both Daily and Filter views)
     match key {
-        KeyCode::Char('?') => app.show_help = true,
-        KeyCode::Char(':') => app.mode = Mode::Command,
-        KeyCode::Char('/') => app.enter_filter_input(),
-        KeyCode::Enter => app.new_task(true),
-        KeyCode::Char('o') => app.new_task(false),
-        KeyCode::Char('e') => app.edit_selected(),
-        KeyCode::Char('x') => app.toggle_task(),
-        KeyCode::Char('d') => {
-            app.delete_selected();
-            app.save();
+        KeyCode::Char('?') => {
+            app.show_help = true;
+            return Ok(());
         }
-        KeyCode::Char('u') => app.undo(),
-        KeyCode::Up | KeyCode::Char('k') => app.move_up(),
-        KeyCode::Down | KeyCode::Char('j') => app.move_down(),
-        KeyCode::Char('g') => app.jump_to_first(),
-        KeyCode::Char('G') => app.jump_to_last(),
-        KeyCode::Char('h' | '[') => app.prev_day()?,
-        KeyCode::Char('l' | ']') => app.next_day()?,
-        KeyCode::Char('t') => app.goto_today()?,
-        KeyCode::Char('s') => app.gather_completed_tasks(),
-        KeyCode::Char('m') => app.enter_order_mode(),
+        KeyCode::Char(':') => {
+            app.input_mode = InputMode::Command;
+            return Ok(());
+        }
+        KeyCode::Char('/') => {
+            app.enter_filter_input();
+            return Ok(());
+        }
+        KeyCode::Char('e') => {
+            app.edit_current_entry();
+            return Ok(());
+        }
+        KeyCode::Char('x') => {
+            app.toggle_current_entry()?;
+            return Ok(());
+        }
+        KeyCode::Char('d') => {
+            app.delete_current_entry()?;
+            return Ok(());
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.move_up();
+            return Ok(());
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.move_down();
+            return Ok(());
+        }
+        KeyCode::Char('g') => {
+            app.jump_to_first();
+            return Ok(());
+        }
+        KeyCode::Char('G') => {
+            app.jump_to_last();
+            return Ok(());
+        }
         _ => {}
+    }
+
+    // View-specific keys
+    match &app.view {
+        ViewMode::Daily(_) => match key {
+            KeyCode::Enter => app.new_task(true),
+            KeyCode::Char('o') => app.new_task(false),
+            KeyCode::Char('u') => app.undo(),
+            KeyCode::Char('h' | '[') => app.prev_day()?,
+            KeyCode::Char('l' | ']') => app.next_day()?,
+            KeyCode::Char('t') => app.goto_today()?,
+            KeyCode::Char('s') => app.gather_completed_tasks(),
+            KeyCode::Char('m') => app.enter_order_mode(),
+            _ => {}
+        },
+        ViewMode::Filter(_) => match key {
+            KeyCode::Esc => app.exit_filter(),
+            KeyCode::Char('u') => app.undo(),
+            KeyCode::Char('v') => app.filter_jump_to_day()?,
+            KeyCode::Char('r') => app.refresh_filter()?,
+            KeyCode::Enter => app.filter_quick_add(),
+            _ => {}
+        },
     }
     Ok(())
 }
 
-pub fn handle_editing_key(app: &mut App, key: KeyCode) {
+pub fn handle_edit_key(app: &mut App, key: KeyCode) {
     match key {
-        KeyCode::BackTab => {
-            if app.filter_quick_add_date.is_some() {
-                app.cycle_quick_add_type();
-            } else if app.filter_edit_target.is_some() {
-                let _ = app.filter_cycle_entry_type();
-            } else {
-                app.cycle_entry_type();
-            }
-        }
+        KeyCode::BackTab => app.cycle_edit_entry_type(),
         KeyCode::Tab => app.commit_and_add_new(),
         KeyCode::Enter => app.exit_edit(),
         KeyCode::Esc => app.cancel_edit(),
@@ -93,9 +128,23 @@ pub fn handle_editing_key(app: &mut App, key: KeyCode) {
                 && !buffer.delete_char_before()
                 && buffer.is_empty()
             {
-                app.delete_selected();
-                app.edit_buffer = None;
-                app.mode = Mode::Daily;
+                // Handle empty buffer backspace based on context
+                match &app.input_mode {
+                    InputMode::Edit(EditContext::Daily { entry_index }) => {
+                        let entry_index = *entry_index;
+                        app.edit_buffer = None;
+                        app.input_mode = InputMode::Normal;
+                        if entry_index < app.entry_indices.len() {
+                            let line_idx = app.entry_indices[entry_index];
+                            app.lines.remove(line_idx);
+                            app.entry_indices = App::compute_entry_indices(&app.lines);
+                        }
+                    }
+                    _ => {
+                        // For filter contexts, just cancel
+                        app.cancel_edit();
+                    }
+                }
             }
         }
         KeyCode::Left => {
@@ -117,57 +166,49 @@ pub fn handle_editing_key(app: &mut App, key: KeyCode) {
     }
 }
 
-pub fn handle_filter_key(app: &mut App, key: KeyCode) -> io::Result<()> {
-    match key {
-        KeyCode::Char('?') => app.show_help = true,
-        KeyCode::Char('/') => app.enter_filter_input(),
-        KeyCode::Esc => app.exit_filter(),
-        KeyCode::Up | KeyCode::Char('k') => app.filter_move_up(),
-        KeyCode::Down | KeyCode::Char('j') => app.filter_move_down(),
-        KeyCode::Char('g') => {
-            app.filter_selected = 0;
-        }
-        KeyCode::Char('G') => {
-            if !app.filter_items.is_empty() {
-                app.filter_selected = app.filter_items.len() - 1;
-            }
-        }
-        KeyCode::Char('v') => app.filter_jump_to_day()?,
-        KeyCode::Char('e') => app.filter_edit(),
-        KeyCode::Char('x') => app.filter_toggle()?,
-        KeyCode::Char('d') => app.filter_delete()?,
-        KeyCode::Char('r') => app.refresh_filter()?,
-        KeyCode::Char(':') => app.mode = Mode::Command,
-        KeyCode::Enter => app.filter_quick_add(),
-        _ => {}
-    }
-    Ok(())
-}
+pub fn handle_query_input_key(app: &mut App, key: KeyCode) -> io::Result<()> {
+    // Get query buffer from filter state or use command buffer as temp storage
+    let query_buffer = match &app.view {
+        ViewMode::Filter(state) => state.query_buffer.clone(),
+        ViewMode::Daily(_) => app.command_buffer.clone(),
+    };
 
-pub fn handle_filter_input_key(app: &mut App, key: KeyCode) -> io::Result<()> {
     match key {
         KeyCode::Enter => {
-            if app.filter_buffer.is_empty() {
+            if query_buffer.is_empty() {
                 app.cancel_filter_input();
             } else {
                 app.execute_filter()?;
             }
         }
         KeyCode::Esc => {
-            if app.filter_buffer.is_empty() {
+            if query_buffer.is_empty() {
                 app.cancel_filter_input();
             } else {
-                app.filter_buffer.clear();
+                match &mut app.view {
+                    ViewMode::Filter(state) => state.query_buffer.clear(),
+                    ViewMode::Daily(_) => app.command_buffer.clear(),
+                }
             }
         }
         KeyCode::Backspace => {
-            if app.filter_buffer.is_empty() {
+            if query_buffer.is_empty() {
                 app.cancel_filter_input();
             } else {
-                app.filter_buffer.pop();
+                match &mut app.view {
+                    ViewMode::Filter(state) => {
+                        state.query_buffer.pop();
+                    }
+                    ViewMode::Daily(_) => {
+                        app.command_buffer.pop();
+                    }
+                }
             }
         }
-        KeyCode::Char(c) => app.filter_buffer.push(c),
+        KeyCode::Char(c) => match &mut app.view {
+            ViewMode::Filter(state) => state.query_buffer.push(c),
+            ViewMode::Daily(_) => app.command_buffer.push(c),
+        },
         _ => {}
     }
     Ok(())
