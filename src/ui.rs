@@ -721,7 +721,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
         RatatuiLine::from(Span::styled("[Commands]", header_style)).alignment(Alignment::Center),
     );
     lines.push(help_line(
-        ":goto|:gt",
+        ":goto|:g",
         "Go to date (YYYY/MM/DD or MM/DD)",
         key_style,
         desc_style,

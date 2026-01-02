@@ -1013,7 +1013,7 @@ impl App {
                 self.save();
                 self.should_quit = true;
             }
-            "goto" | "gt" => {
+            "goto" | "g" => {
                 if arg.is_empty() {
                     self.status_message =
                         Some("Usage: :goto YYYY/MM/DD or :goto MM/DD".to_string());

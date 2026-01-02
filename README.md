@@ -116,7 +116,7 @@ The entry will appear in the "Later" section when you view that date.
 | `T/N/E` | Quick filter tasks/notes/events |
 | `/` | Open filter mode |
 | `?` | Show help |
-| `:goto` or `:gt` | Go to date (YYYY/MM/DD or MM/DD) |
+| `:goto` or `:g` | Go to date (YYYY/MM/DD or MM/DD) |
 | `:q` | Quit |
 
 ### Move Mode
