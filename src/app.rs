@@ -1056,6 +1056,11 @@ impl App {
         };
 
         let filter = storage::parse_filter_query(&query);
+
+        if !filter.invalid_tokens.is_empty() {
+            self.status_message = Some(format!("Unknown filter: {}", filter.invalid_tokens.join(", ")));
+        }
+
         let entries = storage::collect_filtered_entries(&filter)?;
         let selected = entries.len().saturating_sub(1);
 
@@ -1112,6 +1117,11 @@ impl App {
         };
 
         let filter = storage::parse_filter_query(&state.query);
+
+        if !filter.invalid_tokens.is_empty() {
+            self.status_message = Some(format!("Unknown filter: {}", filter.invalid_tokens.join(", ")));
+        }
+
         state.entries = storage::collect_filtered_entries(&filter)?;
         state.selected = state.selected.min(state.entries.len().saturating_sub(1));
         state.scroll_offset = 0;

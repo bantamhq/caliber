@@ -370,6 +370,21 @@ fn run_app<B: ratatui::backend::Backend>(
             let content = Paragraph::new(lines).scroll((scroll_offset as u16, 0));
             f.render_widget(content, content_area);
 
+            if let Some(ref msg) = app.status_message {
+                let msg_width = msg.len() as u16 + 2;
+                let status_area = ratatui::layout::Rect {
+                    x: content_area.x,
+                    y: content_area.y + content_area.height.saturating_sub(1),
+                    width: msg_width.min(content_area.width),
+                    height: 1,
+                };
+                let status = Paragraph::new(ratatui::text::Span::styled(
+                    format!(" {msg} "),
+                    Style::default().fg(Color::Black).bg(Color::Yellow),
+                ));
+                f.render_widget(status, status_area);
+            }
+
             let footer = Paragraph::new(ui::render_footer(&app));
             f.render_widget(footer, chunks[1]);
 

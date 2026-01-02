@@ -419,6 +419,7 @@ pub struct Filter {
     pub before_date: Option<NaiveDate>,
     pub after_date: Option<NaiveDate>,
     pub overdue: bool,
+    pub invalid_tokens: Vec<String>,
 }
 
 pub static TAG_REGEX: LazyLock<Regex> =
@@ -715,17 +716,26 @@ pub fn parse_filter_query(query: &str) -> Filter {
         if let Some(date_str) = token.strip_prefix("@before:") {
             if let Some(date) = parse_natural_date(date_str, today) {
                 filter.before_date = Some(date);
+            } else {
+                filter.invalid_tokens.push(token.to_string());
             }
             continue;
         }
         if let Some(date_str) = token.strip_prefix("@after:") {
             if let Some(date) = parse_natural_date(date_str, today) {
                 filter.after_date = Some(date);
+            } else {
+                filter.invalid_tokens.push(token.to_string());
             }
             continue;
         }
         if token == "@overdue" {
             filter.overdue = true;
+            continue;
+        }
+        // Any other @command is invalid
+        if token.starts_with('@') && token.contains(':') {
+            filter.invalid_tokens.push(token.to_string());
             continue;
         }
 
@@ -735,6 +745,8 @@ pub fn parse_filter_query(query: &str) -> Filter {
             } else if let Some(type_str) = negated.strip_prefix('!') {
                 if let Some(filter_type) = parse_type_keyword(type_str) {
                     filter.exclude_types.push(filter_type);
+                } else {
+                    filter.invalid_tokens.push(token.to_string());
                 }
             } else if !negated.is_empty() {
                 filter.exclude_terms.push(negated.to_string());
@@ -757,7 +769,7 @@ pub fn parse_filter_query(query: &str) -> Filter {
                 }
                 "notes" | "note" | "n" => filter.entry_type = Some(FilterType::Note),
                 "events" | "event" | "e" => filter.entry_type = Some(FilterType::Event),
-                _ => {}
+                _ => filter.invalid_tokens.push(token.to_string()),
             }
         } else if let Some(tag) = token.strip_prefix('#') {
             filter.tags.push(tag.to_string());
@@ -770,6 +782,10 @@ pub fn parse_filter_query(query: &str) -> Filter {
 }
 
 pub fn collect_filtered_entries(filter: &Filter) -> io::Result<Vec<FilterEntry>> {
+    if !filter.invalid_tokens.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let journal = load_journal()?;
     let mut entries = Vec::new();
     let mut current_date: Option<NaiveDate> = None;
@@ -1301,5 +1317,30 @@ mod tests {
         // Explicit year should work normally
         let result = parse_date_prefer_past("12/30/25", today);
         assert_eq!(result, NaiveDate::from_ymd_opt(2025, 12, 30));
+    }
+
+    #[test]
+    fn test_filter_invalid_type() {
+        let filter = parse_filter_query("!tas");
+        assert_eq!(filter.invalid_tokens, vec!["!tas"]);
+        assert!(filter.entry_type.is_none());
+    }
+
+    #[test]
+    fn test_filter_invalid_not_type() {
+        let filter = parse_filter_query("not:!tas");
+        assert_eq!(filter.invalid_tokens, vec!["not:!tas"]);
+    }
+
+    #[test]
+    fn test_filter_invalid_date_command() {
+        let filter = parse_filter_query("@befor:1/15");
+        assert_eq!(filter.invalid_tokens, vec!["@befor:1/15"]);
+    }
+
+    #[test]
+    fn test_filter_invalid_date_value() {
+        let filter = parse_filter_query("@before:invalid");
+        assert_eq!(filter.invalid_tokens, vec!["@before:invalid"]);
     }
 }
