@@ -562,6 +562,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
         desc_style,
     ));
     lines.push(help_line("d", "Delete entry", key_style, desc_style));
+    lines.push(help_line("y", "Yank to clipboard", key_style, desc_style));
     lines.push(help_line("u", "Undo delete", key_style, desc_style));
     lines.push(help_line("j/k", "Navigate down/up", key_style, desc_style));
     lines.push(help_line(
@@ -639,6 +640,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(help_line("e", "Edit entry", key_style, desc_style));
     lines.push(help_line("x", "Toggle task", key_style, desc_style));
     lines.push(help_line("d", "Delete entry", key_style, desc_style));
+    lines.push(help_line("y", "Yank to clipboard", key_style, desc_style));
     lines.push(help_line("r", "Refresh results", key_style, desc_style));
     lines.push(help_line("v", "View day", key_style, desc_style));
     lines.push(help_line("/", "Edit filter", key_style, desc_style));

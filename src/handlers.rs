@@ -97,6 +97,10 @@ pub fn handle_normal_key(app: &mut App, key: KeyCode) -> io::Result<()> {
             app.view_entry_source()?;
             return Ok(());
         }
+        KeyCode::Char('y') => {
+            app.yank_current_entry();
+            return Ok(());
+        }
         _ => {}
     }
 

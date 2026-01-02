@@ -417,6 +417,37 @@ impl App {
         }
     }
 
+    pub fn yank_current_entry(&mut self) {
+        let content = match &self.view {
+            ViewMode::Daily(state) => {
+                if let Some(later_entry) = state.later_entries.get(state.selected) {
+                    later_entry.content.clone()
+                } else {
+                    let entry_index = state.selected - state.later_entries.len();
+                    match self.get_daily_entry(entry_index) {
+                        Some(entry) => entry.content.clone(),
+                        None => return,
+                    }
+                }
+            }
+            ViewMode::Filter(state) => match state.entries.get(state.selected) {
+                Some(filter_entry) => filter_entry.content.clone(),
+                None => return,
+            },
+        };
+
+        match Self::copy_to_clipboard(&content) {
+            Ok(()) => self.status_message = Some("Yanked".to_string()),
+            Err(e) => self.status_message = Some(format!("Failed to yank: {e}")),
+        }
+    }
+
+    fn copy_to_clipboard(text: &str) -> Result<(), arboard::Error> {
+        let mut clipboard = arboard::Clipboard::new()?;
+        clipboard.set_text(text)?;
+        Ok(())
+    }
+
     // === Edit Mode Operations ===
 
     /// Cycle entry type while editing (BackTab)

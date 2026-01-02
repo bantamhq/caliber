@@ -101,6 +101,7 @@ The entry will appear in the "Later" section when you view that date.
 | `g/G` | Jump to first/last entry |
 | `x` | Toggle task complete |
 | `d` | Delete entry |
+| `y` | Yank to clipboard |
 | `u` | Undo delete |
 | `h/l` or `[/]` | Previous/next day |
 | `t` | Go to today |
@@ -141,6 +142,7 @@ Reorder entries within a day.
 | `e` | Edit entry |
 | `x` | Toggle task |
 | `d` | Delete entry |
+| `y` | Yank to clipboard |
 | `r` | Refresh results |
 | `v` | Jump to entry's source day |
 | `Enter` | Quick add entry to today |
