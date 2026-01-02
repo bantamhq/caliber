@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{Days, NaiveDate};
 use regex::Regex;
 use std::fs;
 use std::io;
@@ -416,6 +416,9 @@ pub struct Filter {
     pub search_terms: Vec<String>,
     pub exclude_terms: Vec<String>,
     pub exclude_types: Vec<FilterType>,
+    pub before_date: Option<NaiveDate>,
+    pub after_date: Option<NaiveDate>,
+    pub overdue: bool,
 }
 
 pub static TAG_REGEX: LazyLock<Regex> =
@@ -428,6 +431,11 @@ pub static TAG_REGEX: LazyLock<Regex> =
 /// - @YYYY/MM/DD (ISO format, e.g., @2026/1/9)
 pub static LATER_DATE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"@(\d{4}/\d{1,2}/\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?)").unwrap());
+
+/// Matches natural date patterns: @tomorrow, @yesterday, @next-monday, @last-monday, @3d, @-3d
+pub static NATURAL_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)@(tomorrow|yesterday|(?:next|last)-(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|-?[1-9]\d*d)").unwrap()
+});
 
 #[must_use]
 pub fn extract_tags(content: &str) -> Vec<String> {
@@ -488,6 +496,113 @@ pub fn parse_later_date(date_str: &str, today: NaiveDate) -> Option<NaiveDate> {
     None
 }
 
+/// Parses a weekday name (full or abbreviated) into chrono::Weekday.
+fn parse_weekday(s: &str) -> Option<chrono::Weekday> {
+    use chrono::Weekday;
+    match s.to_lowercase().as_str() {
+        "monday" | "mon" => Some(Weekday::Mon),
+        "tuesday" | "tue" => Some(Weekday::Tue),
+        "wednesday" | "wed" => Some(Weekday::Wed),
+        "thursday" | "thu" => Some(Weekday::Thu),
+        "friday" | "fri" => Some(Weekday::Fri),
+        "saturday" | "sat" => Some(Weekday::Sat),
+        "sunday" | "sun" => Some(Weekday::Sun),
+        _ => None,
+    }
+}
+
+/// Returns the next occurrence of a weekday after today (never returns today).
+fn next_weekday_from(today: NaiveDate, target: chrono::Weekday) -> Option<NaiveDate> {
+    use chrono::Datelike;
+    let today_wd = today.weekday().num_days_from_monday();
+    let target_wd = target.num_days_from_monday();
+
+    let days_ahead = if target_wd > today_wd {
+        target_wd - today_wd
+    } else {
+        7 - today_wd + target_wd
+    };
+    let days_ahead = if days_ahead == 0 { 7 } else { days_ahead };
+
+    today.checked_add_days(Days::new(u64::from(days_ahead)))
+}
+
+/// Returns the most recent occurrence of a weekday before today (never returns today).
+fn prev_weekday_from(today: NaiveDate, target: chrono::Weekday) -> Option<NaiveDate> {
+    use chrono::Datelike;
+    let today_wd = today.weekday().num_days_from_monday();
+    let target_wd = target.num_days_from_monday();
+
+    let days_back = if target_wd < today_wd {
+        today_wd - target_wd
+    } else {
+        7 - target_wd + today_wd
+    };
+    let days_back = if days_back == 0 { 7 } else { days_back };
+
+    today.checked_sub_days(Days::new(u64::from(days_back)))
+}
+
+/// Parses natural language date expressions: tomorrow, yesterday, next-monday, last-monday, 3d, -3d.
+/// Falls back to parse_later_date for standard formats.
+#[must_use]
+pub fn parse_natural_date(input: &str, today: NaiveDate) -> Option<NaiveDate> {
+    let input_lower = input.to_lowercase();
+
+    if input_lower == "tomorrow" {
+        return today.checked_add_days(Days::new(1));
+    }
+
+    if input_lower == "yesterday" {
+        return today.checked_sub_days(Days::new(1));
+    }
+
+    // Handle Xd (future) and -Xd (past) patterns
+    if let Some(days_str) = input_lower.strip_suffix('d') {
+        if let Some(neg_days_str) = days_str.strip_prefix('-') {
+            if let Ok(days) = neg_days_str.parse::<u64>()
+                && days > 0 {
+                    return today.checked_sub_days(Days::new(days));
+                }
+        } else if let Ok(days) = days_str.parse::<u64>()
+            && days > 0 {
+                return today.checked_add_days(Days::new(days));
+            }
+    }
+
+    if let Some(weekday_str) = input_lower.strip_prefix("next-")
+        && let Some(target_weekday) = parse_weekday(weekday_str)
+    {
+        return next_weekday_from(today, target_weekday);
+    }
+
+    if let Some(weekday_str) = input_lower.strip_prefix("last-")
+        && let Some(target_weekday) = parse_weekday(weekday_str)
+    {
+        return prev_weekday_from(today, target_weekday);
+    }
+
+    parse_later_date(input, today)
+}
+
+/// Replaces natural date patterns (@tomorrow, @yesterday, @next-mon, @last-mon, @3d, @-3d) with @MM/DD format.
+#[must_use]
+pub fn normalize_natural_dates(content: &str, today: NaiveDate) -> String {
+    let mut result = content.to_string();
+
+    for cap in NATURAL_DATE_REGEX.captures_iter(content) {
+        if let Some(m) = cap.get(0) {
+            let natural_str = &cap[1];
+            if let Some(date) = parse_natural_date(natural_str, today) {
+                let normalized = format!("@{}/{}", date.format("%m"), date.format("%d"));
+                result = result.replacen(m.as_str(), &normalized, 1);
+            }
+        }
+    }
+
+    result
+}
+
 /// Extracts the target date from entry content if it contains an @date pattern.
 #[must_use]
 pub fn extract_target_date(content: &str, today: NaiveDate) -> Option<NaiveDate> {
@@ -495,6 +610,45 @@ pub fn extract_target_date(content: &str, today: NaiveDate) -> Option<NaiveDate>
         .captures(content)
         .and_then(|cap| cap.get(1))
         .and_then(|m| parse_later_date(m.as_str(), today))
+}
+
+/// Like parse_later_date but for MM/DD format prefers the most recent past occurrence.
+/// Used for overdue checking where we want to interpret @12/30 on 1/1 as last year.
+#[must_use]
+fn parse_date_prefer_past(date_str: &str, today: NaiveDate) -> Option<NaiveDate> {
+    use chrono::Datelike;
+
+    // For formats with explicit year, parse normally
+    if date_str.matches('/').count() == 2 || date_str.starts_with(|c: char| c.is_ascii_digit() && date_str.len() >= 4 && date_str[0..4] == date_str[0..4].chars().filter(|c| c.is_ascii_digit()).collect::<String>()) {
+        return parse_later_date(date_str, today);
+    }
+
+    // MM/DD - prefer past (most recent occurrence)
+    let parts: Vec<&str> = date_str.split('/').collect();
+    if parts.len() == 2 {
+        let month: u32 = parts[0].parse().ok()?;
+        let day: u32 = parts[1].parse().ok()?;
+
+        // Try current year first
+        if let Some(date) = NaiveDate::from_ymd_opt(today.year(), month, day) {
+            if date <= today {
+                return Some(date);
+            }
+            // Date is in future this year, so use last year
+            return NaiveDate::from_ymd_opt(today.year() - 1, month, day);
+        }
+    }
+
+    None
+}
+
+/// Extracts target date preferring past interpretation (for overdue checking).
+#[must_use]
+fn extract_target_date_prefer_past(content: &str, today: NaiveDate) -> Option<NaiveDate> {
+    LATER_DATE_REGEX
+        .captures(content)
+        .and_then(|cap| cap.get(1))
+        .and_then(|m| parse_date_prefer_past(m.as_str(), today))
 }
 
 /// Collects all entries with @date matching the target date.
@@ -554,8 +708,27 @@ fn parse_type_keyword(s: &str) -> Option<FilterType> {
 #[must_use]
 pub fn parse_filter_query(query: &str) -> Filter {
     let mut filter = Filter::default();
+    let today = chrono::Local::now().date_naive();
 
     for token in query.split_whitespace() {
+        // Date filters: @before:DATE, @after:DATE, @overdue
+        if let Some(date_str) = token.strip_prefix("@before:") {
+            if let Some(date) = parse_natural_date(date_str, today) {
+                filter.before_date = Some(date);
+            }
+            continue;
+        }
+        if let Some(date_str) = token.strip_prefix("@after:") {
+            if let Some(date) = parse_natural_date(date_str, today) {
+                filter.after_date = Some(date);
+            }
+            continue;
+        }
+        if token == "@overdue" {
+            filter.overdue = true;
+            continue;
+        }
+
         if let Some(negated) = token.strip_prefix("not:") {
             if let Some(tag) = negated.strip_prefix('#') {
                 filter.exclude_tags.push(tag.to_string());
@@ -601,6 +774,7 @@ pub fn collect_filtered_entries(filter: &Filter) -> io::Result<Vec<FilterEntry>>
     let mut entries = Vec::new();
     let mut current_date: Option<NaiveDate> = None;
     let mut line_index_in_day: usize = 0;
+    let today = chrono::Local::now().date_naive();
 
     for line in journal.lines() {
         if let Some(date) = parse_day_header(line) {
@@ -609,14 +783,36 @@ pub fn collect_filtered_entries(filter: &Filter) -> io::Result<Vec<FilterEntry>>
             continue;
         }
 
-        if let Some(date) = current_date {
+        if let Some(source_date) = current_date {
+            // Date filters on day header
+            if let Some(before) = filter.before_date
+                && source_date > before
+            {
+                line_index_in_day += 1;
+                continue;
+            }
+            if let Some(after) = filter.after_date
+                && source_date < after
+            {
+                line_index_in_day += 1;
+                continue;
+            }
+
             let parsed = parse_line(line);
             if let Line::Entry(entry) = parsed {
-                let matches = entry_matches_filter(&entry, filter);
-                if matches {
+                // Overdue filter: entry must have @date targeting before today
+                if filter.overdue {
+                    let target = extract_target_date_prefer_past(&entry.content, today);
+                    if target.is_none() || target.unwrap() >= today {
+                        line_index_in_day += 1;
+                        continue;
+                    }
+                }
+
+                if entry_matches_filter(&entry, filter) {
                     let completed = matches!(entry.entry_type, EntryType::Task { completed: true });
                     entries.push(FilterEntry {
-                        source_date: date,
+                        source_date,
                         content: entry.content,
                         line_index: line_index_in_day,
                         entry_type: entry.entry_type,
@@ -942,5 +1138,168 @@ mod tests {
         let today = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
         let result = parse_later_date("01/04/26", today);
         assert_eq!(result, NaiveDate::from_ymd_opt(2026, 1, 4));
+    }
+
+    #[test]
+    fn test_parse_natural_date_tomorrow() {
+        let today = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let result = parse_natural_date("tomorrow", today);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2026, 1, 2));
+    }
+
+    #[test]
+    fn test_parse_natural_date_days() {
+        let today = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        assert_eq!(
+            parse_natural_date("3d", today),
+            NaiveDate::from_ymd_opt(2026, 1, 4)
+        );
+        assert_eq!(
+            parse_natural_date("7d", today),
+            NaiveDate::from_ymd_opt(2026, 1, 8)
+        );
+    }
+
+    #[test]
+    fn test_parse_natural_date_next_weekday() {
+        // Jan 1, 2026 is a Thursday
+        let today = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        // next-monday should be Jan 5
+        assert_eq!(
+            parse_natural_date("next-monday", today),
+            NaiveDate::from_ymd_opt(2026, 1, 5)
+        );
+        assert_eq!(
+            parse_natural_date("next-mon", today),
+            NaiveDate::from_ymd_opt(2026, 1, 5)
+        );
+        // next-thursday should be Jan 8 (not today)
+        assert_eq!(
+            parse_natural_date("next-thu", today),
+            NaiveDate::from_ymd_opt(2026, 1, 8)
+        );
+    }
+
+    #[test]
+    fn test_parse_natural_date_fallback() {
+        let today = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        // Should fall back to parse_later_date
+        assert_eq!(
+            parse_natural_date("1/15", today),
+            NaiveDate::from_ymd_opt(2026, 1, 15)
+        );
+    }
+
+    #[test]
+    fn test_parse_natural_date_yesterday() {
+        let today = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        assert_eq!(
+            parse_natural_date("yesterday", today),
+            NaiveDate::from_ymd_opt(2026, 1, 4)
+        );
+    }
+
+    #[test]
+    fn test_parse_natural_date_negative_days() {
+        let today = NaiveDate::from_ymd_opt(2026, 1, 10).unwrap();
+        assert_eq!(
+            parse_natural_date("-3d", today),
+            NaiveDate::from_ymd_opt(2026, 1, 7)
+        );
+        assert_eq!(
+            parse_natural_date("-7d", today),
+            NaiveDate::from_ymd_opt(2026, 1, 3)
+        );
+    }
+
+    #[test]
+    fn test_parse_natural_date_last_weekday() {
+        // Jan 5, 2026 is Monday
+        let today = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        // last-friday should be Jan 2
+        assert_eq!(
+            parse_natural_date("last-friday", today),
+            NaiveDate::from_ymd_opt(2026, 1, 2)
+        );
+        // last-mon on Monday should be previous Monday (Dec 29, 2025)
+        assert_eq!(
+            parse_natural_date("last-mon", today),
+            NaiveDate::from_ymd_opt(2025, 12, 29)
+        );
+    }
+
+    #[test]
+    fn test_normalize_natural_dates() {
+        let today = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(); // Monday
+
+        assert_eq!(
+            normalize_natural_dates("Call dentist @tomorrow", today),
+            "Call dentist @01/06"
+        );
+        assert_eq!(
+            normalize_natural_dates("Review report @3d", today),
+            "Review report @01/08"
+        );
+        // next Monday from Monday Jan 5 is Jan 12
+        assert_eq!(
+            normalize_natural_dates("Meeting @next-monday", today),
+            "Meeting @01/12"
+        );
+        // Past dates
+        assert_eq!(
+            normalize_natural_dates("Follow up from @yesterday", today),
+            "Follow up from @01/04"
+        );
+        assert_eq!(
+            normalize_natural_dates("Notes from @-3d", today),
+            "Notes from @01/02"
+        );
+        // last-friday from Monday Jan 5 is Jan 2
+        assert_eq!(
+            normalize_natural_dates("Reference @last-friday", today),
+            "Reference @01/02"
+        );
+    }
+
+    #[test]
+    fn test_filter_parse_before_date() {
+        let filter = parse_filter_query("@before:1/15");
+        assert!(filter.before_date.is_some());
+    }
+
+    #[test]
+    fn test_filter_parse_after_date() {
+        let filter = parse_filter_query("@after:1/1");
+        assert!(filter.after_date.is_some());
+    }
+
+    #[test]
+    fn test_filter_parse_overdue() {
+        let filter = parse_filter_query("@overdue");
+        assert!(filter.overdue);
+    }
+
+    #[test]
+    fn test_filter_combined() {
+        let filter = parse_filter_query("!tasks @after:1/1 @before:1/31");
+        assert_eq!(filter.entry_type, Some(FilterType::Task));
+        assert!(filter.after_date.is_some());
+        assert!(filter.before_date.is_some());
+    }
+
+    #[test]
+    fn test_parse_date_prefer_past() {
+        // On Jan 1, 2026, @12/30 should be interpreted as Dec 30, 2025 (past)
+        let today = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let result = parse_date_prefer_past("12/30", today);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 12, 30));
+
+        // @1/1 on Jan 1 should be today (not past year)
+        let result = parse_date_prefer_past("1/1", today);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2026, 1, 1));
+
+        // Explicit year should work normally
+        let result = parse_date_prefer_past("12/30/25", today);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 12, 30));
     }
 }

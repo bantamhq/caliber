@@ -86,6 +86,12 @@ Date references are highlighted in red. Use `@date` to schedule an entry for a f
 - [ ] Send birthday card @2024/03/20
 ```
 
+**Natural date shortcuts** are converted automatically when you save:
+- `@tomorrow` / `@yesterday` - converts to tomorrow/yesterday's date
+- `@next-monday` (or `@next-mon`) - converts to next Monday
+- `@last-friday` (or `@last-fri`) - converts to last Friday
+- `@3d` / `@-3d` - converts to 3 days from now / 3 days ago
+
 The entry will appear in the "Later" section when you view that date.
 
 ## Keyboard Reference
@@ -164,6 +170,11 @@ Reorder entries within a day.
 | `not:#tag` | Entries without tag |
 | `not:!tasks` | Exclude tasks |
 | `not:word` | Entries not containing text |
+| `@before:DATE` | Entries from days on or before DATE |
+| `@after:DATE` | Entries from days on or after DATE |
+| `@overdue` | Entries with @date before today |
+
+DATE in filters supports natural language: `tomorrow`, `yesterday`, `next-mon`, `last-fri`, `7d`, `-7d`, plus standard formats.
 
 Combine filters: `!tasks #work` finds incomplete tasks tagged #work.
 

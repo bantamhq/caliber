@@ -265,7 +265,8 @@ impl App {
                         Some((later_entry.source_date, later_entry.line_index, entry));
 
                     // Refresh later entries
-                    state.later_entries = storage::collect_later_entries_for_date(self.current_date)?;
+                    state.later_entries =
+                        storage::collect_later_entries_for_date(self.current_date)?;
 
                     // Adjust selection
                     let total = state.later_entries.len() + self.entry_indices.len();
@@ -335,9 +336,13 @@ impl App {
                     if !matches!(later_entry.entry_type, EntryType::Task { .. }) {
                         return Ok(());
                     }
-                    storage::toggle_entry_complete(later_entry.source_date, later_entry.line_index)?;
+                    storage::toggle_entry_complete(
+                        later_entry.source_date,
+                        later_entry.line_index,
+                    )?;
                     // Refresh later entries
-                    state.later_entries = storage::collect_later_entries_for_date(self.current_date)?;
+                    state.later_entries =
+                        storage::collect_later_entries_for_date(self.current_date)?;
                     return Ok(());
                 }
 
@@ -480,7 +485,8 @@ impl App {
                     && let Some(filter_entry) = state.entries.get_mut(filter_index)
                 {
                     filter_entry.entry_type = new_type;
-                    filter_entry.completed = matches!(filter_entry.entry_type, EntryType::Task { completed: true });
+                    filter_entry.completed =
+                        matches!(filter_entry.entry_type, EntryType::Task { completed: true });
                     if date == self.current_date {
                         let _ = self.reload_current_day();
                     }
@@ -507,7 +513,8 @@ impl App {
                     && let Some(later_entry) = state.later_entries.get_mut(later_index)
                 {
                     later_entry.entry_type = new_type;
-                    later_entry.completed = matches!(later_entry.entry_type, EntryType::Task { completed: true });
+                    later_entry.completed =
+                        matches!(later_entry.entry_type, EntryType::Task { completed: true });
                 }
             }
             _ => {}
@@ -521,6 +528,7 @@ impl App {
             return;
         };
         let content = buffer.into_content();
+        let content = storage::normalize_natural_dates(&content, Local::now().date_naive());
 
         match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
             InputMode::Edit(EditContext::Daily { entry_index }) => {
@@ -598,8 +606,9 @@ impl App {
                 }
                 // Refresh later entries
                 if let ViewMode::Daily(state) = &mut self.view {
-                    state.later_entries = storage::collect_later_entries_for_date(self.current_date)
-                        .unwrap_or_default();
+                    state.later_entries =
+                        storage::collect_later_entries_for_date(self.current_date)
+                            .unwrap_or_default();
                 }
             }
             _ => {}

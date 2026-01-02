@@ -7,14 +7,22 @@ use ratatui::{
 };
 
 use crate::app::{App, EditContext, InputMode, ViewMode};
-use crate::storage::{EntryType, LATER_DATE_REGEX, Line, TAG_REGEX};
+use crate::storage::{EntryType, LATER_DATE_REGEX, Line, NATURAL_DATE_REGEX, TAG_REGEX};
 
 fn style_content(text: &str, base_style: Style, muted: bool) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     let mut last_end = 0;
 
-    let tag_color = if muted { Color::Rgb(140, 140, 100) } else { Color::Yellow };
-    let date_color = if muted { Color::Rgb(140, 100, 100) } else { Color::Red };
+    let tag_color = if muted {
+        Color::Rgb(140, 140, 100)
+    } else {
+        Color::Yellow
+    };
+    let date_color = if muted {
+        Color::Rgb(140, 100, 100)
+    } else {
+        Color::Red
+    };
 
     let mut matches: Vec<(usize, usize, Color)> = Vec::new();
 
@@ -25,6 +33,12 @@ fn style_content(text: &str, base_style: Style, muted: bool) -> Vec<Span<'static
     }
 
     for cap in LATER_DATE_REGEX.captures_iter(text) {
+        if let Some(m) = cap.get(0) {
+            matches.push((m.start(), m.end(), date_color));
+        }
+    }
+
+    for cap in NATURAL_DATE_REGEX.captures_iter(text) {
         if let Some(m) = cap.get(0) {
             matches.push((m.start(), m.end(), date_color));
         }
@@ -136,7 +150,11 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
                 let display_text = truncate_text(&text, available);
                 let mut spans = vec![Span::styled("→", Style::default().fg(Color::Cyan))];
                 spans.push(Span::styled(sel_prefix.to_string(), content_style));
-                spans.extend(style_content(&display_text, content_style, filter_entry.completed));
+                spans.extend(style_content(
+                    &display_text,
+                    content_style,
+                    filter_entry.completed,
+                ));
                 spans.push(Span::styled(
                     date_suffix,
                     Style::default().fg(Color::DarkGray),
@@ -147,7 +165,11 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
             let available = width.saturating_sub(prefix_width + date_suffix_width);
             let display_text = truncate_text(&text, available);
             let mut spans = vec![Span::styled(prefix.to_string(), content_style)];
-            spans.extend(style_content(&display_text, content_style, filter_entry.completed));
+            spans.extend(style_content(
+                &display_text,
+                content_style,
+                filter_entry.completed,
+            ));
             spans.push(Span::styled(
                 date_suffix,
                 Style::default().fg(Color::DarkGray),
@@ -269,7 +291,11 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
                 Span::styled("→", Style::default().fg(Color::Red)),
                 Span::styled(rest_of_prefix, content_style),
             ];
-            spans.extend(style_content(&display_text, content_style, later_entry.completed));
+            spans.extend(style_content(
+                &display_text,
+                content_style,
+                later_entry.completed,
+            ));
             spans.push(Span::styled(
                 source_suffix,
                 Style::default().fg(Color::DarkGray),
@@ -284,7 +310,11 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
                 Span::styled(first_char, later_prefix_style),
                 Span::styled(rest_of_prefix, content_style),
             ];
-            spans.extend(style_content(&display_text, content_style, later_entry.completed));
+            spans.extend(style_content(
+                &display_text,
+                content_style,
+                later_entry.completed,
+            ));
             spans.push(Span::styled(
                 source_suffix,
                 Style::default().fg(Color::DarkGray),
@@ -578,12 +608,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
         desc_style,
     ));
     lines.push(help_line("t", "Go to today", key_style, desc_style));
-    lines.push(help_line(
-        "s",
-        "Sort entries",
-        key_style,
-        desc_style,
-    ));
+    lines.push(help_line("s", "Sort entries", key_style, desc_style));
     lines.push(help_line("m", "Move mode", key_style, desc_style));
     lines.push(help_line("/", "Filter mode", key_style, desc_style));
     lines.push(help_line("T", "Filter tasks", key_style, desc_style));
@@ -667,6 +692,28 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(help_line("!notes", "Notes only", key_style, desc_style));
     lines.push(help_line("!events", "Events only", key_style, desc_style));
     lines.push(help_line("#tag", "Filter by tag", key_style, desc_style));
+    lines.push(help_line(
+        "@before:DATE",
+        "Before date",
+        key_style,
+        desc_style,
+    ));
+    lines.push(help_line(
+        "@after:DATE",
+        "After date",
+        key_style,
+        desc_style,
+    ));
+    lines.push(help_line(
+        "@overdue",
+        "Has past @date",
+        key_style,
+        desc_style,
+    ));
+    lines.push(RatatuiLine::from(Span::styled(
+        "  DATE: MM/DD, tomorrow, yesterday, next-mon, last-fri, 3d, -3d",
+        desc_style,
+    )));
     lines.push(RatatuiLine::from(""));
 
     // Commands

@@ -177,7 +177,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 ViewMode::Daily(state) => {
                     ensure_selected_visible(
                         &mut state.scroll_offset,
-                        state.selected + 1,   // +1 for date header line
+                        state.selected + 1,    // +1 for date header line
                         daily_entry_count + 1, // +1 for date header line
                         visible_height,
                     );

@@ -2,7 +2,7 @@ use std::io;
 
 use crossterm::event::KeyCode;
 
-use crate::app::{App, EditContext, InputMode, ViewMode};
+use crate::app::{App, InputMode, ViewMode};
 use crate::ui;
 
 pub fn handle_help_key(app: &mut App, key: KeyCode) {
@@ -140,23 +140,9 @@ pub fn handle_edit_key(app: &mut App, key: KeyCode) {
                 && !buffer.delete_char_before()
                 && buffer.is_empty()
             {
-                // Handle empty buffer backspace based on context
-                match &app.input_mode {
-                    InputMode::Edit(EditContext::Daily { entry_index }) => {
-                        let entry_index = *entry_index;
-                        app.edit_buffer = None;
-                        app.input_mode = InputMode::Normal;
-                        if entry_index < app.entry_indices.len() {
-                            let line_idx = app.entry_indices[entry_index];
-                            app.lines.remove(line_idx);
-                            app.entry_indices = App::compute_entry_indices(&app.lines);
-                        }
-                    }
-                    _ => {
-                        // For filter contexts, just cancel
-                        app.cancel_edit();
-                    }
-                }
+                // Empty buffer backspace = cancel and delete the empty entry
+                // Delegate to exit_edit which handles this correctly
+                app.exit_edit();
             }
         }
         KeyCode::Left => {
