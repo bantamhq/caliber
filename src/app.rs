@@ -1058,7 +1058,9 @@ impl App {
             ViewMode::Daily(_) => std::mem::take(&mut self.command_buffer),
         };
 
-        let filter = storage::parse_filter_query(&query);
+        let (query, unknown_filters) = storage::expand_saved_filters(&query, &self.config.filters);
+        let mut filter = storage::parse_filter_query(&query);
+        filter.invalid_tokens.extend(unknown_filters);
 
         if !filter.invalid_tokens.is_empty() {
             self.status_message = Some(format!(
@@ -1083,12 +1085,22 @@ impl App {
 
     pub fn quick_filter(&mut self, query: &str) -> io::Result<()> {
         self.save();
-        let filter = storage::parse_filter_query(query);
+        let (query, unknown_filters) = storage::expand_saved_filters(query, &self.config.filters);
+        let mut filter = storage::parse_filter_query(&query);
+        filter.invalid_tokens.extend(unknown_filters);
+
+        if !filter.invalid_tokens.is_empty() {
+            self.status_message = Some(format!(
+                "Unknown filter: {}",
+                filter.invalid_tokens.join(", ")
+            ));
+        }
+
         let entries = storage::collect_filtered_entries(&filter)?;
         let selected = entries.len().saturating_sub(1);
 
         self.view = ViewMode::Filter(FilterState {
-            query: query.to_string(),
+            query,
             query_buffer: String::new(),
             entries,
             selected,

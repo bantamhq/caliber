@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -17,11 +17,15 @@ fn default_sort_order() -> Vec<String> {
 }
 
 fn default_favorite_tags() -> Vec<String> {
-    vec![
-        "feature".to_string(),
-        "bug".to_string(),
-        "idea".to_string(),
-    ]
+    vec!["feature".to_string(), "bug".to_string(), "idea".to_string()]
+}
+
+fn default_filters() -> HashMap<String, String> {
+    let mut m = HashMap::new();
+    m.insert("t".to_string(), "!tasks".to_string());
+    m.insert("n".to_string(), "!notes".to_string());
+    m.insert("e".to_string(), "!events".to_string());
+    m
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -32,6 +36,8 @@ pub struct Config {
     pub sort_order: Vec<String>,
     #[serde(default = "default_favorite_tags")]
     pub favorite_tags: Vec<String>,
+    #[serde(default = "default_filters")]
+    pub filters: HashMap<String, String>,
 }
 
 impl Config {

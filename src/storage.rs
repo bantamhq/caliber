@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{Days, NaiveDate};
 use regex::Regex;
 use std::fs;
@@ -442,6 +444,10 @@ pub static NATURAL_DATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 pub static FAVORITE_TAG_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"#([0-9])\b").unwrap());
 
+/// Matches saved filter shortcuts: $name (alphanumeric + underscore)
+pub static SAVED_FILTER_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\$(\w+)\b").unwrap());
+
 #[must_use]
 pub fn extract_tags(content: &str) -> Vec<String> {
     TAG_REGEX
@@ -631,6 +637,30 @@ pub fn expand_favorite_tags(content: &str, favorite_tags: &[String]) -> String {
     }
 
     result
+}
+
+/// Expands saved filter shortcuts ($name) with their definitions from config.
+/// Returns the expanded query and a list of unknown filter names.
+#[must_use]
+pub fn expand_saved_filters(
+    query: &str,
+    filters: &HashMap<String, String>,
+) -> (String, Vec<String>) {
+    let mut result = query.to_string();
+    let mut unknown = Vec::new();
+
+    for cap in SAVED_FILTER_REGEX.captures_iter(query) {
+        if let Some(m) = cap.get(0) {
+            let name = &cap[1];
+            if let Some(expansion) = filters.get(name) {
+                result = result.replacen(m.as_str(), expansion, 1);
+            } else {
+                unknown.push(m.as_str().to_string());
+            }
+        }
+    }
+
+    (result, unknown)
 }
 
 /// Extracts the target date from entry content if it contains an @date pattern.
@@ -1414,5 +1444,73 @@ mod tests {
         assert_eq!(expand_favorite_tags("Task #1abc", &tags), "Task #1abc");
         assert_eq!(expand_favorite_tags("Task #1", &tags), "Task #work");
         assert_eq!(expand_favorite_tags("#1 task", &tags), "#work task");
+    }
+
+    #[test]
+    fn test_expand_saved_filters_basic() {
+        let mut filters = HashMap::new();
+        filters.insert("t".to_string(), "!tasks".to_string());
+        filters.insert("n".to_string(), "!notes".to_string());
+
+        assert_eq!(
+            expand_saved_filters("$t", &filters),
+            ("!tasks".to_string(), vec![])
+        );
+        assert_eq!(
+            expand_saved_filters("$n", &filters),
+            ("!notes".to_string(), vec![])
+        );
+    }
+
+    #[test]
+    fn test_expand_saved_filters_unknown() {
+        let filters = HashMap::new();
+        assert_eq!(
+            expand_saved_filters("$unknown", &filters),
+            ("$unknown".to_string(), vec!["$unknown".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_expand_saved_filters_multiple() {
+        let mut filters = HashMap::new();
+        filters.insert("t".to_string(), "!tasks".to_string());
+        filters.insert("n".to_string(), "!notes".to_string());
+
+        assert_eq!(
+            expand_saved_filters("$t $n", &filters),
+            ("!tasks !notes".to_string(), vec![])
+        );
+    }
+
+    #[test]
+    fn test_expand_saved_filters_combined() {
+        let mut filters = HashMap::new();
+        filters.insert("t".to_string(), "!tasks".to_string());
+
+        assert_eq!(
+            expand_saved_filters("$t #work", &filters),
+            ("!tasks #work".to_string(), vec![])
+        );
+    }
+
+    #[test]
+    fn test_expand_saved_filters_word_boundary() {
+        let mut filters = HashMap::new();
+        filters.insert("t".to_string(), "!tasks".to_string());
+
+        // $tasks doesn't match filter "t" due to word boundary
+        assert_eq!(
+            expand_saved_filters("$tasks", &filters),
+            ("$tasks".to_string(), vec!["$tasks".to_string()])
+        );
+        assert_eq!(
+            expand_saved_filters("$t", &filters),
+            ("!tasks".to_string(), vec![])
+        );
+        assert_eq!(
+            expand_saved_filters("$t ", &filters),
+            ("!tasks ".to_string(), vec![])
+        );
     }
 }

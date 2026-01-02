@@ -611,9 +611,6 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(help_line("s", "Sort entries", key_style, desc_style));
     lines.push(help_line("m", "Move mode", key_style, desc_style));
     lines.push(help_line("/", "Filter mode", key_style, desc_style));
-    lines.push(help_line("T", "Filter tasks", key_style, desc_style));
-    lines.push(help_line("N", "Filter notes", key_style, desc_style));
-    lines.push(help_line("E", "Filter events", key_style, desc_style));
     lines.push(help_line(
         "0-9",
         "Filter favorite tag",
@@ -698,6 +695,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
     lines.push(help_line("!notes", "Notes only", key_style, desc_style));
     lines.push(help_line("!events", "Events only", key_style, desc_style));
     lines.push(help_line("#tag", "Filter by tag", key_style, desc_style));
+    lines.push(help_line("$name", "Saved filter", key_style, desc_style));
     lines.push(help_line(
         "@before:DATE",
         "Before date",

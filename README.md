@@ -81,6 +81,11 @@ Tags (`#project`, `#urgent`) are highlighted in yellow and can be filtered.
 
 **Favorite tags** let you quickly filter by commonly-used tags. Press `1-9` or `0` to instantly filter by a favorite tag. Type `#1` through `#0` while editing to auto-expand to the tag name. Configure your favorites in the config file.
 
+**Saved filters** let you define reusable filter queries. Use `$name` in any filter to expand it:
+- `$t` → expands to `!tasks` (default)
+- `$someday` → expands to your custom filter
+- Combine them: `$t #work` → `!tasks #work`
+
 Date references are highlighted in red. Use `@date` to schedule an entry for a future day:
 
 ```markdown
@@ -115,7 +120,6 @@ The entry will appear in the "Later" section when you view that date.
 | `t` | Go to today |
 | `s` | Sort entries |
 | `m` | Move mode (reorder entries) |
-| `T/N/E` | Quick filter tasks/notes/events |
 | `0-9` | Filter by favorite tag |
 | `/` | Open filter mode |
 | `?` | Show help |
@@ -169,6 +173,7 @@ Reorder entries within a day.
 | `!notes` or `!n` | Notes only |
 | `!events` or `!e` | Events only |
 | `#tag` | Entries with tag |
+| `$name` | Saved filter (expands to defined query) |
 | `word` | Entries containing text |
 | `not:#tag` | Entries without tag |
 | `not:!tasks` | Exclude tasks |
@@ -211,6 +216,14 @@ sort_order = ["uncompleted", "notes", "events", "completed"]
 # Favorite tags for quick access (default: ["feature", "bug", "idea"])
 # Press 1-9 or 0 to filter; type #1-#0 while editing to auto-expand
 favorite_tags = ["feature", "bug", "idea", "refactor", "docs"]
+
+# Saved filters - use $name in filter queries (default: t, n, e)
+[filters]
+t = "!tasks"
+n = "!notes"
+e = "!events"
+someday = "!tasks #someday"
+stale = "!tasks @before:-7d"
 ```
 
 Run `caliber init` to create the config file.
