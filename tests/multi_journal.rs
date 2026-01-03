@@ -1,10 +1,12 @@
 mod helpers;
 
 use chrono::NaiveDate;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
+use std::process::Command;
 use tempfile::TempDir;
 
-use caliber::app::App;
+use caliber::app::{App, InputMode};
 use caliber::config::Config;
 use caliber::storage::{self, JournalSlot, Line};
 
@@ -88,4 +90,166 @@ fn test_project_journal_switch() {
         }
     });
     assert!(!has_global, "Global entry should not be visible in project");
+}
+
+/// MJ-1: Toggle between journals with backtick key
+#[test]
+fn test_journal_toggle_key() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let temp_dir = TempDir::new().unwrap();
+
+    let global_path = temp_dir.path().join("global.md");
+    let project_path = temp_dir.path().join("project.md");
+
+    fs::write(&global_path, "# 2026/01/15\n- [ ] Global entry\n").unwrap();
+    fs::write(&project_path, "# 2026/01/15\n- [ ] Project entry\n").unwrap();
+
+    storage::reset_journal_context();
+    storage::set_journal_context(global_path, Some(project_path), JournalSlot::Global);
+
+    let config = Config::default();
+    let mut app = App::new_with_date(config, date).unwrap();
+
+    // Verify we're in global
+    assert_eq!(
+        storage::get_active_slot(),
+        JournalSlot::Global,
+        "Should start in global journal"
+    );
+
+    // Press backtick to toggle (simulating the handler)
+    let event = KeyEvent::new(KeyCode::Char('`'), KeyModifiers::NONE);
+    let _ = caliber::handlers::handle_normal_key(&mut app, event.code);
+
+    // Should now be in project
+    assert_eq!(
+        storage::get_active_slot(),
+        JournalSlot::Project,
+        "Should switch to project journal"
+    );
+
+    // Toggle back
+    let _ = caliber::handlers::handle_normal_key(&mut app, event.code);
+    assert_eq!(
+        storage::get_active_slot(),
+        JournalSlot::Global,
+        "Should switch back to global journal"
+    );
+
+    // Cleanup
+    storage::reset_journal_context();
+}
+
+/// MJ-3: Command mode journal switch (:global, :project)
+#[test]
+fn test_command_journal_switch() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let temp_dir = TempDir::new().unwrap();
+
+    let global_path = temp_dir.path().join("global.md");
+    let project_path = temp_dir.path().join("project.md");
+
+    fs::write(&global_path, "# 2026/01/15\n- [ ] Global entry\n").unwrap();
+    fs::write(&project_path, "# 2026/01/15\n- [ ] Project entry\n").unwrap();
+
+    storage::reset_journal_context();
+    storage::set_journal_context(global_path, Some(project_path), JournalSlot::Global);
+
+    let config = Config::default();
+    let mut app = App::new_with_date(config, date).unwrap();
+
+    // Enter command mode
+    let _ = caliber::handlers::handle_normal_key(&mut app, KeyCode::Char(':'));
+
+    // Type "project" and enter
+    for c in "project".chars() {
+        let event = KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
+        let _ = caliber::handlers::handle_command_key(&mut app, event);
+    }
+    let enter_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    let _ = caliber::handlers::handle_command_key(&mut app, enter_event);
+
+    assert_eq!(
+        storage::get_active_slot(),
+        JournalSlot::Project,
+        ":project should switch to project journal"
+    );
+
+    // Switch back with :global
+    let _ = caliber::handlers::handle_normal_key(&mut app, KeyCode::Char(':'));
+    for c in "global".chars() {
+        let event = KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
+        let _ = caliber::handlers::handle_command_key(&mut app, event);
+    }
+    let _ = caliber::handlers::handle_command_key(&mut app, enter_event);
+
+    assert_eq!(
+        storage::get_active_slot(),
+        JournalSlot::Global,
+        ":global should switch back to global journal"
+    );
+
+    // Cleanup
+    storage::reset_journal_context();
+}
+
+/// MJ-2: Project journal creation confirmation flow
+#[test]
+fn test_project_journal_creation() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let temp_dir = TempDir::new().unwrap();
+
+    // Initialize a git repo in the temp directory
+    Command::new("git")
+        .args(["init"])
+        .current_dir(temp_dir.path())
+        .output()
+        .expect("Failed to init git repo");
+
+    // Create global journal but NOT a project journal
+    let global_path = temp_dir.path().join("global.md");
+    fs::write(&global_path, "# 2026/01/15\n- [ ] Global entry\n").unwrap();
+
+    // Set up with no project journal - will trigger creation flow
+    storage::reset_journal_context();
+    storage::set_journal_context(global_path.clone(), None, JournalSlot::Global);
+
+    let config = Config::default();
+    let mut app = App::new_with_date(config, date).unwrap();
+
+    // Press backtick to try switching to project journal
+    let event = KeyEvent::new(KeyCode::Char('`'), KeyModifiers::NONE);
+    let _ = caliber::handlers::handle_normal_key(&mut app, event.code);
+
+    // Should be in Confirm mode (asking to create project journal)
+    assert!(
+        matches!(app.input_mode, InputMode::Confirm(_)),
+        "Should enter confirm mode to create project journal"
+    );
+
+    // Press 'y' to confirm creation
+    let _ = caliber::handlers::handle_confirm_key(&mut app, KeyCode::Char('y'));
+
+    // After first confirmation, may be in another Confirm (gitignore) or done
+    // The flow depends on whether .gitignore handling is needed
+    // For now, verify we can complete the flow without crashing
+
+    // If still in confirm mode (gitignore question), press 'n' to skip
+    if matches!(app.input_mode, InputMode::Confirm(_)) {
+        let _ = caliber::handlers::handle_confirm_key(&mut app, KeyCode::Char('n'));
+    }
+
+    // Should now be in project journal mode (or remain functional)
+    // The app should not crash and should be in a valid state
+    assert!(
+        matches!(app.input_mode, InputMode::Normal),
+        "Should return to normal mode after confirmation flow"
+    );
+
+    // Cleanup
+    storage::reset_journal_context();
 }

@@ -71,7 +71,8 @@ fn test_entry_type_preserved() {
 #[test]
 fn test_multi_day_entries_preserved() {
     let date_a = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let date_b = NaiveDate::from_ymd_opt(2026, 1, 16).unwrap();
+    // date_b is in the content but we navigate to it via 'l' key
+    let _date_b = NaiveDate::from_ymd_opt(2026, 1, 16).unwrap();
     let content = "# 2026/01/15\n- [ ] Day A entry\n# 2026/01/16\n- [ ] Day B entry\n";
     let mut ctx = TestContext::with_journal_content(date_a, content);
 

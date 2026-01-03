@@ -58,7 +58,7 @@ fn test_entry_creation_above() {
     );
 }
 
-/// DV-3: Delete and undo
+/// DV-3: Delete and undo (with selection sync verification - catches Bug 4)
 #[test]
 fn test_delete_and_undo() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
@@ -67,7 +67,9 @@ fn test_delete_and_undo() {
 
     // Go to first, then move to middle entry (Entry B)
     ctx.press(KeyCode::Char('g')); // Go to first (Entry A)
+    assert_eq!(ctx.selected_index(), 0, "Should be at Entry A");
     ctx.press(KeyCode::Char('j')); // Move to Entry B
+    assert_eq!(ctx.selected_index(), 1, "Should be at Entry B");
 
     // Delete
     ctx.press(KeyCode::Char('x'));
@@ -82,6 +84,18 @@ fn test_delete_and_undo() {
     assert!(
         ctx.screen_contains("Entry C"),
         "Entry C should remain"
+    );
+
+    // Verify selection is still valid after delete
+    assert!(
+        ctx.selected_index() < ctx.entry_count(),
+        "Selection should be valid after delete"
+    );
+    // After deleting middle entry, selection should stay at index 1 (now Entry C)
+    assert_eq!(
+        ctx.selected_index(),
+        1,
+        "Selection should move to next entry after delete"
     );
 
     // Undo
@@ -233,5 +247,100 @@ fn test_toggle_completion() {
     assert!(
         journal.contains("- [ ] My task"),
         "Final state should be incomplete"
+    );
+}
+
+/// Test selection sync after deleting last entry
+#[test]
+fn test_selection_after_delete_last() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] A\n- [ ] B\n- [ ] C\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('G')); // Go to last (C)
+    assert_eq!(ctx.selected_index(), 2, "Should be at last entry");
+
+    ctx.press(KeyCode::Char('x')); // Delete C
+    assert_eq!(
+        ctx.selected_index(),
+        1,
+        "Selection should move to new last entry"
+    );
+    assert!(ctx.screen_contains("B"), "Entry B should now be last");
+    assert!(!ctx.screen_contains(" C"), "Entry C should be deleted");
+}
+
+/// Test selection sync after deleting middle entry
+#[test]
+fn test_selection_after_delete_middle() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] A\n- [ ] B\n- [ ] C\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('g')); // Go to first
+    ctx.press(KeyCode::Char('j')); // Move to B
+    assert_eq!(ctx.selected_index(), 1, "Should be at middle entry B");
+
+    ctx.press(KeyCode::Char('x')); // Delete B
+    assert!(
+        ctx.selected_index() < ctx.entry_count(),
+        "Selection must be within valid range"
+    );
+    // Selection should be on C (now at index 1 in remaining [A, C])
+    assert_eq!(
+        ctx.selected_index(),
+        1,
+        "Selection should stay at same index (now C)"
+    );
+}
+
+/// DV-8: Scroll behavior with many entries
+#[test]
+fn test_scroll_behavior() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    // Create 30 entries (more than fit on typical screen)
+    let mut content = "# 2026/01/15\n".to_string();
+    for i in 1..=30 {
+        content.push_str(&format!("- [ ] Entry {}\n", i));
+    }
+    let mut ctx = TestContext::with_journal_content(date, &content);
+
+    // Jump to last entry
+    ctx.press(KeyCode::Char('G'));
+    assert_eq!(ctx.selected_index(), 29, "Should be at last entry (index 29)");
+    assert!(
+        ctx.screen_contains("Entry 30"),
+        "Last entry should be visible"
+    );
+
+    // Navigate up one at a time
+    ctx.press(KeyCode::Char('k'));
+    assert_eq!(ctx.selected_index(), 28, "Should be at entry 29");
+
+    // Jump to top
+    ctx.press(KeyCode::Char('g'));
+    assert_eq!(ctx.selected_index(), 0, "Should be at first entry");
+    assert!(
+        ctx.screen_contains("Entry 1"),
+        "First entry should be visible"
+    );
+}
+
+/// DV-9: Yank entry
+#[test]
+fn test_yank_entry() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Yank this content\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    // Yank the entry
+    ctx.press(KeyCode::Char('y'));
+
+    // Verify status message appears (the app should show "Yanked" or similar)
+    // Note: The actual clipboard operation can't be tested, but we verify the action completes
+    // and the entry is still there
+    assert!(
+        ctx.screen_contains("Yank this content"),
+        "Entry should still be visible after yank"
     );
 }

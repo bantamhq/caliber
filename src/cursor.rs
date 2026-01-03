@@ -29,7 +29,6 @@ impl CursorBuffer {
             .map_or(self.content.len(), |(i, _)| i)
     }
 
-    #[cfg(test)]
     pub fn cursor_char_pos(&self) -> usize {
         self.cursor_char_pos
     }

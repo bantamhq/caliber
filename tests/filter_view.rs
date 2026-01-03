@@ -272,3 +272,220 @@ fn test_delete_from_filter() {
         "Deleted entry should be removed from file"
     );
 }
+
+/// FV-5: Negation filter (not:#tag)
+#[test]
+fn test_negation_filter() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content =
+        "# 2026/01/15\n- [ ] Work task #work\n- [ ] Personal task #personal\n- [ ] Untagged task\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("not:#work");
+    ctx.press(KeyCode::Enter);
+
+    // Check entry content, not just tags (since the query itself may show "#work")
+    assert!(
+        !ctx.screen_contains("Work task"),
+        "Entry with #work should not appear"
+    );
+    assert!(
+        ctx.screen_contains("Personal task"),
+        "Entry with #personal should appear"
+    );
+    assert!(
+        ctx.screen_contains("Untagged"),
+        "Untagged entry should appear"
+    );
+}
+
+/// FV-6: Date range filter (@after:DATE)
+#[test]
+fn test_date_range_filter_after() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Today entry\n# 2026/01/14\n- [ ] Yesterday entry\n# 2026/01/10\n- [ ] Old entry\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("@after:1/14/26");
+    ctx.press(KeyCode::Enter);
+
+    assert!(
+        ctx.screen_contains("Today entry"),
+        "Today entry should appear"
+    );
+    assert!(
+        ctx.screen_contains("Yesterday entry"),
+        "Yesterday entry should appear"
+    );
+    assert!(
+        !ctx.screen_contains("Old entry"),
+        "Old entry should not appear"
+    );
+}
+
+/// FV-6: Date range filter (@before:DATE)
+#[test]
+fn test_date_range_filter_before() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Today entry\n# 2026/01/14\n- [ ] Yesterday entry\n# 2026/01/10\n- [ ] Old entry\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("@before:1/14/26");
+    ctx.press(KeyCode::Enter);
+
+    assert!(
+        !ctx.screen_contains("Today entry"),
+        "Today entry should not appear"
+    );
+    assert!(
+        ctx.screen_contains("Yesterday entry"),
+        "Yesterday entry should appear (inclusive)"
+    );
+    assert!(ctx.screen_contains("Old entry"), "Old entry should appear");
+}
+
+/// FV-5: Negation filter for types (not:!tasks)
+#[test]
+fn test_negation_type_filter() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] A task\n- A note\n* An event\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("not:!tasks");
+    ctx.press(KeyCode::Enter);
+
+    assert!(
+        !ctx.screen_contains("A task"),
+        "Tasks should not appear with not:!tasks"
+    );
+    assert!(
+        ctx.screen_contains("A note"),
+        "Notes should appear"
+    );
+    assert!(
+        ctx.screen_contains("An event"),
+        "Events should appear"
+    );
+}
+
+/// FV-11: Filter refresh after external changes
+#[test]
+fn test_filter_refresh() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Task without tag\n- [ ] Task with #work\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    // Filter for #work - should find 1 entry
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("#work");
+    ctx.press(KeyCode::Enter);
+
+    assert!(
+        ctx.screen_contains("Task with #work"),
+        "#work task should appear"
+    );
+    assert!(
+        !ctx.screen_contains("Task without tag"),
+        "Untagged task should not appear initially"
+    );
+
+    // Exit filter, edit the untagged entry to add #work
+    ctx.press(KeyCode::Tab);
+    ctx.press(KeyCode::Char('g')); // Go to first entry (the untagged one)
+    ctx.press(KeyCode::Char('i'));
+    ctx.press(KeyCode::End);
+    ctx.type_str(" #work");
+    ctx.press(KeyCode::Enter);
+
+    // Return to filter and refresh
+    ctx.press(KeyCode::Tab);
+    ctx.press(KeyCode::Char('r')); // Refresh filter
+
+    // Now both entries should appear
+    assert!(
+        ctx.screen_contains("Task without tag"),
+        "Newly tagged task should appear after refresh"
+    );
+    assert!(
+        ctx.screen_contains("Task with #work"),
+        "Original #work task should still appear"
+    );
+}
+
+/// FV-13: Favorite tag quick filter (number keys)
+#[test]
+fn test_favorite_tag_quick_filter() {
+    use std::collections::HashMap;
+
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Task with #work\n- [ ] Task with #personal\n- [ ] Task without tags\n";
+
+    // Create config with favorite tag 1 = "work"
+    let mut config = caliber::config::Config::default();
+    let mut tags = HashMap::new();
+    tags.insert("1".to_string(), "work".to_string());
+    config.favorite_tags = tags;
+
+    let mut ctx = TestContext::with_config_and_content(date, content, config);
+
+    // Press '1' to quick filter by #work (favorite tag 1)
+    ctx.press(KeyCode::Char('1'));
+
+    // Should be in filter mode with #work entries
+    assert!(
+        matches!(ctx.app.view, ViewMode::Filter(_)),
+        "Should be in filter view"
+    );
+    assert!(
+        ctx.screen_contains("Task with #work"),
+        "#work task should appear"
+    );
+    assert!(
+        !ctx.screen_contains("Task with #personal"),
+        "#personal task should not appear"
+    );
+    assert!(
+        !ctx.screen_contains("Task without tags"),
+        "Untagged task should not appear"
+    );
+}
+
+/// FV-14: Saved filter expansion ($name syntax)
+#[test]
+fn test_saved_filter_expansion() {
+    use std::collections::HashMap;
+
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Urgent task #urgent\n- [ ] Normal task #work\n- A note #urgent\n";
+
+    // Create config with saved filter
+    let mut config = caliber::config::Config::default();
+    let mut filters = HashMap::new();
+    filters.insert("t".to_string(), "!tasks".to_string());
+    config.filters = filters;
+
+    let mut ctx = TestContext::with_config_and_content(date, content, config);
+
+    // Use saved filter $t (expands to !tasks) combined with #urgent
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("$t #urgent");
+    ctx.press(KeyCode::Enter);
+
+    // Should show only incomplete tasks with #urgent (not notes)
+    assert!(
+        ctx.screen_contains("Urgent task #urgent"),
+        "Urgent task should appear"
+    );
+    assert!(
+        !ctx.screen_contains("Normal task"),
+        "Non-urgent task should not appear"
+    );
+    assert!(
+        !ctx.screen_contains("A note"),
+        "Note should not appear (even though it has #urgent)"
+    );
+}

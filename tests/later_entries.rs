@@ -138,3 +138,45 @@ fn test_natural_date_conversion() {
         expected_date
     );
 }
+
+/// LE-7: Overdue filter shows entries with past @dates
+#[test]
+fn test_overdue_filter() {
+    // Create entries with past dates using actual today for proper filtering
+    let today = chrono::Local::now().date_naive();
+    let yesterday = today - chrono::Days::new(1);
+    // Use MM/DD format for past date (will prefer past interpretation)
+    let past_date = yesterday.format("@%m/%d").to_string();
+    // Use explicit year for future date to avoid being interpreted as last year
+    let future_date = (today + chrono::Days::new(5)).format("@%m/%d/%y").to_string();
+
+    // Create journal with entries that have past and future @dates
+    let content = format!(
+        "# {}\n- [ ] Past due task {}\n- [ ] Future task {}\n- [ ] No date task\n",
+        today.format("%Y/%m/%d"),
+        past_date,
+        future_date
+    );
+    let mut ctx = TestContext::with_journal_content(today, &content);
+
+    // Filter for @overdue
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("@overdue");
+    ctx.press(KeyCode::Enter);
+
+    // Past due entry should appear
+    assert!(
+        ctx.screen_contains("Past due task"),
+        "Overdue entry should appear in @overdue filter"
+    );
+
+    // Future and undated entries should not appear
+    assert!(
+        !ctx.screen_contains("Future task"),
+        "Future entry should not appear in @overdue filter"
+    );
+    assert!(
+        !ctx.screen_contains("No date task"),
+        "Undated entry should not appear in @overdue filter"
+    );
+}

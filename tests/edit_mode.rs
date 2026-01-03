@@ -114,6 +114,31 @@ fn test_delete_to_start() {
     );
 }
 
+/// EM-2: Ctrl+K deletes from cursor to end
+#[test]
+fn test_delete_to_end() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Enter);
+    ctx.type_str("hello world");
+    ctx.press(KeyCode::Home); // Move to start
+    // Move to after "hello"
+    for _ in 0..5 {
+        ctx.press(KeyCode::Right);
+    }
+    ctx.press_with_modifiers(KeyCode::Char('k'), KeyModifiers::CONTROL);
+    ctx.press(KeyCode::Enter);
+
+    assert!(
+        ctx.screen_contains("hello"),
+        "Content before cursor should remain"
+    );
+    assert!(
+        !ctx.screen_contains("world"),
+        "Content after cursor should be deleted"
+    );
+}
+
 /// EM-3: Tab to commit and add new entry
 #[test]
 fn test_tab_to_continue() {
@@ -248,5 +273,157 @@ fn test_basic_text_input() {
     assert!(
         ctx.screen_contains("help!"),
         "Backspace should delete characters"
+    );
+}
+
+/// Test cursor position sync after backspace (catches Bug 1)
+#[test]
+fn test_cursor_position_after_backspace() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Enter);
+    ctx.type_str("hello");
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(5),
+        "Cursor should be at position 5 after typing 'hello'"
+    );
+
+    ctx.press(KeyCode::Backspace);
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(4),
+        "Cursor should move back to 4 after backspace"
+    );
+
+    ctx.press(KeyCode::Backspace);
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(3),
+        "Cursor should move back to 3 after second backspace"
+    );
+}
+
+/// Test cursor bounds when moving right past end (catches Bug 2)
+#[test]
+fn test_cursor_bounds_right() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Enter);
+    ctx.type_str("abc");
+    assert_eq!(ctx.cursor_position(), Some(3), "Cursor should start at 3");
+
+    // Try to move past end repeatedly
+    for _ in 0..5 {
+        ctx.press(KeyCode::Right);
+    }
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(3),
+        "Cursor should stay at end after attempting to move past"
+    );
+}
+
+/// Test cursor bounds when moving left past start
+#[test]
+fn test_cursor_bounds_left() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Enter);
+    ctx.type_str("abc");
+    ctx.press(KeyCode::Home); // Move to start
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(0),
+        "Cursor should be at start after Home"
+    );
+
+    // Try to move past start repeatedly
+    for _ in 0..5 {
+        ctx.press(KeyCode::Left);
+    }
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(0),
+        "Cursor should stay at start after attempting to move before"
+    );
+}
+
+/// EM-5: Unicode and emoji handling in edit mode
+#[test]
+fn test_emoji_handling() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Enter);
+    ctx.type_str("Task ");
+
+    // Type emoji (simulated as a character)
+    ctx.press(KeyCode::Char('🎉'));
+    ctx.type_str(" done");
+    // "Task " (5) + "🎉" (1 char) + " done" (5) = 11 characters
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(11),
+        "Cursor should be at correct position after emoji"
+    );
+
+    // Delete with backspace (should delete one character at a time)
+    ctx.press(KeyCode::Backspace); // delete 'e'
+    ctx.press(KeyCode::Backspace); // delete 'n'
+    ctx.press(KeyCode::Backspace); // delete 'o'
+    ctx.press(KeyCode::Backspace); // delete 'd'
+    ctx.press(KeyCode::Backspace); // delete ' '
+    ctx.press(KeyCode::Backspace); // delete '🎉'
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(5), // "Task " = 5 chars
+        "Cursor should be correct after deleting emoji"
+    );
+
+    ctx.press(KeyCode::Enter);
+    assert!(
+        ctx.screen_contains("Task"),
+        "Content should be preserved after emoji operations"
+    );
+}
+
+/// EM-6: Long line wrapping - cursor tracks correctly
+#[test]
+fn test_long_line_cursor_tracking() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Enter);
+    // Type a very long line (100+ characters)
+    let long_text = "This is a very long entry that will definitely wrap across multiple lines when displayed in the terminal interface";
+    ctx.type_str(long_text);
+
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(long_text.len()),
+        "Cursor should be at end of long line"
+    );
+
+    // Move to start
+    ctx.press(KeyCode::Home);
+    assert_eq!(
+        ctx.cursor_position(),
+        Some(0),
+        "Cursor should be at start"
+    );
+
+    // Move to middle using word navigation
+    ctx.press_with_modifiers(KeyCode::Char('f'), KeyModifiers::ALT); // forward word
+    assert!(
+        ctx.cursor_position().unwrap() > 0,
+        "Cursor should have moved forward"
+    );
+
+    // Edit at current position
+    ctx.type_str("INSERTED");
+    ctx.press(KeyCode::Enter);
+
+    assert!(
+        ctx.screen_contains("INSERTED"),
+        "Inserted text should appear in content"
     );
 }

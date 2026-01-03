@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 
 use chrono::NaiveDate;
@@ -40,6 +42,11 @@ impl TestContext {
 
     /// Create context with pre-existing journal content
     pub fn with_journal_content(date: NaiveDate, content: &str) -> Self {
+        Self::with_config_and_content(date, content, Config::default())
+    }
+
+    /// Create context with custom config and pre-existing journal content
+    pub fn with_config_and_content(date: NaiveDate, content: &str, config: Config) -> Self {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let journal_path = temp_dir.path().join("test_journal.md");
         std::fs::write(&journal_path, content).expect("Failed to write journal");
@@ -47,7 +54,6 @@ impl TestContext {
         storage::reset_journal_context();
         storage::set_journal_context(journal_path, None, JournalSlot::Global);
 
-        let config = Config::default();
         let app = App::new_with_date(config, date).expect("Failed to create app");
 
         Self { app, temp_dir }
@@ -146,6 +152,24 @@ impl TestContext {
     /// Read raw journal content
     pub fn read_journal(&self) -> String {
         std::fs::read_to_string(self.journal_path()).unwrap_or_default()
+    }
+
+    /// Get cursor position in edit buffer (only valid in Edit mode)
+    pub fn cursor_position(&self) -> Option<usize> {
+        self.app.edit_buffer.as_ref().map(|b| b.cursor_char_pos())
+    }
+
+    /// Get selected index in current view
+    pub fn selected_index(&self) -> usize {
+        match &self.app.view {
+            ViewMode::Daily(state) => state.selected,
+            ViewMode::Filter(state) => state.selected,
+        }
+    }
+
+    /// Get number of entries in current day
+    pub fn entry_count(&self) -> usize {
+        self.app.entry_indices.len()
     }
 }
 

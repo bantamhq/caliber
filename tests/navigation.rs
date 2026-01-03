@@ -172,3 +172,37 @@ fn test_bracket_key_navigation() {
         "] should go to next day"
     );
 }
+
+/// NV-2: Goto command (:goto DATE)
+#[test]
+fn test_goto_command() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let mut ctx = TestContext::with_date(date);
+
+    ctx.press(KeyCode::Char(':'));
+    ctx.type_str("goto 12/25/25");
+    ctx.press(KeyCode::Enter);
+
+    assert_eq!(
+        ctx.app.current_date,
+        NaiveDate::from_ymd_opt(2025, 12, 25).unwrap(),
+        "Should navigate to specified date"
+    );
+}
+
+/// NV-2: Goto command with short syntax (:g DATE)
+#[test]
+fn test_goto_command_short() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let mut ctx = TestContext::with_date(date);
+
+    ctx.press(KeyCode::Char(':'));
+    ctx.type_str("g 3/15");
+    ctx.press(KeyCode::Enter);
+
+    assert_eq!(
+        ctx.app.current_date,
+        NaiveDate::from_ymd_opt(2026, 3, 15).unwrap(),
+        "Short :g syntax should work with current year default"
+    );
+}
