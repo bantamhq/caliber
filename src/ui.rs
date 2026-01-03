@@ -654,7 +654,10 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
                 ("@before:DATE", "Before date"),
                 ("@after:DATE", "After date"),
                 ("@overdue", "Has past @date"),
-                ("DATE:", "MM/DD, tomorrow, yesterday, next-mon, last-fri, 3d, -3d"),
+                (
+                    "DATE:",
+                    "MM/DD, tomorrow, yesterday, next-mon, last-fri, 3d, -3d",
+                ),
             ],
         ),
         (
@@ -689,7 +692,12 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
 fn help_line(key: &str, desc: &str, key_style: Style, desc_style: Style) -> RatatuiLine<'static> {
     RatatuiLine::from(vec![
         Span::styled(
-            format!("{:>width$}{}", key, " ".repeat(HELP_GUTTER_WIDTH), width = HELP_KEY_WIDTH),
+            format!(
+                "{:>width$}{}",
+                key,
+                " ".repeat(HELP_GUTTER_WIDTH),
+                width = HELP_KEY_WIDTH
+            ),
             key_style,
         ),
         Span::styled(desc.to_string(), desc_style),

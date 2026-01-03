@@ -37,6 +37,25 @@ impl DailyState {
             later_entries,
         }
     }
+
+    #[must_use]
+    pub fn total_entries(&self, entry_indices: &[usize]) -> usize {
+        self.later_entries.len() + entry_indices.len()
+    }
+
+    #[must_use]
+    pub fn selected_entry_index(&self) -> Option<usize> {
+        self.selected.checked_sub(self.later_entries.len())
+    }
+
+    pub fn select_entry(&mut self, entry_index: usize) {
+        self.selected = self.later_entries.len() + entry_index;
+    }
+
+    #[must_use]
+    pub fn is_later_entry_selected(&self) -> bool {
+        self.selected < self.later_entries.len()
+    }
 }
 
 /// State specific to the Filter view
@@ -184,13 +203,17 @@ impl App {
         let ViewMode::Daily(state) = &self.view else {
             return 0;
         };
-        state.later_entries.len() + self.entry_indices.len()
+        state.total_entries(&self.entry_indices)
+    }
+
+    fn set_status(&mut self, msg: impl Into<String>) {
+        self.status_message = Some(msg.into());
     }
 
     /// Saves current day's lines to storage, displaying any error as a status message.
     pub fn save(&mut self) {
         if let Err(e) = storage::save_day_lines(self.current_date, &self.lines) {
-            self.status_message = Some(format!("Failed to save: {e}"));
+            self.set_status(format!("Failed to save: {e}"));
         }
     }
 
@@ -210,7 +233,7 @@ impl App {
     pub fn move_down(&mut self) {
         match &mut self.view {
             ViewMode::Daily(state) => {
-                let total = state.later_entries.len() + self.entry_indices.len();
+                let total = state.total_entries(&self.entry_indices);
                 if total > 0 && state.selected < total - 1 {
                     state.selected += 1;
                 }
@@ -233,7 +256,7 @@ impl App {
     pub fn jump_to_last(&mut self) {
         match &mut self.view {
             ViewMode::Daily(state) => {
-                let total = state.later_entries.len() + self.entry_indices.len();
+                let total = state.total_entries(&self.entry_indices);
                 if total > 0 {
                     state.selected = total - 1;
                 }
@@ -265,14 +288,16 @@ impl App {
                     state.later_entries =
                         storage::collect_later_entries_for_date(self.current_date)?;
 
-                    let total = state.later_entries.len() + self.entry_indices.len();
+                    let total = state.total_entries(&self.entry_indices);
                     if total > 0 && state.selected >= total {
                         state.selected = total - 1;
                     }
                     return Ok(());
                 }
 
-                let entry_index = state.selected - state.later_entries.len();
+                let Some(entry_index) = state.selected_entry_index() else {
+                    return Ok(());
+                };
                 if entry_index >= self.entry_indices.len() {
                     return Ok(());
                 }
@@ -282,7 +307,7 @@ impl App {
                 }
                 self.lines.remove(line_idx);
                 self.entry_indices = Self::compute_entry_indices(&self.lines);
-                let total = state.later_entries.len() + self.entry_indices.len();
+                let total = state.total_entries(&self.entry_indices);
                 if total > 0 && state.selected >= total {
                     state.selected = total - 1;
                 }
@@ -339,7 +364,9 @@ impl App {
                     return Ok(());
                 }
 
-                let entry_index = state.selected - state.later_entries.len();
+                let Some(entry_index) = state.selected_entry_index() else {
+                    return Ok(());
+                };
                 let line_idx = match self.entry_indices.get(entry_index) {
                     Some(&idx) => idx,
                     None => return Ok(()),
@@ -390,7 +417,9 @@ impl App {
                     return;
                 }
 
-                let entry_index = state.selected - state.later_entries.len();
+                let Some(entry_index) = state.selected_entry_index() else {
+                    return;
+                };
                 let content = self.get_daily_entry(entry_index).map(|e| e.content.clone());
                 if let Some(content) = content {
                     self.edit_buffer = Some(CursorBuffer::new(content));
@@ -418,7 +447,9 @@ impl App {
                 if let Some(later_entry) = state.later_entries.get(state.selected) {
                     later_entry.content.clone()
                 } else {
-                    let entry_index = state.selected - state.later_entries.len();
+                    let Some(entry_index) = state.selected_entry_index() else {
+                        return;
+                    };
                     match self.get_daily_entry(entry_index) {
                         Some(entry) => entry.content.clone(),
                         None => return,
@@ -432,8 +463,8 @@ impl App {
         };
 
         match Self::copy_to_clipboard(&content) {
-            Ok(()) => self.status_message = Some("Yanked".to_string()),
-            Err(e) => self.status_message = Some(format!("Failed to yank: {e}")),
+            Ok(()) => self.set_status("Yanked"),
+            Err(e) => self.set_status(format!("Failed to yank: {e}")),
         }
     }
 
@@ -454,11 +485,7 @@ impl App {
                     None => return,
                 };
                 if let Line::Entry(entry) = &mut self.lines[line_idx] {
-                    entry.entry_type = match entry.entry_type {
-                        EntryType::Task { .. } => EntryType::Note,
-                        EntryType::Note => EntryType::Event,
-                        EntryType::Event => EntryType::Task { completed: false },
-                    };
+                    entry.entry_type = entry.entry_type.cycle();
                 }
             }
             InputMode::Edit(EditContext::FilterEdit {
@@ -483,11 +510,7 @@ impl App {
                 }
             }
             InputMode::Edit(EditContext::FilterQuickAdd { entry_type, .. }) => {
-                *entry_type = match entry_type {
-                    EntryType::Task { .. } => EntryType::Note,
-                    EntryType::Note => EntryType::Event,
-                    EntryType::Event => EntryType::Task { completed: false },
-                };
+                *entry_type = entry_type.cycle();
             }
             InputMode::Edit(EditContext::LaterEdit {
                 source_date,
@@ -541,12 +564,12 @@ impl App {
                 } else {
                     match storage::update_entry_content(date, line_index, content) {
                         Ok(false) => {
-                            self.status_message = Some(format!(
+                            self.set_status(format!(
                                 "Failed to update: no entry at index {line_index} for {date}"
                             ));
                         }
                         Err(e) => {
-                            self.status_message = Some(format!("Failed to save: {e}"));
+                            self.set_status(format!("Failed to save: {e}"));
                         }
                         Ok(true) => {}
                     }
@@ -585,12 +608,12 @@ impl App {
                 } else {
                     match storage::update_entry_content(source_date, line_index, content) {
                         Ok(false) => {
-                            self.status_message = Some(format!(
+                            self.set_status(format!(
                                 "Failed to update: no entry at index {line_index} for {source_date}"
                             ));
                         }
                         Err(e) => {
-                            self.status_message = Some(format!("Failed to save: {e}"));
+                            self.set_status(format!("Failed to save: {e}"));
                         }
                         Ok(true) => {}
                     }
@@ -737,21 +760,17 @@ impl App {
             return;
         };
 
-        let later_count = state.later_entries.len();
-
         let insert_pos =
             if matches!(position, InsertPosition::Bottom) || self.entry_indices.is_empty() {
                 self.lines.len()
             } else {
-                let entry_index = state.selected.saturating_sub(later_count);
-                if entry_index < self.entry_indices.len() {
-                    match position {
+                match state.selected_entry_index() {
+                    Some(entry_index) if entry_index < self.entry_indices.len() => match position {
                         InsertPosition::Below => self.entry_indices[entry_index] + 1,
                         InsertPosition::Above => self.entry_indices[entry_index],
                         InsertPosition::Bottom => unreachable!(),
-                    }
-                } else {
-                    self.lines.len()
+                    },
+                    _ => self.lines.len(),
                 }
             };
 
@@ -764,7 +783,7 @@ impl App {
             .position(|&idx| idx == insert_pos)
             .unwrap_or(self.entry_indices.len().saturating_sub(1));
 
-        state.selected = later_count + entry_index;
+        state.select_entry(entry_index);
 
         self.edit_buffer = Some(CursorBuffer::empty());
         self.input_mode = InputMode::Edit(EditContext::Daily { entry_index });
@@ -783,7 +802,7 @@ impl App {
             ViewMode::Daily(state) => {
                 // Only undo if we're on the same day
                 if date != self.current_date {
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         "Undo: entry was from {}, go to that day first",
                         date.format("%m/%d")
                     ));
@@ -872,8 +891,8 @@ impl App {
         };
 
         // Block order mode if a later entry is selected
-        if state.selected < state.later_entries.len() {
-            self.status_message = Some("Cannot reorder later entries".to_string());
+        if state.is_later_entry_selected() {
+            self.set_status("Cannot reorder later entries");
             return;
         }
 
@@ -906,11 +925,12 @@ impl App {
             return;
         };
 
-        let later_count = state.later_entries.len();
-        if state.selected < later_count {
+        if state.is_later_entry_selected() {
             return;
         }
-        let entry_index = state.selected - later_count;
+        let Some(entry_index) = state.selected_entry_index() else {
+            return;
+        };
 
         if entry_index == 0 {
             return;
@@ -928,11 +948,12 @@ impl App {
             return;
         };
 
-        let later_count = state.later_entries.len();
-        if state.selected < later_count {
+        if state.is_later_entry_selected() {
             return;
         }
-        let entry_index = state.selected - later_count;
+        let Some(entry_index) = state.selected_entry_index() else {
+            return;
+        };
 
         if entry_index >= self.entry_indices.len() - 1 {
             return;
@@ -1035,13 +1056,13 @@ impl App {
         storage::set_journal_path(path.clone());
         let later_entries = self.load_day(Local::now().date_naive())?;
         self.view = ViewMode::Daily(DailyState::new(self.entry_indices.len(), later_entries));
-        self.status_message = Some(format!("Opened: {}", path.display()));
+        self.set_status(format!("Opened: {}", path.display()));
         Ok(())
     }
 
     pub fn reload_config(&mut self) -> io::Result<()> {
         self.config = Config::load()?;
-        self.status_message = Some("Config reloaded".to_string());
+        self.set_status("Config reloaded");
         Ok(())
     }
 
@@ -1061,17 +1082,16 @@ impl App {
             }
             "goto" | "g" => {
                 if arg.is_empty() {
-                    self.status_message =
-                        Some("Usage: :goto YYYY/MM/DD or :goto MM/DD".to_string());
+                    self.set_status("Usage: :goto YYYY/MM/DD or :goto MM/DD");
                 } else if let Some(date) = Self::parse_goto_date(arg) {
                     self.goto_day(date)?;
                 } else {
-                    self.status_message = Some(format!("Invalid date: {arg}"));
+                    self.set_status(format!("Invalid date: {arg}"));
                 }
             }
             "o" | "open" => {
                 if arg.is_empty() {
-                    self.status_message = Some("Usage: :open /path/to/file.md".to_string());
+                    self.set_status("Usage: :open /path/to/file.md");
                 } else {
                     self.open_journal(arg)?;
                 }
@@ -1123,7 +1143,7 @@ impl App {
         filter.invalid_tokens.extend(unknown_filters);
 
         if !filter.invalid_tokens.is_empty() {
-            self.status_message = Some(format!(
+            self.set_status(format!(
                 "Unknown filter: {}",
                 filter.invalid_tokens.join(", ")
             ));
@@ -1150,7 +1170,7 @@ impl App {
         filter.invalid_tokens.extend(unknown_filters);
 
         if !filter.invalid_tokens.is_empty() {
-            self.status_message = Some(format!(
+            self.set_status(format!(
                 "Unknown filter: {}",
                 filter.invalid_tokens.join(", ")
             ));

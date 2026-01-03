@@ -40,6 +40,15 @@ impl EntryType {
             Self::Event => "* ",
         }
     }
+
+    #[must_use]
+    pub fn cycle(&self) -> Self {
+        match self {
+            Self::Task { .. } => Self::Note,
+            Self::Note => Self::Event,
+            Self::Event => Self::Task { completed: false },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -172,11 +181,7 @@ pub fn toggle_entry_complete(date: NaiveDate, line_index: usize) -> io::Result<(
 pub fn cycle_entry_type(date: NaiveDate, line_index: usize) -> io::Result<Option<EntryType>> {
     let mut lines = load_day_lines(date)?;
     let new_type = if let Some(Line::Entry(entry)) = lines.get_mut(line_index) {
-        entry.entry_type = match entry.entry_type {
-            EntryType::Task { .. } => EntryType::Note,
-            EntryType::Note => EntryType::Event,
-            EntryType::Event => EntryType::Task { completed: false },
-        };
+        entry.entry_type = entry.entry_type.cycle();
         Some(entry.entry_type.clone())
     } else {
         None
