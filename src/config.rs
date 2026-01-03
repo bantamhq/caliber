@@ -130,4 +130,3 @@ pub fn get_config_path() -> PathBuf {
 pub fn get_default_journal_path() -> PathBuf {
     get_config_dir().join("global_journal.md")
 }
-

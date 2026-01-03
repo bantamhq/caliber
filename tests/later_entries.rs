@@ -108,10 +108,7 @@ fn test_delete_later_entry() {
         !journal.contains("Delete me"),
         "Deleted later entry should be removed"
     );
-    assert!(
-        journal.contains("Keep me"),
-        "Other entry should remain"
-    );
+    assert!(journal.contains("Keep me"), "Other entry should remain");
 }
 
 /// LE-2: Natural date conversion (@tomorrow -> @MM/DD)
@@ -148,7 +145,9 @@ fn test_overdue_filter() {
     // Use MM/DD format for past date (will prefer past interpretation)
     let past_date = yesterday.format("@%m/%d").to_string();
     // Use explicit year for future date to avoid being interpreted as last year
-    let future_date = (today + chrono::Days::new(5)).format("@%m/%d/%y").to_string();
+    let future_date = (today + chrono::Days::new(5))
+        .format("@%m/%d/%y")
+        .to_string();
 
     // Create journal with entries that have past and future @dates
     let content = format!(

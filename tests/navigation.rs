@@ -75,7 +75,9 @@ fn test_entry_navigation() {
     ctx.press(KeyCode::Char('g'));
     let lines = ctx.render_daily();
     assert!(
-        lines.iter().any(|l| l.starts_with("→") && l.contains("Entry 1")),
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 1")),
         "First entry should be selected"
     );
 
@@ -83,7 +85,9 @@ fn test_entry_navigation() {
     ctx.press(KeyCode::Char('G'));
     let lines = ctx.render_daily();
     assert!(
-        lines.iter().any(|l| l.starts_with("→") && l.contains("Entry 5")),
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 5")),
         "Last entry should be selected"
     );
 
@@ -91,7 +95,9 @@ fn test_entry_navigation() {
     ctx.press(KeyCode::Char('k'));
     let lines = ctx.render_daily();
     assert!(
-        lines.iter().any(|l| l.starts_with("→") && l.contains("Entry 4")),
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 4")),
         "Entry 4 should be selected after k"
     );
 
@@ -99,7 +105,9 @@ fn test_entry_navigation() {
     ctx.press(KeyCode::Char('j'));
     let lines = ctx.render_daily();
     assert!(
-        lines.iter().any(|l| l.starts_with("→") && l.contains("Entry 5")),
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 5")),
         "Entry 5 should be selected after j"
     );
 }

@@ -73,18 +73,9 @@ fn test_delete_and_undo() {
 
     // Delete
     ctx.press(KeyCode::Char('x'));
-    assert!(
-        !ctx.screen_contains("Entry B"),
-        "Entry B should be deleted"
-    );
-    assert!(
-        ctx.screen_contains("Entry A"),
-        "Entry A should remain"
-    );
-    assert!(
-        ctx.screen_contains("Entry C"),
-        "Entry C should remain"
-    );
+    assert!(!ctx.screen_contains("Entry B"), "Entry B should be deleted");
+    assert!(ctx.screen_contains("Entry A"), "Entry A should remain");
+    assert!(ctx.screen_contains("Entry C"), "Entry C should remain");
 
     // Verify selection is still valid after delete
     assert!(
@@ -100,10 +91,7 @@ fn test_delete_and_undo() {
 
     // Undo
     ctx.press(KeyCode::Char('u'));
-    assert!(
-        ctx.screen_contains("Entry B"),
-        "Entry B should be restored"
-    );
+    assert!(ctx.screen_contains("Entry B"), "Entry B should be restored");
 }
 
 /// DV-4: Reorder mode
@@ -307,7 +295,11 @@ fn test_scroll_behavior() {
 
     // Jump to last entry
     ctx.press(KeyCode::Char('G'));
-    assert_eq!(ctx.selected_index(), 29, "Should be at last entry (index 29)");
+    assert_eq!(
+        ctx.selected_index(),
+        29,
+        "Should be at last entry (index 29)"
+    );
     assert!(
         ctx.screen_contains("Entry 30"),
         "Last entry should be visible"

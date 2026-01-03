@@ -1,0 +1,371 @@
+mod command;
+mod edit_mode;
+mod entry_ops;
+mod filter_ops;
+mod journal;
+mod navigation;
+mod reorder;
+
+use std::io;
+
+use chrono::{Local, NaiveDate};
+
+use crate::config::Config;
+use crate::cursor::CursorBuffer;
+use crate::storage::{self, Entry, EntryType, FilterEntry, JournalSlot, LaterEntry, Line};
+
+pub const DAILY_HEADER_LINES: usize = 1;
+pub const FILTER_HEADER_LINES: usize = 1;
+pub const DATE_SUFFIX_WIDTH: usize = " (MM/DD)".len();
+
+/// State specific to the Daily view
+#[derive(Clone)]
+pub struct DailyState {
+    pub selected: usize,
+    pub scroll_offset: usize,
+    pub original_lines: Option<Vec<Line>>,
+    pub later_entries: Vec<LaterEntry>,
+}
+
+impl DailyState {
+    #[must_use]
+    pub fn new(entry_count: usize, later_entries: Vec<LaterEntry>) -> Self {
+        let selected = if later_entries.is_empty() {
+            entry_count.saturating_sub(1)
+        } else {
+            0
+        };
+
+        Self {
+            selected,
+            scroll_offset: 0,
+            original_lines: None,
+            later_entries,
+        }
+    }
+}
+
+/// State specific to the Filter view
+#[derive(Clone)]
+pub struct FilterState {
+    pub query: String,
+    pub query_buffer: CursorBuffer,
+    pub entries: Vec<FilterEntry>,
+    pub selected: usize,
+    pub scroll_offset: usize,
+}
+
+/// Which view is currently active and its state
+#[derive(Clone)]
+pub enum ViewMode {
+    Daily(DailyState),
+    Filter(FilterState),
+}
+
+/// Context for what is being edited
+#[derive(Clone, Debug, PartialEq)]
+pub enum EditContext {
+    /// Editing an entry in Daily view
+    Daily { entry_index: usize },
+    /// Editing an existing entry from Filter view
+    FilterEdit {
+        date: NaiveDate,
+        line_index: usize,
+        filter_index: usize,
+    },
+    /// Quick-adding a new entry from Filter view
+    FilterQuickAdd {
+        date: NaiveDate,
+        entry_type: EntryType,
+    },
+    /// Editing a later entry from Daily view
+    LaterEdit {
+        source_date: NaiveDate,
+        line_index: usize,
+        later_index: usize,
+    },
+}
+
+/// Context for confirmation dialogs
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConfirmContext {
+    CreateProjectJournal,
+    AddToGitignore,
+}
+
+/// What keyboard handler to use
+#[derive(Clone, Debug, PartialEq)]
+pub enum InputMode {
+    Normal,
+    Edit(EditContext),
+    Command,
+    Reorder,
+    QueryInput,
+    Confirm(ConfirmContext),
+}
+
+/// Where to insert a new entry
+pub enum InsertPosition {
+    Bottom,
+    Below,
+    Above,
+}
+
+/// The currently selected item, accounting for hidden completed entries
+pub enum SelectedItem<'a> {
+    Later {
+        index: usize,
+        entry: &'a LaterEntry,
+    },
+    Daily {
+        index: usize,
+        line_idx: usize,
+        entry: &'a Entry,
+    },
+    Filter {
+        index: usize,
+        entry: &'a FilterEntry,
+    },
+    None,
+}
+
+pub struct App {
+    pub current_date: NaiveDate,
+    pub lines: Vec<Line>,
+    pub entry_indices: Vec<usize>,
+    pub view: ViewMode,
+    pub input_mode: InputMode,
+    pub edit_buffer: Option<CursorBuffer>,
+    pub command_buffer: CursorBuffer,
+    pub should_quit: bool,
+    pub status_message: Option<String>,
+    pub show_help: bool,
+    pub help_scroll: usize,
+    pub help_visible_height: usize,
+    pub last_deleted: Option<(NaiveDate, usize, Entry)>,
+    pub last_filter_query: Option<String>,
+    pub config: Config,
+    pub active_journal: JournalSlot,
+    pub in_git_repo: bool,
+    pub hide_completed: bool,
+}
+
+impl App {
+    pub fn new(config: Config) -> io::Result<Self> {
+        let current_date = Local::now().date_naive();
+        let lines = storage::load_day_lines(current_date)?;
+        let entry_indices = Self::compute_entry_indices(&lines);
+        let later_entries = storage::collect_later_entries_for_date(current_date)?;
+        let active_journal = storage::get_active_slot();
+        let in_git_repo = storage::find_git_root().is_some();
+
+        Ok(Self {
+            current_date,
+            lines,
+            view: ViewMode::Daily(DailyState::new(entry_indices.len(), later_entries)),
+            entry_indices,
+            input_mode: InputMode::Normal,
+            edit_buffer: None,
+            command_buffer: CursorBuffer::empty(),
+            should_quit: false,
+            status_message: None,
+            show_help: false,
+            help_scroll: 0,
+            help_visible_height: 0,
+            last_deleted: None,
+            last_filter_query: None,
+            config,
+            active_journal,
+            in_git_repo,
+            hide_completed: false,
+        })
+    }
+
+    /// Creates a new App with a specific date (for testing)
+    pub fn new_with_date(config: Config, date: NaiveDate) -> io::Result<Self> {
+        let lines = storage::load_day_lines(date)?;
+        let entry_indices = Self::compute_entry_indices(&lines);
+        let later_entries = storage::collect_later_entries_for_date(date)?;
+        let active_journal = storage::get_active_slot();
+        let in_git_repo = storage::find_git_root().is_some();
+
+        Ok(Self {
+            current_date: date,
+            lines,
+            view: ViewMode::Daily(DailyState::new(entry_indices.len(), later_entries)),
+            entry_indices,
+            input_mode: InputMode::Normal,
+            edit_buffer: None,
+            command_buffer: CursorBuffer::empty(),
+            should_quit: false,
+            status_message: None,
+            show_help: false,
+            help_scroll: 0,
+            help_visible_height: 0,
+            last_deleted: None,
+            last_filter_query: None,
+            config,
+            active_journal,
+            in_git_repo,
+            hide_completed: false,
+        })
+    }
+
+    #[must_use]
+    pub fn compute_entry_indices(lines: &[Line]) -> Vec<usize> {
+        lines
+            .iter()
+            .enumerate()
+            .filter_map(|(i, line)| {
+                if matches!(line, Line::Entry(_)) {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub(super) fn get_daily_entry(&self, entry_index: usize) -> Option<&Entry> {
+        let line_idx = self.entry_indices.get(entry_index)?;
+        if let Line::Entry(entry) = &self.lines[*line_idx] {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    pub(super) fn get_daily_entry_mut(&mut self, entry_index: usize) -> Option<&mut Entry> {
+        let line_idx = *self.entry_indices.get(entry_index)?;
+        if let Line::Entry(entry) = &mut self.lines[line_idx] {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_status(&mut self, msg: impl Into<String>) {
+        self.status_message = Some(msg.into());
+    }
+
+    /// Saves current day's lines to storage, displaying any error as a status message.
+    pub fn save(&mut self) {
+        if let Err(e) = storage::save_day_lines(self.current_date, &self.lines) {
+            self.set_status(format!("Failed to save: {e}"));
+        }
+    }
+
+    pub fn undo(&mut self) {
+        let Some((date, line_idx, entry)) = self.last_deleted.take() else {
+            return;
+        };
+
+        match &self.view {
+            ViewMode::Daily(_) => {
+                if date != self.current_date {
+                    self.set_status(format!(
+                        "Undo: entry was from {}, go to that day first",
+                        date.format("%m/%d")
+                    ));
+                    self.last_deleted = Some((date, line_idx, entry));
+                    return;
+                }
+                let insert_idx = line_idx.min(self.lines.len());
+                let is_completed = matches!(entry.entry_type, EntryType::Task { completed: true });
+                self.lines.insert(insert_idx, Line::Entry(entry));
+                self.entry_indices = Self::compute_entry_indices(&self.lines);
+
+                if self.hide_completed && is_completed {
+                    self.hide_completed = false;
+                }
+
+                let visible_idx = self
+                    .entry_indices
+                    .iter()
+                    .position(|&i| i == insert_idx)
+                    .map(|actual_idx| self.actual_to_visible_index(actual_idx));
+
+                if let ViewMode::Daily(state) = &mut self.view
+                    && let Some(idx) = visible_idx
+                {
+                    state.selected = idx;
+                }
+                self.save();
+            }
+            ViewMode::Filter(_) => {
+                if let Ok(mut lines) = storage::load_day_lines(date) {
+                    let insert_idx = line_idx.min(lines.len());
+                    lines.insert(insert_idx, Line::Entry(entry.clone()));
+                    let _ = storage::save_day_lines(date, &lines);
+
+                    let filter_entry = FilterEntry {
+                        source_date: date,
+                        line_index: insert_idx,
+                        entry_type: entry.entry_type.clone(),
+                        content: entry.content,
+                        completed: matches!(entry.entry_type, EntryType::Task { completed: true }),
+                    };
+
+                    if let ViewMode::Filter(state) = &mut self.view {
+                        state.entries.push(filter_entry);
+                        state.selected = state.entries.len() - 1;
+                    }
+
+                    if date == self.current_date {
+                        let _ = self.reload_current_day();
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn sort_entries(&mut self) {
+        let entry_positions: Vec<usize> = self
+            .lines
+            .iter()
+            .enumerate()
+            .filter_map(|(i, l)| matches!(l, Line::Entry(_)).then_some(i))
+            .collect();
+
+        if entry_positions.is_empty() {
+            return;
+        }
+
+        let sort_order = self.config.validated_sort_order();
+        let get_priority = |line: &Line| -> usize {
+            let Line::Entry(entry) = line else {
+                return sort_order.len();
+            };
+            for (i, type_name) in sort_order.iter().enumerate() {
+                match (type_name.as_str(), &entry.entry_type) {
+                    ("completed", EntryType::Task { completed: true }) => return i,
+                    ("uncompleted", EntryType::Task { completed: false }) => return i,
+                    ("notes", EntryType::Note) => return i,
+                    ("events", EntryType::Event) => return i,
+                    _ => {}
+                }
+            }
+            sort_order.len()
+        };
+
+        let mut entries: Vec<Line> = entry_positions
+            .iter()
+            .map(|&i| self.lines[i].clone())
+            .collect();
+
+        entries.sort_by_key(|line| get_priority(line));
+
+        for (pos, entry) in entry_positions.iter().zip(entries.into_iter()) {
+            self.lines[*pos] = entry;
+        }
+
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+        self.save();
+    }
+
+    pub(crate) fn reload_current_day(&mut self) -> io::Result<()> {
+        self.lines = storage::load_day_lines(self.current_date)?;
+        self.entry_indices = Self::compute_entry_indices(&self.lines);
+        Ok(())
+    }
+}

@@ -46,7 +46,10 @@ fn test_journal_isolation() {
             false
         }
     });
-    assert!(!has_project, "Project entry should not be visible in global");
+    assert!(
+        !has_project,
+        "Project entry should not be visible in global"
+    );
 }
 
 /// MJ-4: Switch to project journal sees project entries

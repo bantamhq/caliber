@@ -405,11 +405,7 @@ fn test_long_line_cursor_tracking() {
 
     // Move to start
     ctx.press(KeyCode::Home);
-    assert_eq!(
-        ctx.cursor_position(),
-        Some(0),
-        "Cursor should be at start"
-    );
+    assert_eq!(ctx.cursor_position(), Some(0), "Cursor should be at start");
 
     // Move to middle using word navigation
     ctx.press_with_modifiers(KeyCode::Char('f'), KeyModifiers::ALT); // forward word

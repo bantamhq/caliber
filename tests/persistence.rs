@@ -107,10 +107,7 @@ fn test_multi_day_entries_preserved() {
         journal.contains("Day A entry modified"),
         "Modified day A should persist"
     );
-    assert!(
-        journal.contains("Day B entry"),
-        "Day B should be preserved"
-    );
+    assert!(journal.contains("Day B entry"), "Day B should be preserved");
 }
 
 /// PS-4: Filter edit persistence

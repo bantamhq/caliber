@@ -10,7 +10,8 @@ use caliber::app::ViewMode;
 #[test]
 fn test_tag_filter() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content = "# 2026/01/15\n- [ ] Task with #work\n- [ ] Task with #personal\n- Note with #work\n";
+    let content =
+        "# 2026/01/15\n- [ ] Task with #work\n- [ ] Task with #personal\n- Note with #work\n";
     let mut ctx = TestContext::with_journal_content(date, content);
 
     ctx.press(KeyCode::Char('/'));
@@ -107,7 +108,8 @@ fn test_completed_task_filter() {
 #[test]
 fn test_combined_filters() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content = "# 2026/01/15\n- [ ] Work task #work\n- [ ] Personal task #personal\n- Work note #work\n";
+    let content =
+        "# 2026/01/15\n- [ ] Work task #work\n- [ ] Personal task #personal\n- Work note #work\n";
     let mut ctx = TestContext::with_journal_content(date, content);
 
     // !tasks #work - only incomplete tasks with #work
@@ -362,14 +364,8 @@ fn test_negation_type_filter() {
         !ctx.screen_contains("A task"),
         "Tasks should not appear with not:!tasks"
     );
-    assert!(
-        ctx.screen_contains("A note"),
-        "Notes should appear"
-    );
-    assert!(
-        ctx.screen_contains("An event"),
-        "Events should appear"
-    );
+    assert!(ctx.screen_contains("A note"), "Notes should appear");
+    assert!(ctx.screen_contains("An event"), "Events should appear");
 }
 
 /// FV-11: Filter refresh after external changes
@@ -422,7 +418,8 @@ fn test_favorite_tag_quick_filter() {
     use std::collections::HashMap;
 
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content = "# 2026/01/15\n- [ ] Task with #work\n- [ ] Task with #personal\n- [ ] Task without tags\n";
+    let content =
+        "# 2026/01/15\n- [ ] Task with #work\n- [ ] Task with #personal\n- [ ] Task without tags\n";
 
     // Create config with favorite tag 1 = "work"
     let mut config = caliber::config::Config::default();
@@ -460,7 +457,8 @@ fn test_saved_filter_expansion() {
     use std::collections::HashMap;
 
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content = "# 2026/01/15\n- [ ] Urgent task #urgent\n- [ ] Normal task #work\n- A note #urgent\n";
+    let content =
+        "# 2026/01/15\n- [ ] Urgent task #urgent\n- [ ] Normal task #work\n- A note #urgent\n";
 
     // Create config with saved filter
     let mut config = caliber::config::Config::default();

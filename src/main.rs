@@ -22,7 +22,7 @@ use caliber::app::{
 };
 use caliber::config::{self, Config, resolve_path};
 use caliber::cursor::cursor_position_in_wrap;
-use caliber::storage::{EntryType, Line};
+use caliber::storage::Line;
 use caliber::{handlers, storage, ui};
 
 fn ensure_selected_visible(
@@ -40,6 +40,42 @@ fn ensure_selected_visible(
     }
     if selected >= *scroll_offset + visible_height {
         *scroll_offset = selected - visible_height + 1;
+    }
+}
+
+struct CursorContext {
+    prefix_width: usize,
+    cursor_row: usize,
+    cursor_col: usize,
+    entry_start_line: usize,
+}
+
+fn set_edit_cursor(
+    f: &mut ratatui::Frame<'_>,
+    ctx: &CursorContext,
+    scroll_offset: &mut usize,
+    visible_height: usize,
+    content_area: ratatui::layout::Rect,
+) {
+    let cursor_line = ctx.entry_start_line + ctx.cursor_row;
+
+    if cursor_line >= *scroll_offset + visible_height {
+        *scroll_offset = cursor_line - visible_height + 1;
+    }
+
+    if cursor_line >= *scroll_offset {
+        let screen_row = cursor_line - *scroll_offset;
+
+        #[allow(clippy::cast_possible_truncation)]
+        let cursor_x = content_area.x + (ctx.prefix_width + ctx.cursor_col) as u16;
+        #[allow(clippy::cast_possible_truncation)]
+        let cursor_y = content_area.y + screen_row as u16;
+
+        if cursor_x < content_area.x + content_area.width
+            && cursor_y < content_area.y + content_area.height
+        {
+            f.set_cursor_position((cursor_x, cursor_y));
+        }
     }
 }
 
@@ -202,201 +238,110 @@ fn run_app<B: ratatui::backend::Backend>(
             if let InputMode::Edit(ref ctx) = app.input_mode
                 && let Some(ref buffer) = app.edit_buffer
             {
-                match ctx {
+                let cursor_ctx = match ctx {
                     EditContext::FilterQuickAdd { entry_type, .. } => {
-                        let ViewMode::Filter(state) = &mut app.view else {
+                        let ViewMode::Filter(state) = &app.view else {
                             unreachable!()
                         };
                         let prefix_width = entry_type.prefix().len();
                         let text_width = content_width.saturating_sub(prefix_width);
-
                         let (cursor_row, cursor_col) = cursor_position_in_wrap(
                             buffer.content(),
                             buffer.cursor_display_pos(),
                             text_width,
                         );
-
-                        let entry_start_line = state.entries.len() + FILTER_HEADER_LINES;
-                        let cursor_line = entry_start_line + cursor_row;
-
-                        if cursor_line >= state.scroll_offset + visible_height {
-                            state.scroll_offset = cursor_line - visible_height + 1;
-                        }
-
-                        if cursor_line >= state.scroll_offset {
-                            let screen_row = cursor_line - state.scroll_offset;
-
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_x = content_area.x + (prefix_width + cursor_col) as u16;
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_y = content_area.y + screen_row as u16;
-
-                            if cursor_x < content_area.x + content_area.width
-                                && cursor_y < content_area.y + content_area.height
-                            {
-                                f.set_cursor_position((cursor_x, cursor_y));
-                            }
-                        }
+                        Some(CursorContext {
+                            prefix_width,
+                            cursor_row,
+                            cursor_col,
+                            entry_start_line: state.entries.len() + FILTER_HEADER_LINES,
+                        })
                     }
                     EditContext::FilterEdit { filter_index, .. } => {
-                        let ViewMode::Filter(state) = &mut app.view else {
+                        let ViewMode::Filter(state) = &app.view else {
                             unreachable!()
                         };
-                        let Some(filter_entry) = state.entries.get(*filter_index) else {
-                            return;
-                        };
-                        let prefix_width = filter_entry.entry_type.prefix().len();
-                        let text_width =
-                            content_width.saturating_sub(prefix_width + DATE_SUFFIX_WIDTH);
-
-                        let (cursor_row, cursor_col) = cursor_position_in_wrap(
-                            buffer.content(),
-                            buffer.cursor_display_pos(),
-                            text_width,
-                        );
-
-                        let entry_start_line = *filter_index + FILTER_HEADER_LINES;
-                        let cursor_line = entry_start_line + cursor_row;
-
-                        if cursor_line >= state.scroll_offset + visible_height {
-                            state.scroll_offset = cursor_line - visible_height + 1;
-                        }
-
-                        if cursor_line >= state.scroll_offset {
-                            let screen_row = cursor_line - state.scroll_offset;
-
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_x = content_area.x + (prefix_width + cursor_col) as u16;
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_y = content_area.y + screen_row as u16;
-
-                            if cursor_x < content_area.x + content_area.width
-                                && cursor_y < content_area.y + content_area.height
-                            {
-                                f.set_cursor_position((cursor_x, cursor_y));
+                        state.entries.get(*filter_index).map(|filter_entry| {
+                            let prefix_width = filter_entry.entry_type.prefix().len();
+                            let text_width =
+                                content_width.saturating_sub(prefix_width + DATE_SUFFIX_WIDTH);
+                            let (cursor_row, cursor_col) = cursor_position_in_wrap(
+                                buffer.content(),
+                                buffer.cursor_display_pos(),
+                                text_width,
+                            );
+                            CursorContext {
+                                prefix_width,
+                                cursor_row,
+                                cursor_col,
+                                entry_start_line: *filter_index + FILTER_HEADER_LINES,
                             }
-                        }
+                        })
                     }
-                    EditContext::Daily { entry_index } => {
-                        let ViewMode::Daily(state) = &mut app.view else {
-                            unreachable!()
-                        };
-                        let Some(entry_type) = app.entry_indices.get(*entry_index).and_then(|&i| {
+                    EditContext::Daily { entry_index } => app
+                        .entry_indices
+                        .get(*entry_index)
+                        .and_then(|&i| {
                             if let Line::Entry(entry) = &app.lines[i] {
                                 Some(&entry.entry_type)
                             } else {
                                 None
                             }
-                        }) else {
-                            return;
-                        };
-                        let prefix_width = entry_type.prefix().width();
-                        let text_width = content_width.saturating_sub(prefix_width);
-
-                        let (cursor_row, cursor_col) = cursor_position_in_wrap(
-                            buffer.content(),
-                            buffer.cursor_display_pos(),
-                            text_width,
-                        );
-
-                        let visible_later = if app.hide_completed {
-                            state.later_entries.iter().filter(|e| !e.completed).count()
-                        } else {
-                            state.later_entries.len()
-                        };
-                        let visible_before = if app.hide_completed {
-                            app.entry_indices[..*entry_index]
-                                .iter()
-                                .filter(|&&i| {
-                                    if let Line::Entry(entry) = &app.lines[i] {
-                                        !matches!(entry.entry_type, EntryType::Task { completed: true })
-                                    } else {
-                                        true
-                                    }
-                                })
-                                .count()
-                        } else {
-                            *entry_index
-                        };
-                        let entry_start_line =
-                            visible_later + visible_before + DAILY_HEADER_LINES;
-                        let cursor_line = entry_start_line + cursor_row;
-
-                        if cursor_line >= state.scroll_offset + visible_height {
-                            state.scroll_offset = cursor_line - visible_height + 1;
-                        }
-
-                        if cursor_line >= state.scroll_offset {
-                            let screen_row = cursor_line - state.scroll_offset;
-
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_x = content_area.x + (prefix_width + cursor_col) as u16;
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_y = content_area.y + screen_row as u16;
-
-                            if cursor_x < content_area.x + content_area.width
-                                && cursor_y < content_area.y + content_area.height
-                            {
-                                f.set_cursor_position((cursor_x, cursor_y));
+                        })
+                        .map(|entry_type| {
+                            let prefix_width = entry_type.prefix().width();
+                            let text_width = content_width.saturating_sub(prefix_width);
+                            let (cursor_row, cursor_col) = cursor_position_in_wrap(
+                                buffer.content(),
+                                buffer.cursor_display_pos(),
+                                text_width,
+                            );
+                            CursorContext {
+                                prefix_width,
+                                cursor_row,
+                                cursor_col,
+                                entry_start_line: app.visible_later_count()
+                                    + app.visible_entries_before(*entry_index)
+                                    + DAILY_HEADER_LINES,
                             }
-                        }
-                    }
+                        }),
                     EditContext::LaterEdit { later_index, .. } => {
-                        let ViewMode::Daily(state) = &mut app.view else {
+                        let ViewMode::Daily(state) = &app.view else {
                             unreachable!()
                         };
-                        let Some(later_entry) = state.later_entries.get(*later_index) else {
-                            return;
-                        };
-                        let prefix_width = later_entry.entry_type.prefix().width();
-                        let text_width =
-                            content_width.saturating_sub(prefix_width + DATE_SUFFIX_WIDTH);
-
-                        let (cursor_row, cursor_col) = cursor_position_in_wrap(
-                            buffer.content(),
-                            buffer.cursor_display_pos(),
-                            text_width,
-                        );
-
-                        let visible_before = if app.hide_completed {
-                            state.later_entries[..*later_index]
-                                .iter()
-                                .filter(|e| !e.completed)
-                                .count()
-                        } else {
-                            *later_index
-                        };
-                        let entry_start_line = visible_before + DAILY_HEADER_LINES;
-                        let cursor_line = entry_start_line + cursor_row;
-
-                        if cursor_line >= state.scroll_offset + visible_height {
-                            state.scroll_offset = cursor_line - visible_height + 1;
-                        }
-
-                        if cursor_line >= state.scroll_offset {
-                            let screen_row = cursor_line - state.scroll_offset;
-
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_x = content_area.x + (prefix_width + cursor_col) as u16;
-                            #[allow(clippy::cast_possible_truncation)]
-                            let cursor_y = content_area.y + screen_row as u16;
-
-                            if cursor_x < content_area.x + content_area.width
-                                && cursor_y < content_area.y + content_area.height
-                            {
-                                f.set_cursor_position((cursor_x, cursor_y));
+                        state.later_entries.get(*later_index).map(|later_entry| {
+                            let prefix_width = later_entry.entry_type.prefix().width();
+                            let text_width =
+                                content_width.saturating_sub(prefix_width + DATE_SUFFIX_WIDTH);
+                            let (cursor_row, cursor_col) = cursor_position_in_wrap(
+                                buffer.content(),
+                                buffer.cursor_display_pos(),
+                                text_width,
+                            );
+                            CursorContext {
+                                prefix_width,
+                                cursor_row,
+                                cursor_col,
+                                entry_start_line: app.visible_later_before(*later_index)
+                                    + DAILY_HEADER_LINES,
                             }
-                        }
+                        })
                     }
+                };
+
+                if let Some(ctx) = cursor_ctx {
+                    set_edit_cursor(
+                        f,
+                        &ctx,
+                        app.scroll_offset_mut(),
+                        visible_height,
+                        content_area,
+                    );
                 }
             }
 
             #[allow(clippy::cast_possible_truncation)]
-            let scroll_offset = match &app.view {
-                ViewMode::Filter(state) => state.scroll_offset,
-                ViewMode::Daily(state) => state.scroll_offset,
-            };
-            let content = Paragraph::new(lines).scroll((scroll_offset as u16, 0));
+            let content = Paragraph::new(lines).scroll((app.scroll_offset() as u16, 0));
             f.render_widget(content, content_area);
 
             if let Some(ref msg) = app.status_message {
@@ -428,8 +373,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 width: indicator_width,
                 height: 1,
             };
-            let indicator_widget =
-                Paragraph::new(Span::styled(indicator, Style::default().fg(indicator_color)));
+            let indicator_widget = Paragraph::new(Span::styled(
+                indicator,
+                Style::default().fg(indicator_color),
+            ));
             f.render_widget(indicator_widget, indicator_area);
 
             match &app.input_mode {
