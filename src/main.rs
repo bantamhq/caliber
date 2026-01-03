@@ -29,7 +29,7 @@ use app::{
 };
 use config::{Config, resolve_path};
 use cursor::cursor_position_in_wrap;
-use storage::Line;
+use storage::{EntryType, Line};
 
 fn ensure_selected_visible(
     scroll_offset: &mut usize,
@@ -175,7 +175,7 @@ fn run_app<B: ratatui::backend::Backend>(
 
             let filter_visual_line = app.filter_visual_line();
             let filter_total_lines = app.filter_total_lines();
-            let daily_entry_count = app.daily_entry_count();
+            let visible_entry_count = app.visible_entry_count();
 
             match &mut app.view {
                 ViewMode::Filter(state) => {
@@ -190,7 +190,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     ensure_selected_visible(
                         &mut state.scroll_offset,
                         state.selected + DAILY_HEADER_LINES,
-                        daily_entry_count + DAILY_HEADER_LINES,
+                        visible_entry_count + DAILY_HEADER_LINES,
                         visible_height,
                     );
                     if state.selected == 0 {
@@ -305,8 +305,27 @@ fn run_app<B: ratatui::backend::Backend>(
                             text_width,
                         );
 
+                        let visible_later = if app.hide_completed {
+                            state.later_entries.iter().filter(|e| !e.completed).count()
+                        } else {
+                            state.later_entries.len()
+                        };
+                        let visible_before = if app.hide_completed {
+                            app.entry_indices[..*entry_index]
+                                .iter()
+                                .filter(|&&i| {
+                                    if let Line::Entry(entry) = &app.lines[i] {
+                                        !matches!(entry.entry_type, EntryType::Task { completed: true })
+                                    } else {
+                                        true
+                                    }
+                                })
+                                .count()
+                        } else {
+                            *entry_index
+                        };
                         let entry_start_line =
-                            state.later_entries.len() + *entry_index + DAILY_HEADER_LINES;
+                            visible_later + visible_before + DAILY_HEADER_LINES;
                         let cursor_line = entry_start_line + cursor_row;
 
                         if cursor_line >= state.scroll_offset + visible_height {
@@ -345,7 +364,15 @@ fn run_app<B: ratatui::backend::Backend>(
                             text_width,
                         );
 
-                        let entry_start_line = *later_index + DAILY_HEADER_LINES;
+                        let visible_before = if app.hide_completed {
+                            state.later_entries[..*later_index]
+                                .iter()
+                                .filter(|e| !e.completed)
+                                .count()
+                        } else {
+                            *later_index
+                        };
+                        let entry_start_line = visible_before + DAILY_HEADER_LINES;
                         let cursor_line = entry_start_line + cursor_row;
 
                         if cursor_line >= state.scroll_offset + visible_height {

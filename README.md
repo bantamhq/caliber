@@ -129,6 +129,7 @@ The entry will appear in the "Later" section when you view that date.
 | `t` | Go to today |
 | `s` | Sort entries |
 | `r` | Reorder mode |
+| `z` | Toggle hide completed |
 | `0-9` | Filter by favorite tag |
 | `/` | Open filter mode |
 | `Tab` | Return to last filter |

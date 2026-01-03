@@ -223,16 +223,32 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
     let mut lines = Vec::new();
 
     let date_header = app.current_date.format("%m/%d/%y").to_string();
-    lines.push(RatatuiLine::from(Span::styled(
-        date_header,
-        Style::default().fg(Color::Cyan),
-    )));
+    let hidden_count = app.hidden_completed_count();
+    if app.hide_completed && hidden_count > 0 {
+        lines.push(RatatuiLine::from(vec![
+            Span::styled(date_header, Style::default().fg(Color::Cyan)),
+            Span::styled(
+                format!(" (Hiding {hidden_count} completed)"),
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]));
+    } else {
+        lines.push(RatatuiLine::from(Span::styled(
+            date_header,
+            Style::default().fg(Color::Cyan),
+        )));
+    }
 
-    let later_count = state.later_entries.len();
+    let mut visible_later_idx = 0;
 
     // === Later entries section (at top) ===
-    for (later_idx, later_entry) in state.later_entries.iter().enumerate() {
-        let is_selected = later_idx == state.selected;
+    for later_entry in &state.later_entries {
+        if app.hide_completed && later_entry.completed {
+            continue;
+        }
+
+        let is_selected = visible_later_idx == state.selected;
+        visible_later_idx += 1;
         let is_editing = is_selected
             && matches!(
                 app.input_mode,
@@ -324,14 +340,21 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
     }
 
     // === Regular entries section ===
-    for (entry_idx, &line_idx) in app.entry_indices.iter().enumerate() {
+    let mut visible_entry_idx = 0;
+    for &line_idx in &app.entry_indices {
         if let Line::Entry(entry) = &app.lines[line_idx] {
-            let selection_idx = later_count + entry_idx;
+            let is_completed = matches!(entry.entry_type, EntryType::Task { completed: true });
+
+            if app.hide_completed && is_completed {
+                continue;
+            }
+
+            let selection_idx = visible_later_idx + visible_entry_idx;
+            visible_entry_idx += 1;
             let is_selected = selection_idx == state.selected;
             let is_editing =
                 is_selected && matches!(app.input_mode, InputMode::Edit(EditContext::Daily { .. }));
 
-            let is_completed = matches!(entry.entry_type, EntryType::Task { completed: true });
             let content_style = if is_completed {
                 Style::default().fg(Color::DarkGray)
             } else {
@@ -389,10 +412,15 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
         }
     }
 
-    // Empty state only if both later and regular entries are empty
-    if state.later_entries.is_empty() && app.entry_indices.is_empty() {
+    if visible_later_idx == 0 && visible_entry_idx == 0 {
+        let has_hidden = app.hide_completed && app.hidden_completed_count() > 0;
+        let message = if has_hidden {
+            "(No visible entries - press z to show completed or Enter to add)"
+        } else {
+            "(No entries - press Enter to add)"
+        };
         lines.push(RatatuiLine::from(Span::styled(
-            "(No entries - press Enter to add)",
+            message,
             Style::default().fg(Color::DarkGray),
         )));
     }
@@ -599,6 +627,7 @@ fn build_help_lines() -> Vec<RatatuiLine<'static>> {
                 ("t", "Go to today"),
                 ("s", "Sort entries"),
                 ("r", "Reorder mode"),
+                ("z", "Toggle hide completed"),
                 ("/", "Filter mode"),
                 ("Tab", "Return to filter"),
                 ("0-9", "Filter favorite tag"),

@@ -124,6 +124,7 @@ pub fn handle_normal_key(app: &mut App, key: KeyCode) -> io::Result<()> {
             KeyCode::Char('t') => app.goto_today()?,
             KeyCode::Char('s') => app.sort_entries(),
             KeyCode::Char('r') => app.enter_reorder_mode(),
+            KeyCode::Char('z') => app.toggle_hide_completed(),
             KeyCode::Tab => app.return_to_filter()?,
             _ => {}
         },
