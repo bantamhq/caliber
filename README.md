@@ -50,7 +50,7 @@ Caliber supports two journal contexts:
 - **Global journal** - Your default journal stored in `~/.config/caliber/global_journal.md`
 - **Project journal** - A project-specific journal at `.caliber/journal.md` in your project root
 
-When you launch Caliber in a git repository, it automatically detects or offers to create a project journal. Toggle between journals with `` ` `` (backtick). The title bar shows `G` (blue) or `P` (green) to indicate which journal is active.
+When you launch Caliber in a git repository, it automatically detects or offers to create a project journal. Toggle between journals with `` ` `` (backtick). The bottom-right corner shows `[GLOBAL]` or `[PROJECT]` to indicate which journal is active.
 
 ### Daily View
 

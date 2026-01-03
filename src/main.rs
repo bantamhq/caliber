@@ -151,18 +151,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::Magenta))
             } else {
-                let date_text = Span::raw(app.current_date.format(" %m/%d/%y ").to_string());
-                let slot_indicator = match app.active_journal {
-                    storage::JournalSlot::Global => {
-                        Span::styled(" G ", Style::default().bg(Color::Blue).fg(Color::White))
-                    }
-                    storage::JournalSlot::Project => {
-                        Span::styled(" P ", Style::default().bg(Color::Green).fg(Color::Black))
-                    }
-                };
-                let title = ratatui::text::Line::from(vec![date_text, slot_indicator]);
+                let date_title = app.current_date.format(" %m/%d/%y ").to_string();
                 Block::default()
-                    .title_top(title.alignment(Alignment::Right))
+                    .title_top(ratatui::text::Line::from(date_title).alignment(Alignment::Right))
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::White))
             };
@@ -405,6 +396,21 @@ fn run_app<B: ratatui::backend::Backend>(
 
             let footer = Paragraph::new(ui::render_footer(&app));
             f.render_widget(footer, chunks[1]);
+
+            let (indicator, indicator_color) = match app.active_journal {
+                storage::JournalSlot::Global => ("[GLOBAL]", Color::Green),
+                storage::JournalSlot::Project => ("[PROJECT]", Color::Blue),
+            };
+            let indicator_width = indicator.len() as u16;
+            let indicator_area = ratatui::layout::Rect {
+                x: chunks[1].x + chunks[1].width.saturating_sub(indicator_width),
+                y: chunks[1].y,
+                width: indicator_width,
+                height: 1,
+            };
+            let indicator_widget =
+                Paragraph::new(Span::styled(indicator, Style::default().fg(indicator_color)));
+            f.render_widget(indicator_widget, indicator_area);
 
             match &app.input_mode {
                 InputMode::Command => {
