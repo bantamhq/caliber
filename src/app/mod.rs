@@ -84,7 +84,7 @@ impl SelectionState {
         }
     }
 
-    /// Toggle range from anchor to new index
+    /// Toggle range from anchor to new index, then update anchor to new index
     /// If any in range are unselected, select all; otherwise deselect all
     pub fn extend_to(&mut self, new_index: usize) {
         let (start, end) = if new_index < self.anchor {
@@ -102,6 +102,7 @@ impl SelectionState {
                 self.selected_indices.insert(i);
             }
         }
+        self.anchor = new_index;
     }
 
     /// Toggle a single index in selection and update anchor
