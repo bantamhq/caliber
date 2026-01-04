@@ -27,8 +27,9 @@ pub enum DeleteTarget {
     },
 }
 
-/// Target for toggle operations
-pub enum ToggleTarget {
+/// Location of an entry for operations that just need to find it (toggle, tag removal).
+/// Shared between ToggleTarget and TagRemovalTarget since they have identical structure.
+pub enum EntryLocation {
     Later {
         source_date: chrono::NaiveDate,
         line_index: usize,
@@ -43,27 +44,15 @@ pub enum ToggleTarget {
     },
 }
 
-/// Target for tag removal operations
-pub enum TagRemovalTarget {
-    Later {
-        source_date: chrono::NaiveDate,
-        line_index: usize,
-    },
-    Daily {
-        line_idx: usize,
-    },
-    Filter {
-        index: usize,
-        source_date: chrono::NaiveDate,
-        line_index: usize,
-    },
-}
+/// Target for toggle operations (type alias for semantic clarity)
+pub type ToggleTarget = EntryLocation;
 
-/// Target for yank operations
-pub enum YankTarget {
-    Later { content: String },
-    Daily { content: String },
-    Filter { content: String },
+/// Target for tag removal operations (type alias for semantic clarity)
+pub type TagRemovalTarget = EntryLocation;
+
+/// Target for yank operations - just needs content from any source
+pub struct YankTarget {
+    pub content: String,
 }
 
 impl App {
@@ -305,27 +294,18 @@ impl App {
 
     /// Extract yank target from current selection
     pub fn extract_yank_target_from_current(&self) -> Option<YankTarget> {
-        match self.get_selected_item() {
-            SelectedItem::Later { entry, .. } => Some(YankTarget::Later {
-                content: entry.content.clone(),
-            }),
-            SelectedItem::Daily { entry, .. } => Some(YankTarget::Daily {
-                content: entry.content.clone(),
-            }),
-            SelectedItem::Filter { entry, .. } => Some(YankTarget::Filter {
-                content: entry.content.clone(),
-            }),
-            SelectedItem::None => None,
-        }
+        let content = match self.get_selected_item() {
+            SelectedItem::Later { entry, .. } => entry.content.clone(),
+            SelectedItem::Daily { entry, .. } => entry.content.clone(),
+            SelectedItem::Filter { entry, .. } => entry.content.clone(),
+            SelectedItem::None => return None,
+        };
+        Some(YankTarget { content })
     }
 
     /// Get content from a yank target
     pub fn yank_target_content(target: &YankTarget) -> &str {
-        match target {
-            YankTarget::Later { content }
-            | YankTarget::Daily { content }
-            | YankTarget::Filter { content } => content,
-        }
+        &target.content
     }
 
     /// Execute yank - copy content to clipboard

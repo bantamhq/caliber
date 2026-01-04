@@ -85,7 +85,8 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
                 let available = width.saturating_sub(prefix_width + date_suffix_width);
                 let display_text = truncate_with_tags(&text, available);
 
-                let is_cursor_selected = if let InputMode::Selection(ref sel_state) = app.input_mode {
+                let is_cursor_selected = if let InputMode::Selection(ref sel_state) = app.input_mode
+                {
                     sel_state.is_selected(idx)
                 } else {
                     false
@@ -110,11 +111,12 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
             }
         } else {
             // Check if this entry is selected in selection mode (but not cursor)
-            let is_selected_in_selection = if let InputMode::Selection(ref sel_state) = app.input_mode {
-                sel_state.is_selected(idx)
-            } else {
-                false
-            };
+            let is_selected_in_selection =
+                if let InputMode::Selection(ref sel_state) = app.input_mode {
+                    sel_state.is_selected(idx)
+                } else {
+                    false
+                };
 
             let available = width.saturating_sub(prefix_width + date_suffix_width);
             let display_text = truncate_with_tags(&text, available);

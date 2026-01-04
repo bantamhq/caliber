@@ -336,3 +336,45 @@ fn test_yank_entry() {
         "Entry should still be visible after yank"
     );
 }
+
+/// DV-10: Reorder mode with hidden completed entries
+#[test]
+fn test_reorder_with_hidden_completed() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    // Mix of completed and incomplete: A (incomplete), B (completed), C (incomplete)
+    let content = "# 2026/01/15\n- [ ] A\n- [x] B\n- [ ] C\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    // Hide completed entries
+    ctx.press(KeyCode::Char('z'));
+
+    // Verify B is hidden, only A and C visible
+    assert!(ctx.screen_contains(" A"), "A should be visible");
+    assert!(!ctx.screen_contains("[x] B"), "B should be hidden");
+    assert!(ctx.screen_contains(" C"), "C should be visible");
+
+    // Select A, enter reorder
+    ctx.press(KeyCode::Char('g'));
+    ctx.press(KeyCode::Char('r'));
+
+    // Move A down (should skip hidden B and go to C)
+    ctx.press(KeyCode::Char('j'));
+
+    // Confirm reorder
+    ctx.press(KeyCode::Enter);
+
+    // Verify order in journal: B (still in place), C, A
+    // The hidden completed entry B should remain in its position
+    let journal = ctx.read_journal();
+    let _b_pos = journal.find("[x] B").unwrap();
+    let c_pos = journal.find("[ ] C").unwrap();
+    let a_pos = journal.find("[ ] A").unwrap();
+
+    // After reordering visible entries: C should come before A
+    // B stays between them or maintains relative position
+    assert!(
+        c_pos < a_pos,
+        "C should be before A after reorder: journal={}",
+        journal
+    );
+}

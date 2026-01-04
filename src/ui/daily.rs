@@ -37,7 +37,6 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
 
     let mut visible_later_idx = 0;
 
-    // === Later entries section (at top) ===
     for later_entry in &state.later_entries {
         if app.hide_completed && later_entry.completed {
             continue;
@@ -121,7 +120,6 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
         }
     }
 
-    // === Regular entries section ===
     let mut visible_entry_idx = 0;
     for &line_idx in &app.entry_indices {
         if let Line::Entry(entry) = &app.lines[line_idx] {

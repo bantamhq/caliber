@@ -7,6 +7,7 @@ pub struct CursorBuffer {
 }
 
 impl CursorBuffer {
+    #[must_use]
     pub fn new(content: String) -> Self {
         let cursor_char_pos = content.chars().count();
         Self {
@@ -15,6 +16,7 @@ impl CursorBuffer {
         }
     }
 
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             content: String::new(),

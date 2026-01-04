@@ -81,7 +81,11 @@ impl App {
                     self.set_status("Usage: :project [init|default|path.md]");
                 }
             },
-            _ => {}
+            _ => {
+                if !command.is_empty() {
+                    self.set_status(format!("Unknown command: {command}"));
+                }
+            }
         }
         self.input_mode = InputMode::Normal;
         Ok(())

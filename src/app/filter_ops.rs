@@ -5,9 +5,7 @@ use chrono::Local;
 use crate::cursor::CursorBuffer;
 use crate::storage::{self, EntryType};
 
-use super::{
-    App, DailyState, EditContext, FILTER_HEADER_LINES, FilterState, InputMode, ViewMode,
-};
+use super::{App, DailyState, EditContext, FILTER_HEADER_LINES, FilterState, InputMode, ViewMode};
 
 impl App {
     pub fn enter_filter_input(&mut self) {

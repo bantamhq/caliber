@@ -8,7 +8,7 @@ mod navigation;
 mod reorder;
 mod selection_ops;
 
-pub use entry_ops::{DeleteTarget, TagRemovalTarget, ToggleTarget, YankTarget};
+pub use entry_ops::{DeleteTarget, EntryLocation, TagRemovalTarget, ToggleTarget, YankTarget};
 pub use hints::{HintContext, HintMode};
 
 use std::collections::BTreeSet;
@@ -228,35 +228,7 @@ pub struct App {
 
 impl App {
     pub fn new(config: Config) -> io::Result<Self> {
-        let current_date = Local::now().date_naive();
-        let lines = storage::load_day_lines(current_date)?;
-        let entry_indices = Self::compute_entry_indices(&lines);
-        let later_entries = storage::collect_later_entries_for_date(current_date)?;
-        let active_journal = storage::get_active_slot();
-        let in_git_repo = storage::find_git_root().is_some();
-
-        Ok(Self {
-            current_date,
-            lines,
-            view: ViewMode::Daily(DailyState::new(entry_indices.len(), later_entries)),
-            entry_indices,
-            input_mode: InputMode::Normal,
-            edit_buffer: None,
-            command_buffer: CursorBuffer::empty(),
-            should_quit: false,
-            status_message: None,
-            show_help: false,
-            help_scroll: 0,
-            help_visible_height: 0,
-            last_deleted: None,
-            last_filter_query: None,
-            config,
-            active_journal,
-            in_git_repo,
-            hide_completed: false,
-            hint_state: HintContext::Inactive,
-            cached_journal_tags: storage::collect_journal_tags().unwrap_or_default(),
-        })
+        Self::new_with_date(config, Local::now().date_naive())
     }
 
     /// Creates a new App with a specific date (for testing)

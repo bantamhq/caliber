@@ -35,6 +35,7 @@ pub struct Entry {
 }
 
 impl Entry {
+    #[must_use]
     pub fn new_task(content: &str) -> Self {
         Self {
             entry_type: EntryType::Task { completed: false },

@@ -1,12 +1,25 @@
 use std::io;
 
-use crate::storage::LaterEntry;
+use crate::storage::{Entry, EntryType, FilterEntry, LaterEntry};
 use crate::ui::{remove_all_trailing_tags, remove_last_trailing_tag};
 
 use super::{
     App, DeleteTarget, InputMode, Line, SelectionState, TagRemovalTarget, ToggleTarget, ViewMode,
     YankTarget,
 };
+
+/// Represents an entry at a selected visible index, used for batch operations.
+enum SelectedEntry<'a> {
+    Later(&'a LaterEntry),
+    Daily {
+        line_idx: usize,
+        entry: &'a Entry,
+    },
+    Filter {
+        index: usize,
+        entry: &'a FilterEntry,
+    },
+}
 
 impl App {
     /// Enter selection mode at current cursor position
@@ -79,7 +92,7 @@ impl App {
     fn get_daily_at_visible_entry_index(
         &self,
         visible_entry_idx: usize,
-    ) -> Option<(usize, &crate::storage::Entry)> {
+    ) -> Option<(usize, &Entry)> {
         let mut current_visible = 0;
         for &line_idx in &self.entry_indices {
             if let Line::Entry(entry) = &self.lines[line_idx] {
@@ -95,199 +108,127 @@ impl App {
         None
     }
 
-    /// Collect delete targets for all selected entries
-    fn collect_delete_targets_from_selected(&self) -> Vec<DeleteTarget> {
+    /// Get entry at a visible index (unified lookup for selection operations)
+    fn get_entry_at_visible_index(&self, visible_idx: usize) -> Option<SelectedEntry<'_>> {
+        match &self.view {
+            ViewMode::Daily(_) => {
+                let later_count = self.visible_later_count();
+                if visible_idx < later_count {
+                    self.get_later_at_visible_index(visible_idx)
+                        .map(SelectedEntry::Later)
+                } else {
+                    let entry_idx = visible_idx - later_count;
+                    self.get_daily_at_visible_entry_index(entry_idx)
+                        .map(|(line_idx, entry)| SelectedEntry::Daily { line_idx, entry })
+                }
+            }
+            ViewMode::Filter(state) => {
+                state
+                    .entries
+                    .get(visible_idx)
+                    .map(|entry| SelectedEntry::Filter {
+                        index: visible_idx,
+                        entry,
+                    })
+            }
+        }
+    }
+
+    /// Collect targets from selected entries using a mapper function
+    fn collect_targets_from_selected<T, F>(&self, mapper: F) -> Vec<T>
+    where
+        F: Fn(SelectedEntry<'_>) -> Option<T>,
+    {
         let InputMode::Selection(ref state) = self.input_mode else {
             return vec![];
         };
 
-        let mut targets = Vec::new();
+        state
+            .selected_indices
+            .iter()
+            .filter_map(|&idx| self.get_entry_at_visible_index(idx).and_then(&mapper))
+            .collect()
+    }
 
-        match &self.view {
-            ViewMode::Daily(_) => {
-                let later_count = self.visible_later_count();
-                for &visible_idx in &state.selected_indices {
-                    if visible_idx < later_count {
-                        // Later entry
-                        if let Some(later) = self.get_later_at_visible_index(visible_idx) {
-                            targets.push(DeleteTarget::Later {
-                                source_date: later.source_date,
-                                line_index: later.line_index,
-                                entry_type: later.entry_type.clone(),
-                                content: later.content.clone(),
-                            });
-                        }
-                    } else {
-                        // Daily entry
-                        let entry_idx = visible_idx - later_count;
-                        if let Some((line_idx, entry)) =
-                            self.get_daily_at_visible_entry_index(entry_idx)
-                        {
-                            targets.push(DeleteTarget::Daily {
-                                line_idx,
-                                entry: entry.clone(),
-                            });
-                        }
-                    }
-                }
-            }
-            ViewMode::Filter(filter_state) => {
-                for &idx in &state.selected_indices {
-                    if let Some(entry) = filter_state.entries.get(idx) {
-                        targets.push(DeleteTarget::Filter {
-                            index: idx,
-                            source_date: entry.source_date,
-                            line_index: entry.line_index,
-                            entry_type: entry.entry_type.clone(),
-                            content: entry.content.clone(),
-                        });
-                    }
-                }
-            }
-        }
-
-        targets
+    /// Collect delete targets for all selected entries
+    fn collect_delete_targets_from_selected(&self) -> Vec<DeleteTarget> {
+        self.collect_targets_from_selected(|entry| match entry {
+            SelectedEntry::Later(later) => Some(DeleteTarget::Later {
+                source_date: later.source_date,
+                line_index: later.line_index,
+                entry_type: later.entry_type.clone(),
+                content: later.content.clone(),
+            }),
+            SelectedEntry::Daily { line_idx, entry } => Some(DeleteTarget::Daily {
+                line_idx,
+                entry: entry.clone(),
+            }),
+            SelectedEntry::Filter { index, entry } => Some(DeleteTarget::Filter {
+                index,
+                source_date: entry.source_date,
+                line_index: entry.line_index,
+                entry_type: entry.entry_type.clone(),
+                content: entry.content.clone(),
+            }),
+        })
     }
 
     /// Collect toggle targets for all selected entries (tasks only)
     fn collect_toggle_targets_from_selected(&self) -> Vec<ToggleTarget> {
-        let InputMode::Selection(ref state) = self.input_mode else {
-            return vec![];
-        };
-
-        let mut targets = Vec::new();
-
-        match &self.view {
-            ViewMode::Daily(_) => {
-                let later_count = self.visible_later_count();
-                for &visible_idx in &state.selected_indices {
-                    if visible_idx < later_count {
-                        if let Some(later) = self.get_later_at_visible_index(visible_idx) {
-                            if matches!(
-                                later.entry_type,
-                                crate::storage::EntryType::Task { .. }
-                            ) {
-                                targets.push(ToggleTarget::Later {
-                                    source_date: later.source_date,
-                                    line_index: later.line_index,
-                                });
-                            }
-                        }
-                    } else {
-                        let entry_idx = visible_idx - later_count;
-                        if let Some((line_idx, entry)) =
-                            self.get_daily_at_visible_entry_index(entry_idx)
-                        {
-                            if matches!(entry.entry_type, crate::storage::EntryType::Task { .. }) {
-                                targets.push(ToggleTarget::Daily { line_idx });
-                            }
-                        }
-                    }
-                }
+        self.collect_targets_from_selected(|entry| {
+            // Helper to check if entry type is a task
+            fn is_task(entry_type: &EntryType) -> bool {
+                matches!(entry_type, EntryType::Task { .. })
             }
-            ViewMode::Filter(filter_state) => {
-                for &idx in &state.selected_indices {
-                    if let Some(entry) = filter_state.entries.get(idx) {
-                        if matches!(entry.entry_type, crate::storage::EntryType::Task { .. }) {
-                            targets.push(ToggleTarget::Filter {
-                                index: idx,
-                                source_date: entry.source_date,
-                                line_index: entry.line_index,
-                            });
-                        }
-                    }
-                }
-            }
-        }
 
-        targets
+            match entry {
+                SelectedEntry::Later(later) if is_task(&later.entry_type) => {
+                    Some(ToggleTarget::Later {
+                        source_date: later.source_date,
+                        line_index: later.line_index,
+                    })
+                }
+                SelectedEntry::Daily { line_idx, entry } if is_task(&entry.entry_type) => {
+                    Some(ToggleTarget::Daily { line_idx })
+                }
+                SelectedEntry::Filter { index, entry } if is_task(&entry.entry_type) => {
+                    Some(ToggleTarget::Filter {
+                        index,
+                        source_date: entry.source_date,
+                        line_index: entry.line_index,
+                    })
+                }
+                _ => None,
+            }
+        })
     }
 
     /// Collect yank targets for all selected entries
     fn collect_yank_targets_from_selected(&self) -> Vec<YankTarget> {
-        let InputMode::Selection(ref state) = self.input_mode else {
-            return vec![];
-        };
-
-        let mut targets = Vec::new();
-
-        match &self.view {
-            ViewMode::Daily(_) => {
-                let later_count = self.visible_later_count();
-                for &visible_idx in &state.selected_indices {
-                    if visible_idx < later_count {
-                        if let Some(later) = self.get_later_at_visible_index(visible_idx) {
-                            targets.push(YankTarget::Later {
-                                content: later.content.clone(),
-                            });
-                        }
-                    } else {
-                        let entry_idx = visible_idx - later_count;
-                        if let Some((_, entry)) = self.get_daily_at_visible_entry_index(entry_idx) {
-                            targets.push(YankTarget::Daily {
-                                content: entry.content.clone(),
-                            });
-                        }
-                    }
-                }
-            }
-            ViewMode::Filter(filter_state) => {
-                for &idx in &state.selected_indices {
-                    if let Some(entry) = filter_state.entries.get(idx) {
-                        targets.push(YankTarget::Filter {
-                            content: entry.content.clone(),
-                        });
-                    }
-                }
-            }
-        }
-
-        targets
+        self.collect_targets_from_selected(|entry| {
+            let content = match entry {
+                SelectedEntry::Later(later) => later.content.clone(),
+                SelectedEntry::Daily { entry, .. } => entry.content.clone(),
+                SelectedEntry::Filter { entry, .. } => entry.content.clone(),
+            };
+            Some(YankTarget { content })
+        })
     }
 
     /// Collect tag removal targets for all selected entries
     fn collect_tag_removal_targets_from_selected(&self) -> Vec<TagRemovalTarget> {
-        let InputMode::Selection(ref state) = self.input_mode else {
-            return vec![];
-        };
-
-        let mut targets = Vec::new();
-
-        match &self.view {
-            ViewMode::Daily(_) => {
-                let later_count = self.visible_later_count();
-                for &visible_idx in &state.selected_indices {
-                    if visible_idx < later_count {
-                        if let Some(later) = self.get_later_at_visible_index(visible_idx) {
-                            targets.push(TagRemovalTarget::Later {
-                                source_date: later.source_date,
-                                line_index: later.line_index,
-                            });
-                        }
-                    } else {
-                        let entry_idx = visible_idx - later_count;
-                        if let Some((line_idx, _)) =
-                            self.get_daily_at_visible_entry_index(entry_idx)
-                        {
-                            targets.push(TagRemovalTarget::Daily { line_idx });
-                        }
-                    }
-                }
-            }
-            ViewMode::Filter(filter_state) => {
-                for &idx in &state.selected_indices {
-                    if let Some(entry) = filter_state.entries.get(idx) {
-                        targets.push(TagRemovalTarget::Filter {
-                            index: idx,
-                            source_date: entry.source_date,
-                            line_index: entry.line_index,
-                        });
-                    }
-                }
-            }
-        }
-
-        targets
+        self.collect_targets_from_selected(|entry| match entry {
+            SelectedEntry::Later(later) => Some(TagRemovalTarget::Later {
+                source_date: later.source_date,
+                line_index: later.line_index,
+            }),
+            SelectedEntry::Daily { line_idx, .. } => Some(TagRemovalTarget::Daily { line_idx }),
+            SelectedEntry::Filter { index, entry } => Some(TagRemovalTarget::Filter {
+                index,
+                source_date: entry.source_date,
+                line_index: entry.line_index,
+            }),
+        })
     }
 
     /// Delete all selected entries
