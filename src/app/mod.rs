@@ -326,6 +326,7 @@ impl App {
                 }
             }
         }
+        self.refresh_tag_cache();
     }
 
     pub fn sort_entries(&mut self) {

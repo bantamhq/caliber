@@ -185,9 +185,8 @@ impl HintContext {
     pub fn compute(input: &str, mode: HintMode, journal_tags: &[String]) -> Self {
         match mode {
             HintMode::Command => Self::compute_command_hints(input),
-            HintMode::Filter | HintMode::Entry => {
-                Self::compute_contextual_hints(input, journal_tags)
-            }
+            HintMode::Filter => Self::compute_filter_hints(input, journal_tags),
+            HintMode::Entry => Self::compute_entry_hints(input, journal_tags),
         }
     }
 
@@ -211,7 +210,7 @@ impl HintContext {
         }
     }
 
-    fn compute_contextual_hints(input: &str, journal_tags: &[String]) -> Self {
+    fn compute_tag_hints(input: &str, journal_tags: &[String]) -> Self {
         let current_token = input.split_whitespace().last().unwrap_or("");
 
         if let Some(tag_prefix) = current_token.strip_prefix('#') {
@@ -230,6 +229,20 @@ impl HintContext {
                 prefix: tag_prefix.to_string(),
                 matches,
             };
+        }
+
+        Self::Inactive
+    }
+
+    fn compute_entry_hints(input: &str, journal_tags: &[String]) -> Self {
+        Self::compute_tag_hints(input, journal_tags)
+    }
+
+    fn compute_filter_hints(input: &str, journal_tags: &[String]) -> Self {
+        let current_token = input.split_whitespace().last().unwrap_or("");
+
+        if current_token.starts_with('#') {
+            return Self::compute_tag_hints(input, journal_tags);
         }
 
         if let Some(type_prefix) = current_token.strip_prefix('!') {

@@ -10,8 +10,6 @@ use crate::app::HintContext;
 
 pub const HINT_OVERLAY_HEIGHT: u16 = 5;
 const COLUMN_WIDTH: usize = 16;
-const MAX_COLUMNS: usize = 4;
-const MAX_ITEMS: usize = 16;
 
 pub fn render_hint_overlay(f: &mut Frame, hint_state: &HintContext, footer_area: Rect) -> bool {
     if matches!(hint_state, HintContext::Inactive) {
@@ -38,52 +36,55 @@ pub fn render_hint_overlay(f: &mut Frame, hint_state: &HintContext, footer_area:
     let inner = block.inner(overlay_area);
     f.render_widget(block, overlay_area);
 
-    let lines = build_hint_lines(hint_state, inner.width as usize);
+    let lines = build_hint_lines(hint_state, inner.width as usize, inner.height as usize);
     let paragraph = Paragraph::new(lines);
     f.render_widget(paragraph, inner);
 
     true
 }
 
-fn build_hint_lines(hint_state: &HintContext, width: usize) -> Vec<Line<'static>> {
+fn build_hint_lines(hint_state: &HintContext, width: usize, max_rows: usize) -> Vec<Line<'static>> {
     let items: Vec<String> = match hint_state {
         HintContext::Inactive => return vec![],
         HintContext::Tags { matches, .. } => {
-            matches.iter().take(MAX_ITEMS).map(|t| format!("#{t}")).collect()
+            matches.iter().map(|t| format!("#{t}")).collect()
         }
         HintContext::Commands { matches, .. } => {
-            matches.iter().take(MAX_ITEMS).map(|h| format!(":{}", h.command)).collect()
+            matches.iter().map(|h| format!(":{}", h.command)).collect()
         }
         HintContext::FilterTypes { matches, .. } => {
-            matches.iter().take(MAX_ITEMS).map(|h| h.syntax.to_string()).collect()
+            matches.iter().map(|h| h.syntax.to_string()).collect()
         }
         HintContext::DateOps { matches, .. } => {
-            matches.iter().take(MAX_ITEMS).map(|h| h.syntax.to_string()).collect()
+            matches.iter().map(|h| h.syntax.to_string()).collect()
         }
         HintContext::Negation { matches, .. } => {
-            matches.iter().take(MAX_ITEMS).map(|h| h.syntax.to_string()).collect()
+            matches.iter().map(|h| h.syntax.to_string()).collect()
         }
     };
 
-    if items.is_empty() {
+    let num_cols = width / COLUMN_WIDTH;
+    if items.is_empty() || max_rows == 0 || num_cols == 0 {
         return vec![];
     }
 
-    let num_cols = (width / COLUMN_WIDTH).clamp(1, MAX_COLUMNS);
-    let rows = items.len().div_ceil(num_cols);
-    let mut lines = Vec::with_capacity(rows);
+    let mut row_spans: Vec<Vec<Span>> = vec![Vec::new(); max_rows];
 
-    for row in 0..rows {
-        let mut spans = Vec::new();
-        for col in 0..num_cols {
-            let idx = col * rows + row;
-            if idx < items.len() {
-                let display = format!("{:width$}", items[idx], width = COLUMN_WIDTH);
-                spans.push(Span::styled(display, Style::default().fg(Color::Cyan)));
-            }
+    for (i, item) in items.iter().enumerate() {
+        let col = i / max_rows;
+        let row = i % max_rows;
+
+        if col >= num_cols {
+            break;
         }
-        lines.push(Line::from(spans));
+
+        let display = format!("{:width$}", item, width = COLUMN_WIDTH);
+        row_spans[row].push(Span::styled(display, Style::default().fg(Color::Cyan)));
     }
 
-    lines
+    row_spans
+        .into_iter()
+        .filter(|spans| !spans.is_empty())
+        .map(Line::from)
+        .collect()
 }

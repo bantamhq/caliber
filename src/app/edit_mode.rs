@@ -1,7 +1,7 @@
 use chrono::Local;
 
 use crate::cursor::CursorBuffer;
-use crate::storage::{self, Entry, EntryType, FilterEntry, Line};
+use crate::storage::{self, Entry, EntryType, Line};
 
 use super::{App, EditContext, InputMode, InsertPosition, ViewMode};
 
@@ -70,34 +70,46 @@ impl App {
         }
     }
 
-    /// Save and exit edit mode (Enter)
-    pub fn exit_edit(&mut self) {
-        let Some(buffer) = self.edit_buffer.take() else {
-            self.input_mode = InputMode::Normal;
-            return;
-        };
+    /// Save current edit buffer. Returns (context, had_content) or None if no buffer.
+    fn save_current_edit(&mut self) -> Option<(EditContext, bool)> {
+        let buffer = self.edit_buffer.take()?;
         let content = self.preprocess_content(&buffer.into_content());
+        let had_content = !content.trim().is_empty();
 
-        match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
-            InputMode::Edit(EditContext::Daily { entry_index }) => {
-                self.save_daily_edit(entry_index, content);
+        let context = match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
+            InputMode::Edit(ctx) => ctx,
+            _ => return None,
+        };
+
+        match &context {
+            EditContext::Daily { entry_index } => {
+                self.save_daily_edit(*entry_index, content);
             }
-            InputMode::Edit(EditContext::FilterEdit {
+            EditContext::FilterEdit {
                 date, line_index, ..
-            }) => {
-                self.save_filter_edit(date, line_index, content);
+            } => {
+                self.save_filter_edit(*date, *line_index, content);
             }
-            InputMode::Edit(EditContext::FilterQuickAdd { date, entry_type }) => {
-                self.save_filter_quick_add(date, entry_type, content);
+            EditContext::FilterQuickAdd { date, entry_type } => {
+                self.save_filter_quick_add(*date, entry_type.clone(), content);
             }
-            InputMode::Edit(EditContext::LaterEdit {
+            EditContext::LaterEdit {
                 source_date,
                 line_index,
                 ..
-            }) => {
-                self.save_later_edit(source_date, line_index, content);
+            } => {
+                self.save_later_edit(*source_date, *line_index, content);
             }
-            _ => {}
+        }
+
+        self.refresh_tag_cache();
+        Some((context, had_content))
+    }
+
+    /// Save and exit edit mode (Enter)
+    pub fn exit_edit(&mut self) {
+        if self.save_current_edit().is_none() {
+            self.input_mode = InputMode::Normal;
         }
     }
 
@@ -113,7 +125,7 @@ impl App {
         }
     }
 
-    fn save_filter_edit(&mut self, date: chrono::NaiveDate, line_index: usize, content: String) {
+    fn save_or_delete_entry(&mut self, date: chrono::NaiveDate, line_index: usize, content: String) {
         if content.trim().is_empty() {
             let _ = storage::delete_entry(date, line_index);
         } else {
@@ -129,6 +141,10 @@ impl App {
                 Ok(true) => {}
             }
         }
+    }
+
+    fn save_filter_edit(&mut self, date: chrono::NaiveDate, line_index: usize, content: String) {
+        self.save_or_delete_entry(date, line_index, content);
         if date == self.current_date {
             let _ = self.reload_current_day();
         }
@@ -166,21 +182,7 @@ impl App {
         line_index: usize,
         content: String,
     ) {
-        if content.trim().is_empty() {
-            let _ = storage::delete_entry(source_date, line_index);
-        } else {
-            match storage::update_entry_content(source_date, line_index, content) {
-                Ok(false) => {
-                    self.set_status(format!(
-                        "Failed to update: no entry at index {line_index} for {source_date}"
-                    ));
-                }
-                Err(e) => {
-                    self.set_status(format!("Failed to save: {e}"));
-                }
-                Ok(true) => {}
-            }
-        }
+        self.save_or_delete_entry(source_date, line_index, content);
         if let ViewMode::Daily(state) = &mut self.view {
             state.later_entries =
                 storage::collect_later_entries_for_date(self.current_date).unwrap_or_default();
@@ -211,94 +213,38 @@ impl App {
 
     /// Save and add new entry (Tab)
     pub fn commit_and_add_new(&mut self) {
-        let Some(buffer) = self.edit_buffer.take() else {
+        let Some((context, had_content)) = self.save_current_edit() else {
             return;
         };
-        let content = buffer.into_content();
 
-        match std::mem::replace(&mut self.input_mode, InputMode::Normal) {
-            InputMode::Edit(EditContext::FilterQuickAdd { date, entry_type }) => {
-                self.commit_filter_quick_add(date, entry_type, content);
+        match context {
+            EditContext::Daily { entry_index } if had_content => {
+                let entry_type = self
+                    .get_daily_entry(entry_index)
+                    .map(|e| e.entry_type.clone())
+                    .unwrap_or(EntryType::Task { completed: false });
+
+                let new_entry = Entry {
+                    entry_type: match entry_type {
+                        EntryType::Task { .. } => EntryType::Task { completed: false },
+                        other => other,
+                    },
+                    content: String::new(),
+                };
+                self.add_entry_internal(new_entry, InsertPosition::Below);
             }
-            InputMode::Edit(EditContext::Daily { entry_index }) => {
-                self.commit_daily_entry(entry_index, content);
+            EditContext::FilterQuickAdd { date, entry_type } => {
+                self.edit_buffer = Some(CursorBuffer::empty());
+                self.input_mode = InputMode::Edit(EditContext::FilterQuickAdd {
+                    date,
+                    entry_type: match entry_type {
+                        EntryType::Task { .. } => EntryType::Task { completed: false },
+                        other => other,
+                    },
+                });
             }
             _ => {}
         }
-    }
-
-    fn commit_filter_quick_add(
-        &mut self,
-        date: chrono::NaiveDate,
-        entry_type: EntryType,
-        content: String,
-    ) {
-        if !content.trim().is_empty()
-            && let Ok(mut lines) = storage::load_day_lines(date)
-        {
-            let line_index = lines.len();
-            let entry = Entry {
-                entry_type: entry_type.clone(),
-                content: content.clone(),
-            };
-            lines.push(Line::Entry(entry));
-            let _ = storage::save_day_lines(date, &lines);
-            if date == self.current_date {
-                let _ = self.reload_current_day();
-            }
-
-            if let ViewMode::Filter(state) = &mut self.view {
-                state.entries.push(FilterEntry {
-                    source_date: date,
-                    line_index,
-                    entry_type: entry_type.clone(),
-                    content,
-                    completed: matches!(entry_type, EntryType::Task { completed: true }),
-                });
-                state.selected = state.entries.len().saturating_sub(1);
-            }
-        }
-        self.edit_buffer = Some(CursorBuffer::empty());
-        self.input_mode = InputMode::Edit(EditContext::FilterQuickAdd {
-            date,
-            entry_type: match entry_type {
-                EntryType::Task { .. } => EntryType::Task { completed: false },
-                other => other,
-            },
-        });
-    }
-
-    fn commit_daily_entry(&mut self, entry_index: usize, content: String) {
-        if content.trim().is_empty() {
-            let was_at_end = entry_index == self.entry_indices.len().saturating_sub(1);
-            self.delete_at_index_daily(entry_index);
-            if let ViewMode::Daily(state) = &mut self.view
-                && !was_at_end
-                && state.selected > 0
-            {
-                state.selected -= 1;
-            }
-            return;
-        }
-
-        let entry_type = self
-            .get_daily_entry(entry_index)
-            .map(|e| e.entry_type.clone())
-            .unwrap_or(EntryType::Task { completed: false });
-
-        if let Some(entry) = self.get_daily_entry_mut(entry_index) {
-            entry.content = content;
-        }
-        self.save();
-
-        let new_entry = Entry {
-            entry_type: match entry_type {
-                EntryType::Task { .. } => EntryType::Task { completed: false },
-                other => other,
-            },
-            content: String::new(),
-        };
-        self.add_entry_internal(new_entry, InsertPosition::Below);
     }
 
     pub(super) fn add_entry_internal(&mut self, entry: Entry, position: InsertPosition) {

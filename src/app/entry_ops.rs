@@ -43,6 +43,16 @@ enum ToggleTarget {
 }
 
 impl App {
+    fn clamp_daily_selection(&mut self) {
+        let visible = self.visible_entry_count();
+        if let ViewMode::Daily(state) = &mut self.view
+            && visible > 0
+            && state.selected >= visible
+        {
+            state.selected = visible - 1;
+        }
+    }
+
     /// Delete the currently selected entry (view-aware)
     pub fn delete_current_entry(&mut self) -> io::Result<()> {
         let delete_info = match self.get_selected_item() {
@@ -94,27 +104,13 @@ impl App {
                     state.later_entries =
                         storage::collect_later_entries_for_date(self.current_date)?;
                 }
-
-                let visible = self.visible_entry_count();
-                if let ViewMode::Daily(state) = &mut self.view
-                    && visible > 0
-                    && state.selected >= visible
-                {
-                    state.selected = visible - 1;
-                }
+                self.clamp_daily_selection();
             }
             DeleteTarget::Daily { line_idx, entry } => {
                 self.last_deleted = Some((self.current_date, line_idx, entry));
                 self.lines.remove(line_idx);
                 self.entry_indices = Self::compute_entry_indices(&self.lines);
-
-                let visible = self.visible_entry_count();
-                if let ViewMode::Daily(state) = &mut self.view
-                    && visible > 0
-                    && state.selected >= visible
-                {
-                    state.selected = visible - 1;
-                }
+                self.clamp_daily_selection();
                 self.save();
             }
             DeleteTarget::Filter {
@@ -155,6 +151,7 @@ impl App {
                 }
             }
         }
+        self.refresh_tag_cache();
         Ok(())
     }
 
@@ -294,17 +291,12 @@ impl App {
         }
         let line_idx = self.entry_indices[entry_index];
         if let Line::Entry(entry) = &self.lines[line_idx] {
-            self.last_deleted = Some((self.current_date, line_idx, entry.clone()));
+            if !entry.content.trim().is_empty() {
+                self.last_deleted = Some((self.current_date, line_idx, entry.clone()));
+            }
         }
         self.lines.remove(line_idx);
         self.entry_indices = Self::compute_entry_indices(&self.lines);
-
-        let visible = self.visible_entry_count();
-        if let ViewMode::Daily(state) = &mut self.view
-            && visible > 0
-            && state.selected >= visible
-        {
-            state.selected = visible - 1;
-        }
+        self.clamp_daily_selection();
     }
 }
