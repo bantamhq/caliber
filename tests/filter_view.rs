@@ -69,7 +69,7 @@ fn test_type_filter_notes() {
     assert!(!ctx.screen_contains("An event"), "Event should not appear");
 }
 
-/// FV-3: Completed task filter (!tasks vs !tasks/done)
+/// FV-3: Completed task filter (!tasks vs !completed)
 #[test]
 fn test_completed_task_filter() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
@@ -89,14 +89,14 @@ fn test_completed_task_filter() {
         "Completed should not appear with !tasks"
     );
 
-    // Exit and try !tasks/done
+    // Exit and try !completed
     ctx.press(KeyCode::Tab);
     ctx.press(KeyCode::Char('/'));
-    ctx.type_str("!tasks/done");
+    ctx.type_str("!completed");
     ctx.press(KeyCode::Enter);
     assert!(
         !ctx.screen_contains("Incomplete task"),
-        "Incomplete should not appear with !tasks/done"
+        "Incomplete should not appear with !completed"
     );
     assert!(
         ctx.screen_contains("Completed task"),
@@ -171,7 +171,7 @@ fn test_toggle_from_filter() {
     let mut ctx = TestContext::with_journal_content(date, content);
 
     ctx.press(KeyCode::Char('/'));
-    ctx.type_str("!tasks/all");
+    ctx.type_str("!tasks");
     ctx.press(KeyCode::Enter);
 
     ctx.press(KeyCode::Char('c')); // Toggle

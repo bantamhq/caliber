@@ -229,8 +229,7 @@ These shortcuts work in all text input modes (Edit, Command, and Filter query):
 | Pattern | Matches |
 |---------|---------|
 | `!tasks` or `!t` | Incomplete tasks |
-| `!tasks/done` | Completed tasks |
-| `!tasks/all` | All tasks |
+| `!completed` or `!c` | Completed tasks |
 | `!notes` or `!n` | Notes only |
 | `!events` or `!e` | Events only |
 | `@before:DATE` | Entries before date |

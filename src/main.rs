@@ -165,6 +165,9 @@ fn run_app<B: ratatui::backend::Backend>(
                         filter_total_lines,
                         scroll_height,
                     );
+                    if state.selected == 0 {
+                        state.scroll_offset = 0;
+                    }
                 }
                 ViewMode::Daily(state) => {
                     ensure_selected_visible(

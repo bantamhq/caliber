@@ -57,6 +57,27 @@ impl HintContext {
     fn compute_command_hints(input: &str) -> Self {
         let prefix = input.trim();
 
+        // Check if first word is a complete command (user is typing arguments)
+        let first_word = prefix.split_whitespace().next().unwrap_or("");
+        let has_args = prefix.contains(' ');
+
+        if has_args {
+            // Show the matched command's description while typing arguments
+            let exact_match: Vec<&'static Command> = COMMANDS
+                .iter()
+                .filter(|c| {
+                    c.name == first_word || c.aliases.iter().any(|a| *a == first_word)
+                })
+                .collect();
+
+            if !exact_match.is_empty() {
+                return Self::Commands {
+                    prefix: first_word.to_string(),
+                    matches: exact_match,
+                };
+            }
+        }
+
         let matches: Vec<&'static Command> = COMMANDS
             .iter()
             .filter(|c| {
@@ -132,7 +153,11 @@ impl HintContext {
             let matches: Vec<&'static FilterSyntax> = FILTER_SYNTAX
                 .iter()
                 .filter(|f| f.category == FilterCategory::DateOp)
-                .filter(|f| f.syntax[1..].starts_with(date_prefix))
+                .filter(|f| {
+                    let syntax_suffix = &f.syntax[1..];
+                    // Match if typing the operator OR typing the date argument
+                    syntax_suffix.starts_with(date_prefix) || date_prefix.starts_with(syntax_suffix)
+                })
                 .collect();
 
             if matches.is_empty() {

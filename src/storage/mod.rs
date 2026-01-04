@@ -136,21 +136,21 @@ mod tests {
     #[test]
     fn test_filter_combined() {
         let filter = parse_filter_query("!tasks #work @after:1/1 @before:1/31");
-        assert_eq!(filter.entry_type, Some(FilterType::Task));
+        assert_eq!(filter.entry_types, vec![FilterType::Task]);
         assert_eq!(filter.tags, vec!["work"]);
         assert!(filter.after_date.is_some());
         assert!(filter.before_date.is_some());
+        assert!(filter.invalid_tokens.is_empty());
+
+        // Multiple entry types use OR logic
+        let filter = parse_filter_query("!tasks !notes");
+        assert_eq!(filter.entry_types, vec![FilterType::Task, FilterType::Note]);
         assert!(filter.invalid_tokens.is_empty());
     }
 
     #[test]
     fn test_filter_invalid_tokens() {
         assert!(!parse_filter_query("!tas").invalid_tokens.is_empty());
-        assert!(
-            !parse_filter_query("!tasks !notes")
-                .invalid_tokens
-                .is_empty()
-        );
         assert!(
             !parse_filter_query("@before:1/1 @before:1/15")
                 .invalid_tokens

@@ -9,7 +9,7 @@ use regex::Regex;
 use super::entries::{CrossDayEntry, Entry, EntryType, Line, parse_lines};
 use super::persistence::{load_journal, parse_day_header};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilterType {
     Task,
     Note,
@@ -18,7 +18,7 @@ pub enum FilterType {
 
 #[derive(Debug, Clone, Default)]
 pub struct Filter {
-    pub entry_type: Option<FilterType>,
+    pub entry_types: Vec<FilterType>,
     pub completed: Option<bool>,
     pub tags: Vec<String>,
     pub exclude_tags: Vec<String>,
@@ -443,33 +443,31 @@ pub fn parse_filter_query(query: &str) -> Filter {
                 filter.exclude_terms.push(negated.to_string());
             }
         } else if let Some(type_str) = token.strip_prefix('!') {
-            let (base_type, modifier) = if let Some(idx) = type_str.find('/') {
-                (&type_str[..idx], Some(&type_str[idx + 1..]))
+            let base_type = if let Some(idx) = type_str.find('/') {
+                &type_str[..idx]
             } else {
-                (type_str, None)
+                type_str
             };
 
-            let new_type = match base_type {
-                "tasks" | "task" | "t" => Some(FilterType::Task),
-                "notes" | "note" | "n" => Some(FilterType::Note),
-                "events" | "event" | "e" => Some(FilterType::Event),
-                _ => None,
+            let (new_type, completed_override) = match base_type {
+                "tasks" | "task" | "t" => (Some(FilterType::Task), Some(false)),
+                "completed" | "c" => (Some(FilterType::Task), Some(true)),
+                "notes" | "note" | "n" => (Some(FilterType::Note), None),
+                "events" | "event" | "e" => (Some(FilterType::Event), None),
+                _ => (None, None),
             };
 
             if let Some(new_type) = new_type {
-                if filter.entry_type.is_some() && filter.entry_type != Some(new_type.clone()) {
-                    filter
-                        .invalid_tokens
-                        .push("Multiple entry types".to_string());
-                } else {
-                    filter.entry_type = Some(new_type);
-                    if base_type == "tasks" || base_type == "task" || base_type == "t" {
-                        filter.completed = match modifier {
-                            Some("done" | "completed") => Some(true),
-                            Some("all") => None,
-                            _ => Some(false),
-                        };
-                    }
+                if !filter.entry_types.contains(&new_type) {
+                    filter.entry_types.push(new_type);
+                }
+                // Handle completed filter: if conflicting values, show all (None)
+                if let Some(new_completed) = completed_override {
+                    filter.completed = match filter.completed {
+                        None => Some(new_completed),
+                        Some(existing) if existing != new_completed => None,
+                        other => other,
+                    };
                 }
             } else {
                 filter.invalid_tokens.push(token.to_string());
@@ -558,9 +556,7 @@ fn entry_type_to_filter_type(entry_type: &EntryType) -> FilterType {
 fn entry_matches_filter(entry: &Entry, filter: &Filter) -> bool {
     let entry_filter_type = entry_type_to_filter_type(&entry.entry_type);
 
-    if let Some(ref filter_type) = filter.entry_type
-        && &entry_filter_type != filter_type
-    {
+    if !filter.entry_types.is_empty() && !filter.entry_types.contains(&entry_filter_type) {
         return false;
     }
 

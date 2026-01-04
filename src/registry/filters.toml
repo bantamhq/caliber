@@ -15,22 +15,13 @@ short_description = "Incomplete tasks"
 long_description = "Filter to show only incomplete tasks (- [ ] entries)"
 
 [[filters]]
-syntax = "!tasks/done"
-aliases = []
+syntax = "!completed"
+aliases = ["!c"]
 category = "entry_type"
 help_section = "filters"
-short_text = "Done tasks"
+short_text = "Completed"
 short_description = "Completed tasks"
 long_description = "Filter to show only completed tasks (- [x] entries)"
-
-[[filters]]
-syntax = "!tasks/all"
-aliases = []
-category = "entry_type"
-help_section = "filters"
-short_text = "All tasks"
-short_description = "All tasks"
-long_description = "Filter to show all tasks regardless of completion status"
 
 [[filters]]
 syntax = "!notes"
