@@ -131,6 +131,21 @@ fn test_escape_clears_command_mode() {
     ));
 }
 
+/// HI-8b: Escape exits query input immediately (single press, even with content)
+#[test]
+fn test_escape_exits_query_input() {
+    let mut ctx = TestContext::new();
+
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("!tasks");
+    ctx.press(KeyCode::Esc);
+
+    assert!(matches!(
+        ctx.app.input_mode,
+        caliber::app::InputMode::Normal
+    ));
+}
+
 /// HI-9: Tags are collected from journal on load
 #[test]
 fn test_tags_collected_from_journal() {

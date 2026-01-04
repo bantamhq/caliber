@@ -35,8 +35,8 @@ pub fn handle_command_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
             app.execute_command()?;
         }
         KeyCode::Esc => {
-            app.command_buffer.clear();
             app.clear_hints();
+            app.command_buffer.clear();
             app.input_mode = InputMode::Normal;
         }
         KeyCode::Backspace if app.command_buffer.is_empty() => {
@@ -229,14 +229,7 @@ pub fn handle_query_input_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
         }
         KeyCode::Esc => {
             app.clear_hints();
-            if is_empty {
-                app.cancel_filter_input();
-            } else {
-                match &mut app.view {
-                    ViewMode::Filter(state) => state.query_buffer.clear(),
-                    ViewMode::Daily(_) => app.command_buffer.clear(),
-                }
-            }
+            app.cancel_filter_input();
         }
         KeyCode::Backspace if is_empty && key.modifiers.is_empty() => {
             app.clear_hints();

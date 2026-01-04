@@ -44,6 +44,22 @@ pub fn render_hint_overlay(f: &mut Frame, hint_state: &HintContext, footer_area:
 }
 
 fn build_hint_lines(hint_state: &HintContext, width: usize, max_rows: usize) -> Vec<Line<'static>> {
+    let description: Option<&str> = match hint_state {
+        HintContext::Commands { prefix, matches } if !prefix.is_empty() => {
+            matches.first().map(|c| c.long_description)
+        }
+        HintContext::FilterTypes { prefix, matches } if !prefix.is_empty() => {
+            matches.first().map(|f| f.long_description)
+        }
+        HintContext::DateOps { prefix, matches } if !prefix.is_empty() => {
+            matches.first().map(|f| f.long_description)
+        }
+        HintContext::Negation { prefix, matches } if !prefix.is_empty() => {
+            matches.first().map(|f| f.long_description)
+        }
+        _ => None,
+    };
+
     let items: Vec<String> = match hint_state {
         HintContext::Inactive => return vec![],
         HintContext::Tags { matches, .. } => matches.iter().map(|t| format!("#{t}")).collect(),
@@ -62,27 +78,53 @@ fn build_hint_lines(hint_state: &HintContext, width: usize, max_rows: usize) -> 
     };
 
     let num_cols = width / COLUMN_WIDTH;
+    let hint_rows = if description.is_some() {
+        max_rows.saturating_sub(1)
+    } else {
+        max_rows
+    };
+
     if items.is_empty() || max_rows == 0 || num_cols == 0 {
         return vec![];
     }
 
-    let mut row_spans: Vec<Vec<Span>> = vec![Vec::new(); max_rows];
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
-    for (i, item) in items.iter().enumerate() {
-        let col = i / max_rows;
-        let row = i % max_rows;
+    if hint_rows > 0 {
+        let mut row_spans: Vec<Vec<Span>> = vec![Vec::new(); hint_rows];
 
-        if col >= num_cols {
-            break;
+        for (i, item) in items.iter().enumerate() {
+            let col = i / hint_rows;
+            let row = i % hint_rows;
+
+            if col >= num_cols {
+                break;
+            }
+
+            let display = format!("{:width$}", item, width = COLUMN_WIDTH);
+            row_spans[row].push(Span::styled(display, Style::default().fg(Color::Cyan)));
         }
 
-        let display = format!("{:width$}", item, width = COLUMN_WIDTH);
-        row_spans[row].push(Span::styled(display, Style::default().fg(Color::Cyan)));
+        for spans in row_spans {
+            lines.push(if spans.is_empty() {
+                Line::from("")
+            } else {
+                Line::from(spans)
+            });
+        }
     }
 
-    row_spans
-        .into_iter()
-        .filter(|spans| !spans.is_empty())
-        .map(Line::from)
-        .collect()
+    if let Some(desc) = description {
+        let truncated = if desc.len() > width {
+            format!("{}…", &desc[..width.saturating_sub(1)])
+        } else {
+            desc.to_string()
+        };
+        lines.push(Line::from(Span::styled(
+            truncated,
+            Style::default().fg(Color::Gray),
+        )));
+    }
+
+    lines
 }
