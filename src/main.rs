@@ -41,6 +41,11 @@ fn ensure_selected_visible(
     if selected >= *scroll_offset + visible_height {
         *scroll_offset = selected - visible_height + 1;
     }
+
+    let max_scroll = entry_count.saturating_sub(visible_height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
+    }
 }
 
 struct CursorContext {
@@ -54,13 +59,18 @@ fn set_edit_cursor(
     f: &mut ratatui::Frame<'_>,
     ctx: &CursorContext,
     scroll_offset: &mut usize,
-    visible_height: usize,
+    scroll_height: usize,
     content_area: ratatui::layout::Rect,
 ) {
     let cursor_line = ctx.entry_start_line + ctx.cursor_row;
 
-    if cursor_line >= *scroll_offset + visible_height {
-        *scroll_offset = cursor_line - visible_height + 1;
+    if cursor_line >= *scroll_offset + scroll_height {
+        *scroll_offset = cursor_line - scroll_height + 1;
+    }
+
+    let min_scroll = cursor_line.saturating_sub(scroll_height.saturating_sub(1));
+    if *scroll_offset > min_scroll {
+        *scroll_offset = min_scroll;
     }
 
     if cursor_line >= *scroll_offset {
@@ -201,6 +211,7 @@ fn run_app<B: ratatui::backend::Backend>(
             f.render_widget(main_block, chunks[0]);
 
             let visible_height = content_area.height as usize;
+            let scroll_height = visible_height.saturating_sub(ui::HINT_OVERLAY_HEIGHT as usize - 1);
             let content_width = content_area.width as usize;
 
             let filter_visual_line = app.filter_visual_line();
@@ -213,7 +224,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         &mut state.scroll_offset,
                         filter_visual_line,
                         filter_total_lines,
-                        visible_height,
+                        scroll_height,
                     );
                 }
                 ViewMode::Daily(state) => {
@@ -221,7 +232,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         &mut state.scroll_offset,
                         state.selected + DAILY_HEADER_LINES,
                         visible_entry_count + DAILY_HEADER_LINES,
-                        visible_height,
+                        scroll_height,
                     );
                     if state.selected == 0 {
                         state.scroll_offset = 0;
@@ -334,7 +345,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         f,
                         &ctx,
                         app.scroll_offset_mut(),
-                        visible_height,
+                        scroll_height,
                         content_area,
                     );
                 }

@@ -212,10 +212,8 @@ impl HintContext {
     }
 
     fn compute_contextual_hints(input: &str, journal_tags: &[String]) -> Self {
-        // Find the current token being typed (last whitespace-delimited word)
         let current_token = input.split_whitespace().last().unwrap_or("");
 
-        // Check for tag trigger
         if let Some(tag_prefix) = current_token.strip_prefix('#') {
             let matches: Vec<String> = journal_tags
                 .iter()
@@ -223,7 +221,6 @@ impl HintContext {
                 .cloned()
                 .collect();
 
-            // Dismiss if no matches or if exactly one match that's an exact match
             if matches.is_empty()
                 || (matches.len() == 1 && matches[0].eq_ignore_ascii_case(tag_prefix))
             {
@@ -235,7 +232,6 @@ impl HintContext {
             };
         }
 
-        // Check for filter type trigger
         if let Some(type_prefix) = current_token.strip_prefix('!') {
             let matches: Vec<&'static FilterTypeHint> = FILTER_TYPE_HINTS
                 .iter()
@@ -251,7 +247,6 @@ impl HintContext {
             };
         }
 
-        // Check for date operation trigger (only in filter mode, but we compute for both)
         if let Some(date_prefix) = current_token.strip_prefix('@') {
             let matches: Vec<&'static DateOpHint> = DATE_OP_HINTS
                 .iter()
@@ -267,7 +262,6 @@ impl HintContext {
             };
         }
 
-        // Check for negation trigger
         if let Some(neg_prefix) = current_token.strip_prefix("not:") {
             let matches: Vec<&'static NegationHint> = NEGATION_HINTS
                 .iter()
@@ -286,47 +280,28 @@ impl HintContext {
         Self::Inactive
     }
 
-    /// Returns the completion text for the first match, if any.
-    /// This is used when the user presses → to accept the first hint.
     #[must_use]
     pub fn first_completion(&self) -> Option<String> {
         match self {
             Self::Inactive => None,
             Self::Tags { prefix, matches } => {
-                matches.first().map(|tag| {
-                    // Return just the part that needs to be appended
-                    // If user typed "#fe" and first match is "feature", return "ature"
-                    tag[prefix.len()..].to_string()
-                })
+                matches.first().map(|tag| tag[prefix.len()..].to_string())
             }
             Self::Commands { prefix, matches } => {
-                matches.first().map(|hint| {
-                    // Return the remaining part of the command
-                    hint.command[prefix.len()..].to_string()
-                })
+                matches.first().map(|hint| hint.command[prefix.len()..].to_string())
             }
             Self::FilterTypes { prefix, matches } => {
-                matches.first().map(|hint| {
-                    // Syntax includes the !, but prefix doesn't, so skip the !
-                    hint.syntax[1 + prefix.len()..].to_string()
-                })
+                matches.first().map(|hint| hint.syntax[1 + prefix.len()..].to_string())
             }
             Self::DateOps { prefix, matches } => {
-                matches.first().map(|hint| {
-                    // Syntax includes the @, but prefix doesn't, so skip the @
-                    hint.syntax[1 + prefix.len()..].to_string()
-                })
+                matches.first().map(|hint| hint.syntax[1 + prefix.len()..].to_string())
             }
             Self::Negation { prefix, matches } => {
-                matches.first().map(|hint| {
-                    // Syntax includes "not:", but prefix is just the part after
-                    hint.syntax[4 + prefix.len()..].to_string()
-                })
+                matches.first().map(|hint| hint.syntax[4 + prefix.len()..].to_string())
             }
         }
     }
 
-    /// Check if there are any active hints
     #[must_use]
     pub fn is_active(&self) -> bool {
         !matches!(self, Self::Inactive)

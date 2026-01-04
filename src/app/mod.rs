@@ -411,24 +411,19 @@ impl App {
         self.hint_state = HintContext::Inactive;
     }
 
-    /// Refresh the tag cache from the current journal.
     pub fn refresh_tag_cache(&mut self) {
         self.cached_journal_tags = storage::collect_journal_tags().unwrap_or_default();
     }
 
-    /// Accept the first hint completion, inserting the remaining text into the buffer.
-    /// Returns true if a completion was applied.
     pub fn accept_hint(&mut self) -> bool {
         let Some(completion) = self.hint_state.first_completion() else {
             return false;
         };
 
-        // Don't complete if nothing to add
         if completion.is_empty() {
             return false;
         }
 
-        // Insert completion into the appropriate buffer
         match &self.input_mode {
             InputMode::Command => {
                 for c in completion.chars() {
@@ -457,7 +452,6 @@ impl App {
             _ => return false,
         }
 
-        // Clear hints after completion
         self.clear_hints();
         true
     }
