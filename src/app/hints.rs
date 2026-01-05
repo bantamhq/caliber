@@ -253,24 +253,29 @@ impl HintContext {
     pub fn first_completion(&self) -> Option<String> {
         match self {
             Self::Inactive => None,
-            Self::Tags { prefix, matches } => {
-                matches.first().map(|tag| tag[prefix.len()..].to_string())
-            }
+            Self::Tags { prefix, matches } => matches
+                .first()
+                .map(|tag| tag.get(prefix.len()..).unwrap_or("").to_string()),
             Self::Commands { prefix, matches } => matches
                 .first()
-                .map(|cmd| cmd.name[prefix.len()..].to_string()),
+                .map(|cmd| cmd.name.get(prefix.len()..).unwrap_or("").to_string()),
             Self::SubArgs {
                 prefix, matches, ..
-            } => matches.first().map(|opt| opt[prefix.len()..].to_string()),
-            Self::FilterTypes { prefix, matches } => matches
+            } => matches
                 .first()
-                .map(|f| f.syntax[1 + prefix.len()..].to_string()),
-            Self::DateOps { prefix, matches } => matches
-                .first()
-                .map(|f| f.syntax[1 + prefix.len()..].to_string()),
-            Self::Negation { prefix, matches } => matches
-                .first()
-                .map(|f| f.syntax[4 + prefix.len()..].to_string()),
+                .map(|opt| opt.get(prefix.len()..).unwrap_or("").to_string()),
+            Self::FilterTypes { prefix, matches } => matches.first().map(|f| {
+                let start = 1 + prefix.len();
+                f.syntax.get(start..).unwrap_or("").to_string()
+            }),
+            Self::DateOps { prefix, matches } => matches.first().map(|f| {
+                let start = 1 + prefix.len();
+                f.syntax.get(start..).unwrap_or("").to_string()
+            }),
+            Self::Negation { prefix, matches } => matches.first().map(|f| {
+                let start = 4 + prefix.len();
+                f.syntax.get(start..).unwrap_or("").to_string()
+            }),
         }
     }
 

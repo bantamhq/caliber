@@ -21,6 +21,7 @@ use chrono::{Datelike, Local, NaiveDate};
 
 use crate::config::Config;
 use crate::cursor::CursorBuffer;
+use crate::registry::COMMANDS;
 use crate::storage::{
     self, DayInfo, Entry, EntryType, FilterEntry, JournalContext, JournalSlot, LaterEntry, Line,
 };
@@ -559,5 +560,76 @@ impl App {
 
         self.clear_hints();
         true
+    }
+
+    /// Check if the current command buffer is ready to execute.
+    /// Returns false only if we have a known command that requires subargs but none provided yet.
+    /// Unknown commands and invalid args should still execute (to show appropriate errors).
+    #[must_use]
+    pub fn command_is_complete(&self) -> bool {
+        let input = self.command_buffer.content();
+        let mut parts = input.splitn(2, ' ');
+        let cmd_part = parts.next().unwrap_or("");
+        let arg_part = parts.next();
+
+        // Find matching command
+        let Some(cmd) = COMMANDS
+            .iter()
+            .find(|c| c.name == cmd_part || c.aliases.contains(&cmd_part))
+        else {
+            // Unknown command - let execute_command show the error
+            return true;
+        };
+
+        // If command has no subargs, it's complete
+        if cmd.subargs.is_empty() {
+            return true;
+        }
+
+        // Command has subargs - only incomplete if NO argument provided yet
+        // (invalid args should still execute to show error)
+        match arg_part {
+            None | Some("") => false,
+            Some(_) => true,
+        }
+    }
+
+    #[must_use]
+    pub fn query_content(&self) -> &str {
+        match &self.view {
+            ViewMode::Filter(state) => state.query_buffer.content(),
+            ViewMode::Daily(_) => self.command_buffer.content(),
+        }
+    }
+
+    #[must_use]
+    pub fn query_is_empty(&self) -> bool {
+        match &self.view {
+            ViewMode::Filter(state) => state.query_buffer.is_empty(),
+            ViewMode::Daily(_) => self.command_buffer.is_empty(),
+        }
+    }
+
+    pub fn query_insert_char(&mut self, c: char) {
+        match &mut self.view {
+            ViewMode::Filter(state) => state.query_buffer.insert_char(c),
+            ViewMode::Daily(_) => self.command_buffer.insert_char(c),
+        }
+    }
+
+    pub fn query_buffer_mut(&mut self) -> &mut CursorBuffer {
+        match &mut self.view {
+            ViewMode::Filter(state) => &mut state.query_buffer,
+            ViewMode::Daily(_) => &mut self.command_buffer,
+        }
+    }
+
+    #[must_use]
+    pub fn input_needs_continuation(&self) -> bool {
+        match &self.input_mode {
+            InputMode::Command => self.command_buffer.content().ends_with(':'),
+            InputMode::QueryInput => self.query_content().ends_with(':'),
+            _ => false,
+        }
     }
 }

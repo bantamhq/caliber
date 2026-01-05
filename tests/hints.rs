@@ -4,7 +4,7 @@ use crossterm::event::KeyCode;
 use helpers::TestContext;
 
 /// HI-1: Command hint completion workflow
-/// Type partial command, accept hint, verify buffer contains completed command
+/// Type partial command, accept hint, verify buffer contains completed command with trailing space
 #[test]
 fn test_command_hint_completion() {
     let mut ctx = TestContext::new();
@@ -13,7 +13,8 @@ fn test_command_hint_completion() {
     ctx.type_str("qu");
     ctx.press(KeyCode::Right);
 
-    assert_eq!(ctx.app.command_buffer.content(), "quit");
+    // Completion adds trailing space to enable further input
+    assert_eq!(ctx.app.command_buffer.content(), "quit ");
 }
 
 /// HI-2: Tag hint completion workflow
@@ -60,6 +61,7 @@ fn test_date_op_hint_completion() {
     ctx.press(KeyCode::Right);
 
     // In QueryInput mode from Daily view, buffer is command_buffer
+    // No trailing space since colon expects continuation (date input)
     assert_eq!(ctx.app.command_buffer.content(), "@before:");
 }
 

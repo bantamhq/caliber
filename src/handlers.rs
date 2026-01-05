@@ -49,8 +49,18 @@ pub fn handle_help_key(app: &mut App, key: KeyCode) {
 pub fn handle_command_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
     match key.code {
         KeyCode::Enter => {
-            app.clear_hints();
-            app.execute_command()?;
+            let did_autocomplete = !matches!(app.hint_state, HintContext::Inactive)
+                && app.accept_hint();
+
+            if did_autocomplete && !app.command_is_complete() {
+                if !app.input_needs_continuation() {
+                    app.command_buffer.insert_char(' ');
+                }
+                app.update_hints();
+            } else {
+                app.clear_hints();
+                app.execute_command()?;
+            }
         }
         KeyCode::Esc => {
             app.clear_hints();
@@ -62,7 +72,12 @@ pub fn handle_command_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
             app.input_mode = InputMode::Normal;
         }
         KeyCode::Right if !matches!(app.hint_state, HintContext::Inactive) => {
-            if !app.accept_hint() {
+            if app.accept_hint() {
+                if !app.input_needs_continuation() {
+                    app.command_buffer.insert_char(' ');
+                }
+                app.update_hints();
+            } else {
                 handle_text_input(&mut app.command_buffer, key);
                 app.update_hints();
             }
@@ -257,50 +272,44 @@ pub fn handle_edit_key(app: &mut App, key: KeyEvent) {
 }
 
 pub fn handle_query_input_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
-    let is_empty = match &app.view {
-        ViewMode::Filter(state) => state.query_buffer.is_empty(),
-        ViewMode::Daily(_) => app.command_buffer.is_empty(),
-    };
-
     match key.code {
         KeyCode::Enter => {
-            app.clear_hints();
-            if is_empty {
-                app.cancel_filter_input();
+            if !matches!(app.hint_state, HintContext::Inactive) {
+                app.accept_hint();
+            }
+
+            if app.input_needs_continuation() {
+                app.update_hints();
             } else {
-                app.execute_filter()?;
+                app.clear_hints();
+                if app.query_is_empty() {
+                    app.cancel_filter_input();
+                } else {
+                    app.execute_filter()?;
+                }
             }
         }
         KeyCode::Esc => {
             app.clear_hints();
             app.cancel_filter_input();
         }
-        KeyCode::Backspace if is_empty && key.modifiers.is_empty() => {
+        KeyCode::Backspace if app.query_is_empty() && key.modifiers.is_empty() => {
             app.clear_hints();
             app.cancel_filter_input();
         }
         KeyCode::Right if !matches!(app.hint_state, HintContext::Inactive) => {
-            if !app.accept_hint() {
-                match &mut app.view {
-                    ViewMode::Filter(state) => {
-                        handle_text_input(&mut state.query_buffer, key);
-                    }
-                    ViewMode::Daily(_) => {
-                        handle_text_input(&mut app.command_buffer, key);
-                    }
+            if app.accept_hint() {
+                if !app.input_needs_continuation() {
+                    app.query_insert_char(' ');
                 }
+                app.update_hints();
+            } else {
+                handle_text_input(app.query_buffer_mut(), key);
                 app.update_hints();
             }
         }
         _ => {
-            match &mut app.view {
-                ViewMode::Filter(state) => {
-                    handle_text_input(&mut state.query_buffer, key);
-                }
-                ViewMode::Daily(_) => {
-                    handle_text_input(&mut app.command_buffer, key);
-                }
-            }
+            handle_text_input(app.query_buffer_mut(), key);
             app.update_hints();
         }
     }

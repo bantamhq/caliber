@@ -1,6 +1,5 @@
 /target
 .ignore
 CLAUDE.md
-FUNCTIONALITY.md
-TESTING.md
+.claude/
 .caliber/
