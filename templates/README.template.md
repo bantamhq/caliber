@@ -209,179 +209,47 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 
 ### Daily Mode
 
-| Key | Action |
-|-----|--------|
-| `Enter` | New entry at end |
-| `o` | New entry below |
-| `O` | New entry above |
-| `i` | Edit selected |
-| `c` | Toggle task complete |
-| `d` | Delete entry |
-| `y` | Yank to clipboard |
-| `p` | Paste from clipboard |
-| `u` | Undo last action |
-| `U` | Redo undone action |
-| `x` | Remove last tag |
-| `X` | Remove all tags |
-| `j`/`↓` | Navigate down |
-| `k`/`↑` | Navigate up |
-| `g` | Jump to first |
-| `G` | Jump to last |
-| `h`/`[` | Previous day |
-| `l`/`]` | Next day |
-| `t` | Go to today |
-| `z` | Toggle hide completed |
-| `s` | Sort entries |
-| `r` | Reorder mode |
-| `v` | Selection mode |
-| `0-9` | Filter favorite tag |
-| `Shift+0-9` | Append favorite tag |
-| `Shift+Tab` | Cycle entry type |
-| `Tab` | Return to filter |
-| `` ` `` | Toggle Global/Project journal |
-| `/` | Filter mode |
-| `:` | Command mode |
-| `?` | Show help |
-| `\` | Open datepicker |
-
+<!-- GENERATED:DAILY_KEYS -->
 
 ### Filter Mode
 
-| Key | Action |
-|-----|--------|
-| `i` | Edit selected |
-| `c` | Toggle task complete |
-| `d` | Delete entry |
-| `y` | Yank to clipboard |
-| `p` | Paste from clipboard |
-| `u` | Undo last action |
-| `U` | Redo undone action |
-| `x` | Remove last tag |
-| `X` | Remove all tags |
-| `j`/`↓` | Navigate down |
-| `k`/`↑` | Navigate up |
-| `g` | Jump to first |
-| `G` | Jump to last |
-| `v` | Selection mode |
-| `0-9` | Filter favorite tag |
-| `Shift+0-9` | Append favorite tag |
-| `Shift+Tab` | Cycle entry type |
-| `` ` `` | Toggle Global/Project journal |
-| `/` | Filter mode |
-| `:` | Command mode |
-| `?` | Show help |
-| `\` | Open datepicker |
-| `Enter` | Quick add to today |
-| `r` | Refresh results |
-| `Esc`/`Tab` | Exit to daily |
-
+<!-- GENERATED:FILTER_KEYS -->
 
 ### Edit Mode
 
-| Key | Action |
-|-----|--------|
-| `Enter` | Save and exit |
-| `Tab` | Save and new |
-| `Shift+Tab` | Toggle entry type |
-| `Esc` | Cancel |
-
+<!-- GENERATED:EDIT_KEYS -->
 
 ### Reorder Mode
 
 Press `r` to manually arrange entries within a day.
 
-| Key | Action |
-|-----|--------|
-| `j`/`↓` | Move entry down |
-| `k`/`↑` | Move entry up |
-| `r`/`Enter` | Save |
-| `Esc` | Cancel |
-
+<!-- GENERATED:REORDER_KEYS -->
 
 ### Selection Mode
 
 Press `v` for batch operations on multiple entries.
 
-| Key | Action |
-|-----|--------|
-| `v` | Toggle selection |
-| `V` | Select range |
-| `j`/`↓` | Move cursor down |
-| `k`/`↑` | Move cursor up |
-| `d` | Delete selected |
-| `c` | Toggle completion |
-| `y` | Yank selected |
-| `x` | Remove last tag |
-| `X` | Remove all tags |
-| `Shift+0-9` | Append favorite tag |
-| `Shift+Tab` | Cycle entry type |
-| `Esc` | Exit selection |
-
+<!-- GENERATED:SELECTION_KEYS -->
 
 ### Date Mode
 
 Press `\` to open the calendar picker.
 
-| Key | Action |
-|-----|--------|
-| `h`/`←` | Previous day |
-| `l`/`→` | Next day |
-| `k`/`↑` | Previous week |
-| `j`/`↓` | Next week |
-| `[` | Previous month |
-| `]` | Next month |
-| `Y` | Previous year |
-| `y` | Next year |
-| `t` | Jump to today |
-| `Enter` | Navigate to date |
-| `\`/`Esc` | Close datepicker |
-
+<!-- GENERATED:DATE_KEYS -->
 
 ### Text Editing
 
 These shortcuts work in all text input modes (Edit, Command, and Filter query):
 
-| Key | Action |
-|-----|--------|
-| `←` | Move cursor left |
-| `→` | Move cursor right |
-| `Alt+B`/`Ctrl+←` | Move cursor one word left |
-| `Alt+F`/`Ctrl+→` | Move cursor one word right |
-| `Home`/`Ctrl+A` | Move cursor to start |
-| `End`/`Ctrl+E` | Move cursor to end |
-| `Backspace` | Delete char before cursor |
-| `Delete` | Delete char after cursor |
-| `Ctrl+W` | Delete word before cursor |
-| `Alt+D` | Delete word after cursor |
-| `Ctrl+U` | Delete to start |
-| `Ctrl+K` | Delete to end |
-
+<!-- GENERATED:TEXT_EDITING_KEYS -->
 
 ### Commands
 
-| Key | Action |
-|-----|--------|
-| `:[o]pen` | Open config, journal, or scratchpad in $EDITOR |
-| `:[q]uit` | Quit application |
-
+<!-- GENERATED:COMMANDS -->
 
 ### Filter Syntax
 
-| Pattern | Matches |
-|---------|---------|
-| `!tasks` or `!t` | Incomplete tasks |
-| `!completed` or `!c` | Completed tasks |
-| `!notes` or `!n` | Notes only |
-| `!events` or `!e` | Events only |
-| `@before:DATE` | Entries before date |
-| `@after:DATE` | Entries after date |
-| `@overdue` | Entries with past @date |
-| `not:#tag` | Entries without tag |
-| `not:!type` | Exclude entry type |
-| `not:word` | Entries not containing text |
-| `#tag` | Entries with tag |
-| `$name` | Saved filter |
-| `word` | Entries containing text |
+<!-- GENERATED:FILTER_SYNTAX -->
 
 ## Journal Format
 

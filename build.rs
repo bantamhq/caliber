@@ -557,7 +557,7 @@ fn generate_readme(
     commands: &[CommandDef],
     filters: &[FilterDef],
 ) {
-    let template_path = manifest_dir.join("README.template.md");
+    let template_path = manifest_dir.join("templates/README.template.md");
     let readme_path = manifest_dir.join("README.md");
 
     // Only generate if template exists
@@ -565,7 +565,7 @@ fn generate_readme(
         return;
     }
 
-    println!("cargo:rerun-if-changed=README.template.md");
+    println!("cargo:rerun-if-changed=templates/README.template.md");
 
     let template = fs::read_to_string(&template_path).expect("Failed to read README.template.md");
 
@@ -575,6 +575,7 @@ fn generate_readme(
     let edit_table = generate_keys_table_by_section(keys, "edit");
     let date_table = generate_keys_table_by_section(keys, "date");
     let text_editing_table = generate_keys_table_by_section(keys, "text_editing");
+    let selection_table = generate_keys_table_by_section(keys, "selection");
     let filter_table = generate_filter_view_table(keys);
     let commands_table = generate_commands_table(commands);
     let filter_syntax_table = generate_filter_syntax_table(filters);
@@ -586,6 +587,7 @@ fn generate_readme(
         .replace("<!-- GENERATED:EDIT_KEYS -->", &edit_table)
         .replace("<!-- GENERATED:DATE_KEYS -->", &date_table)
         .replace("<!-- GENERATED:TEXT_EDITING_KEYS -->", &text_editing_table)
+        .replace("<!-- GENERATED:SELECTION_KEYS -->", &selection_table)
         .replace("<!-- GENERATED:FILTER_KEYS -->", &filter_table)
         .replace("<!-- GENERATED:COMMANDS -->", &commands_table)
         .replace("<!-- GENERATED:FILTER_SYNTAX -->", &filter_syntax_table);
