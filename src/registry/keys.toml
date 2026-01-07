@@ -204,13 +204,13 @@ short_description = "Toggle hide completed"
 long_description = "Toggle visibility of completed tasks"
 
 [[keys]]
-id = "sort_entries"
-key = "s"
+id = "tidy_entries"
+key = "T"
 modes = ["daily_normal"]
 help_sections = ["daily"]
-short_text = "Sort"
-short_description = "Sort entries"
-long_description = "Sort entries by type and completion status"
+short_text = "Tidy"
+short_description = "Tidy entries"
+long_description = "Tidy entries into pre-configured order by type"
 
 [[keys]]
 id = "enter_reorder_mode"

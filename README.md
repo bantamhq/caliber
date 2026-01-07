@@ -262,7 +262,7 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `l`/`]` | Next day |
 | `t` | Go to today |
 | `z` | Toggle hide completed |
-| `s` | Sort entries |
+| `T` | Tidy entries |
 | `r` | Reorder mode |
 | `v` | Selection mode |
 | `0-9` | Filter favorite tag |

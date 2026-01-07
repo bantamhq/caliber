@@ -408,11 +408,7 @@ impl App {
         self.goto_day(source_date)?;
 
         // Find and select the entry at the given line index
-        if let Some(actual_idx) = self
-            .entry_indices
-            .iter()
-            .position(|&idx| idx == line_index)
-        {
+        if let Some(actual_idx) = self.entry_indices.iter().position(|&idx| idx == line_index) {
             let visible_idx = self.actual_to_visible_index(actual_idx);
             if let ViewMode::Daily(state) = &mut self.view {
                 state.selected = visible_idx;

@@ -141,12 +141,8 @@ impl App {
         if is_new_entry {
             // Get the full entry after saving
             if let Line::Entry(raw_entry) = &self.lines[line_idx] {
-                let entry = Entry::from_raw(
-                    raw_entry,
-                    self.current_date,
-                    line_idx,
-                    SourceType::Local,
-                );
+                let entry =
+                    Entry::from_raw(raw_entry, self.current_date, line_idx, SourceType::Local);
                 let target = CreateTarget {
                     date: self.current_date,
                     line_index: line_idx,

@@ -431,7 +431,7 @@ impl App {
         Ok(())
     }
 
-    pub fn sort_entries(&mut self) {
+    pub fn tidy_entries(&mut self) {
         let entry_positions: Vec<usize> = self
             .lines
             .iter()
@@ -443,12 +443,12 @@ impl App {
             return;
         }
 
-        let sort_order = self.config.validated_sort_order();
+        let tidy_order = self.config.validated_tidy_order();
         let get_priority = |line: &Line| -> usize {
             let Line::Entry(entry) = line else {
-                return sort_order.len();
+                return tidy_order.len();
             };
-            for (i, type_name) in sort_order.iter().enumerate() {
+            for (i, type_name) in tidy_order.iter().enumerate() {
                 match (type_name.as_str(), &entry.entry_type) {
                     ("completed", EntryType::Task { completed: true }) => return i,
                     ("uncompleted", EntryType::Task { completed: false }) => return i,
@@ -457,7 +457,7 @@ impl App {
                     _ => {}
                 }
             }
-            sort_order.len()
+            tidy_order.len()
         };
 
         let mut entries: Vec<Line> = entry_positions

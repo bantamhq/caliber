@@ -48,27 +48,35 @@ fn g_shift_g_j_k_navigate_between_entries() {
 
     ctx.press(KeyCode::Char('g'));
     let lines = ctx.render_daily();
-    assert!(lines
-        .iter()
-        .any(|l| l.starts_with("→") && l.contains("Entry 1")));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 1"))
+    );
 
     ctx.press(KeyCode::Char('G'));
     let lines = ctx.render_daily();
-    assert!(lines
-        .iter()
-        .any(|l| l.starts_with("→") && l.contains("Entry 5")));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 5"))
+    );
 
     ctx.press(KeyCode::Char('k'));
     let lines = ctx.render_daily();
-    assert!(lines
-        .iter()
-        .any(|l| l.starts_with("→") && l.contains("Entry 4")));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 4"))
+    );
 
     ctx.press(KeyCode::Char('j'));
     let lines = ctx.render_daily();
-    assert!(lines
-        .iter()
-        .any(|l| l.starts_with("→") && l.contains("Entry 5")));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("→") && l.contains("Entry 5"))
+    );
 }
 
 #[test]

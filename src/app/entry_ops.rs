@@ -63,9 +63,10 @@ impl App {
                 line_idx,
                 entry: Entry::from_raw(raw_entry, self.current_date, line_idx, SourceType::Local),
             }),
-            SelectedItem::Filter { index, entry } => {
-                Some(DeleteTarget::Filter { index, entry: entry.clone() })
-            }
+            SelectedItem::Filter { index, entry } => Some(DeleteTarget::Filter {
+                index,
+                entry: entry.clone(),
+            }),
             SelectedItem::None => None,
         }
     }
@@ -110,7 +111,10 @@ impl App {
             }
             SelectedItem::Filter { index, entry } => {
                 if matches!(entry.entry_type, EntryType::Task { .. }) {
-                    Some(ToggleTarget::Filter { index, entry: entry.clone() })
+                    Some(ToggleTarget::Filter {
+                        index,
+                        entry: entry.clone(),
+                    })
                 } else {
                     None
                 }
@@ -131,9 +135,10 @@ impl App {
                     SourceType::Recurring => {
                         // Materialize: create completed copy on today instead of toggling source
                         // Add ↺ prefix for matching when hiding done-today recurring entries
-                        let content = storage::get_entry_content(entry.source_date, &path, entry.line_index)
-                            .map(|c| format!("↺ {}", strip_recurring_tags(&c)))
-                            .unwrap_or_default();
+                        let content =
+                            storage::get_entry_content(entry.source_date, &path, entry.line_index)
+                                .map(|c| format!("↺ {}", strip_recurring_tags(&c)))
+                                .unwrap_or_default();
 
                         let raw_entry = RawEntry {
                             entry_type: EntryType::Task { completed: true },
@@ -262,9 +267,10 @@ impl App {
                 Some(TagRemovalTarget::Projected(entry.clone()))
             }
             SelectedItem::Daily { line_idx, .. } => Some(TagRemovalTarget::Daily { line_idx }),
-            SelectedItem::Filter { index, entry } => {
-                Some(TagRemovalTarget::Filter { index, entry: entry.clone() })
-            }
+            SelectedItem::Filter { index, entry } => Some(TagRemovalTarget::Filter {
+                index,
+                entry: entry.clone(),
+            }),
             SelectedItem::None => None,
         }
     }
@@ -283,7 +289,10 @@ impl App {
                 original_type: entry.entry_type.clone(),
             }),
             SelectedItem::Filter { index, entry } => Some(super::actions::CycleTarget {
-                location: EntryLocation::Filter { index, entry: entry.clone() },
+                location: EntryLocation::Filter {
+                    index,
+                    entry: entry.clone(),
+                },
                 original_type: entry.entry_type.clone(),
             }),
             SelectedItem::None => None,
@@ -304,7 +313,10 @@ impl App {
                 original_content: entry.content.clone(),
             }),
             SelectedItem::Filter { index, entry } => Some(super::actions::TagTarget {
-                location: EntryLocation::Filter { index, entry: entry.clone() },
+                location: EntryLocation::Filter {
+                    index,
+                    entry: entry.clone(),
+                },
                 original_content: entry.content.clone(),
             }),
             SelectedItem::None => None,

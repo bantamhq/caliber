@@ -6,9 +6,7 @@ use std::sync::LazyLock;
 use chrono::{Days, NaiveDate};
 use regex::Regex;
 
-use super::entries::{
-    Entry, EntryType, Line, RawEntry, RecurringPattern, SourceType, parse_lines,
-};
+use super::entries::{Entry, EntryType, Line, RawEntry, RecurringPattern, SourceType, parse_lines};
 use super::persistence::{load_journal, parse_day_header};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,7 +259,12 @@ pub fn normalize_natural_dates(content: &str, today: NaiveDate) -> String {
                 || caps[0].to_string(),
                 |date| {
                     if natural_str.eq_ignore_ascii_case("today") {
-                        format!("@{}/{}/{}", date.format("%m"), date.format("%d"), date.format("%y"))
+                        format!(
+                            "@{}/{}/{}",
+                            date.format("%m"),
+                            date.format("%d"),
+                            date.format("%y")
+                        )
                     } else {
                         format!("@{}/{}", date.format("%m"), date.format("%d"))
                     }

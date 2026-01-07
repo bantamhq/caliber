@@ -42,8 +42,10 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
     let mut visible_projected_idx = 0;
 
     for projected_entry in &state.projected_entries {
-        let is_completed =
-            matches!(projected_entry.entry_type, EntryType::Task { completed: true });
+        let is_completed = matches!(
+            projected_entry.entry_type,
+            EntryType::Task { completed: true }
+        );
         if app.hide_completed && is_completed {
             continue;
         }
@@ -62,7 +64,12 @@ pub fn render_daily_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> {
         let rest_of_prefix: String = prefix.chars().skip(1).collect();
 
         let visible_idx = visible_projected_idx - 1;
-        let indicator = get_projected_entry_indicator(app, is_selected, visible_idx, &projected_entry.source_type);
+        let indicator = get_projected_entry_indicator(
+            app,
+            is_selected,
+            visible_idx,
+            &projected_entry.source_type,
+        );
 
         let mut spans = vec![indicator, Span::styled(rest_of_prefix, content_style)];
         spans.extend(style_content(&display_text, content_style));

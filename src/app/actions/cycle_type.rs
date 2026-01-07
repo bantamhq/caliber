@@ -109,10 +109,9 @@ fn execute_cycle_raw(app: &mut App, location: &EntryLocation) -> io::Result<Opti
             let new_type = storage::cycle_entry_type(entry.source_date, &path, entry.line_index)?;
             if let Some(ref new_type) = new_type
                 && let ViewMode::Daily(state) = &mut app.view
-                && let Some(projected_entry) = state
-                    .projected_entries
-                    .iter_mut()
-                    .find(|e| e.source_date == entry.source_date && e.line_index == entry.line_index)
+                && let Some(projected_entry) = state.projected_entries.iter_mut().find(|e| {
+                    e.source_date == entry.source_date && e.line_index == entry.line_index
+                })
             {
                 projected_entry.entry_type = new_type.clone();
             }
@@ -160,10 +159,9 @@ fn set_entry_type_raw(
                 raw_entry.entry_type = entry_type.clone();
             })?;
             if let ViewMode::Daily(state) = &mut app.view
-                && let Some(projected_entry) = state
-                    .projected_entries
-                    .iter_mut()
-                    .find(|e| e.source_date == entry.source_date && e.line_index == entry.line_index)
+                && let Some(projected_entry) = state.projected_entries.iter_mut().find(|e| {
+                    e.source_date == entry.source_date && e.line_index == entry.line_index
+                })
             {
                 projected_entry.entry_type = entry_type.clone();
             }

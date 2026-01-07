@@ -120,12 +120,12 @@ fn z_key_toggles_completed_visibility() {
 }
 
 #[test]
-fn s_key_sorts_entries_by_type() {
+fn shift_t_key_tidies_entries_by_type() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let content = "# 2026/01/15\n- [ ] Incomplete task\n- A note\n- [x] Completed task\n";
     let mut ctx = TestContext::with_journal_content(date, content);
 
-    ctx.press(KeyCode::Char('s'));
+    ctx.press(KeyCode::Char('T'));
 
     let journal = ctx.read_journal();
     let completed_pos = journal.find("Completed task").unwrap();

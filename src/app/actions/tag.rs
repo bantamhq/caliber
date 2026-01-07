@@ -300,14 +300,15 @@ where
 
     match location {
         EntryLocation::Projected(entry) => {
-            let changed = storage::mutate_entry(entry.source_date, &path, entry.line_index, |raw_entry| {
-                if let Some(new_content) = remover(&raw_entry.content) {
-                    raw_entry.content = new_content;
-                    true
-                } else {
-                    false
-                }
-            })?;
+            let changed =
+                storage::mutate_entry(entry.source_date, &path, entry.line_index, |raw_entry| {
+                    if let Some(new_content) = remover(&raw_entry.content) {
+                        raw_entry.content = new_content;
+                        true
+                    } else {
+                        false
+                    }
+                })?;
 
             if changed == Some(true) {
                 app.refresh_projected_entries();
@@ -322,14 +323,15 @@ where
             }
         }
         EntryLocation::Filter { index, entry } => {
-            let new_content = storage::mutate_entry(entry.source_date, &path, entry.line_index, |raw_entry| {
-                if let Some(new_content) = remover(&raw_entry.content) {
-                    raw_entry.content = new_content.clone();
-                    Some(new_content)
-                } else {
-                    None
-                }
-            })?;
+            let new_content =
+                storage::mutate_entry(entry.source_date, &path, entry.line_index, |raw_entry| {
+                    if let Some(new_content) = remover(&raw_entry.content) {
+                        raw_entry.content = new_content.clone();
+                        Some(new_content)
+                    } else {
+                        None
+                    }
+                })?;
 
             if let Some(Some(content)) = new_content {
                 if let ViewMode::Filter(state) = &mut app.view

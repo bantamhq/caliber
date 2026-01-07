@@ -158,9 +158,10 @@ impl App {
                 line_idx,
                 entry: Entry::from_raw(entry, current_date, line_idx, SourceType::Local),
             }),
-            SelectedEntry::Filter { index, entry } => {
-                Some(DeleteTarget::Filter { index, entry: entry.clone() })
-            }
+            SelectedEntry::Filter { index, entry } => Some(DeleteTarget::Filter {
+                index,
+                entry: entry.clone(),
+            }),
         })
     }
 
@@ -179,7 +180,10 @@ impl App {
                     Some(ToggleTarget::Daily { line_idx })
                 }
                 SelectedEntry::Filter { index, entry } if is_task(&entry.entry_type) => {
-                    Some(ToggleTarget::Filter { index, entry: entry.clone() })
+                    Some(ToggleTarget::Filter {
+                        index,
+                        entry: entry.clone(),
+                    })
                 }
                 _ => None,
             }
@@ -191,11 +195,7 @@ impl App {
         self.collect_targets_from_selected(|entry| {
             let content = match entry {
                 SelectedEntry::Projected(projected) => {
-                    format!(
-                        "{}{}",
-                        projected.entry_type.prefix(),
-                        projected.content
-                    )
+                    format!("{}{}", projected.entry_type.prefix(), projected.content)
                 }
                 SelectedEntry::Daily { entry, .. } => {
                     format!("{}{}", entry.prefix(), entry.content)
@@ -220,7 +220,10 @@ impl App {
                 original_type: entry.entry_type.clone(),
             }),
             SelectedEntry::Filter { index, entry } => Some(super::actions::CycleTarget {
-                location: TagRemovalTarget::Filter { index, entry: entry.clone() },
+                location: TagRemovalTarget::Filter {
+                    index,
+                    entry: entry.clone(),
+                },
                 original_type: entry.entry_type.clone(),
             }),
         })
@@ -238,7 +241,10 @@ impl App {
                 original_content: entry.content.clone(),
             }),
             SelectedEntry::Filter { index, entry } => Some(super::actions::TagTarget {
-                location: TagRemovalTarget::Filter { index, entry: entry.clone() },
+                location: TagRemovalTarget::Filter {
+                    index,
+                    entry: entry.clone(),
+                },
                 original_content: entry.content.clone(),
             }),
         })

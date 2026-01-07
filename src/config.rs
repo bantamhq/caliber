@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::storage::find_git_root;
 
-const VALID_SORT_TYPES: &[&str] = &["completed", "uncompleted", "notes", "events"];
+const VALID_TIDY_TYPES: &[&str] = &["completed", "uncompleted", "notes", "events"];
 
-fn default_sort_order() -> Vec<String> {
+fn default_tidy_order() -> Vec<String> {
     vec![
         "completed".to_string(),
         "events".to_string(),
@@ -44,8 +44,8 @@ pub struct Config {
     pub hub_file: Option<String>,
     #[serde(default)]
     pub scratchpad_file: Option<String>,
-    #[serde(default = "default_sort_order")]
-    pub sort_order: Vec<String>,
+    #[serde(default = "default_tidy_order")]
+    pub tidy_order: Vec<String>,
     #[serde(default = "default_favorite_tags")]
     pub favorite_tags: HashMap<String, String>,
     #[serde(default)]
@@ -63,7 +63,7 @@ pub struct Config {
 struct RawConfig {
     pub hub_file: Option<String>,
     pub scratchpad_file: Option<String>,
-    pub sort_order: Option<Vec<String>>,
+    pub tidy_order: Option<Vec<String>>,
     pub favorite_tags: Option<HashMap<String, String>>,
     pub filters: Option<HashMap<String, String>>,
     pub default_filter: Option<String>,
@@ -76,7 +76,7 @@ impl RawConfig {
         Config {
             hub_file: self.hub_file,
             scratchpad_file: self.scratchpad_file,
-            sort_order: self.sort_order.unwrap_or_else(default_sort_order),
+            tidy_order: self.tidy_order.unwrap_or_else(default_tidy_order),
             favorite_tags: self.favorite_tags.unwrap_or_else(default_favorite_tags),
             filters: self.filters.unwrap_or_default(),
             default_filter: self.default_filter.unwrap_or_else(default_default_filter),
@@ -93,7 +93,7 @@ impl RawConfig {
             hub_file: base.hub_file,
             // Scalars: use context if set, otherwise base
             scratchpad_file: self.scratchpad_file.or(base.scratchpad_file),
-            sort_order: self.sort_order.or(base.sort_order),
+            tidy_order: self.tidy_order.or(base.tidy_order),
             default_filter: self.default_filter.or(base.default_filter),
             header_date_format: self.header_date_format.or(base.header_date_format),
             hide_completed: self.hide_completed.or(base.hide_completed),
@@ -121,17 +121,17 @@ fn merge_hashmaps(
 
 impl Config {
     #[must_use]
-    pub fn validated_sort_order(&self) -> Vec<String> {
+    pub fn validated_tidy_order(&self) -> Vec<String> {
         let mut seen = HashSet::new();
         let result: Vec<String> = self
-            .sort_order
+            .tidy_order
             .iter()
-            .filter(|s| VALID_SORT_TYPES.contains(&s.as_str()) && seen.insert(s.as_str()))
+            .filter(|s| VALID_TIDY_TYPES.contains(&s.as_str()) && seen.insert(s.as_str()))
             .cloned()
             .collect();
 
         if result.is_empty() {
-            default_sort_order()
+            default_tidy_order()
         } else {
             result
         }

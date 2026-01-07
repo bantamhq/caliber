@@ -2,7 +2,9 @@ use std::io;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, ConfirmContext, HintContext, InputMode, InsertPosition, SelectedItem, ViewMode};
+use crate::app::{
+    App, ConfirmContext, HintContext, InputMode, InsertPosition, SelectedItem, ViewMode,
+};
 use crate::cursor::CursorBuffer;
 use crate::storage::{add_caliber_to_gitignore, create_project_journal};
 use crate::ui;
@@ -209,7 +211,7 @@ pub fn handle_normal_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
             KeyCode::Char('h' | '[') => app.prev_day()?,
             KeyCode::Char('l' | ']') => app.next_day()?,
             KeyCode::Char('t') => app.goto_today()?,
-            KeyCode::Char('s') => app.sort_entries(),
+            KeyCode::Char('T') => app.tidy_entries(),
             KeyCode::Char('r') => app.enter_reorder_mode(),
             KeyCode::Char('z') => app.toggle_hide_completed(),
             KeyCode::Tab => app.return_to_filter()?,
