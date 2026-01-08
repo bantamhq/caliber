@@ -71,6 +71,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             app.update_hints();
         }
         OpenDatepicker => app.open_datepicker(),
+        OpenProjectPicker => app.open_project_picker(),
         NewEntryBottom => app.new_task(InsertPosition::Bottom),
         NewEntryBelow => {
             if let SelectedItem::Projected { entry, .. } = app.get_selected_item() {
@@ -421,10 +422,18 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
             ConfirmContext::CreateProjectJournal => match create_project_journal() {
                 Ok(path) => {
                     app.journal_context.set_project_path(path);
-                    app.input_mode = InputMode::Confirm(ConfirmContext::AddToGitignore);
+                    if app.in_git_repo {
+                        // Offer to add to .gitignore
+                        app.input_mode = InputMode::Confirm(ConfirmContext::AddToGitignore);
+                    } else {
+                        // Not in git repo, just switch to project
+                        app.set_status("Project created");
+                        app.switch_to_project()?;
+                        app.input_mode = InputMode::Normal;
+                    }
                 }
                 Err(e) => {
-                    app.set_status(format!("Failed to create project journal: {e}"));
+                    app.set_status(format!("Failed to create project: {e}"));
                     app.input_mode = InputMode::Normal;
                 }
             },
@@ -432,7 +441,7 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
                 if let Err(e) = add_caliber_to_gitignore() {
                     app.set_status(format!("Failed to update .gitignore: {e}"));
                 } else {
-                    app.set_status("Project journal created and added to .gitignore");
+                    app.set_status("Project created and added to .gitignore");
                 }
                 app.switch_to_project()?;
                 app.input_mode = InputMode::Normal;
@@ -444,7 +453,7 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
                 app.input_mode = InputMode::Normal;
             }
             ConfirmContext::AddToGitignore => {
-                app.set_status("Project journal created (not added to .gitignore)");
+                app.set_status("Project created (not added to .gitignore)");
                 app.switch_to_project()?;
                 app.input_mode = InputMode::Normal;
             }
@@ -485,6 +494,69 @@ pub fn handle_datepicker_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
     let spec = KeySpec::from_event(&key);
     if let Some(action) = app.keymap.get(KeyContext::Datepicker, &spec) {
         dispatch_action(app, action)?;
+    }
+    Ok(())
+}
+
+pub fn handle_project_picker_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
+    match key.code {
+        KeyCode::Enter => {
+            // Extract project info before mutating app
+            let project_info = {
+                let InputMode::ProjectPicker(ref state) = app.input_mode else {
+                    return Ok(());
+                };
+                state.selected_project().map(|p| (p.id.clone(), p.available))
+            };
+
+            match project_info {
+                Some((id, true)) => {
+                    app.input_mode = InputMode::Normal;
+                    app.switch_to_registered_project(&id)?;
+                }
+                Some((id, false)) => {
+                    app.set_status(format!("Project '{}' is unavailable", id));
+                }
+                None => {
+                    app.input_mode = InputMode::Normal;
+                }
+            }
+        }
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+        }
+        KeyCode::Up => {
+            let InputMode::ProjectPicker(ref mut state) = app.input_mode else {
+                return Ok(());
+            };
+            state.selected = state.selected.saturating_sub(1);
+        }
+        KeyCode::Down => {
+            let InputMode::ProjectPicker(ref mut state) = app.input_mode else {
+                return Ok(());
+            };
+            if state.selected + 1 < state.filtered_indices.len() {
+                state.selected += 1;
+            }
+        }
+        KeyCode::Char(c) => {
+            let InputMode::ProjectPicker(ref mut state) = app.input_mode else {
+                return Ok(());
+            };
+            state.query.insert_char(c);
+            state.update_filter();
+        }
+        KeyCode::Backspace => {
+            let InputMode::ProjectPicker(ref mut state) = app.input_mode else {
+                return Ok(());
+            };
+            if state.query.delete_char_before() {
+                state.update_filter();
+            } else if state.query.is_empty() {
+                app.input_mode = InputMode::Normal;
+            }
+        }
+        _ => {}
     }
     Ok(())
 }

@@ -2,6 +2,7 @@ mod context;
 mod entries;
 mod filter;
 mod persistence;
+mod project_registry;
 
 // Re-export context types and functions
 pub use context::{
@@ -31,6 +32,11 @@ pub use filter::{
     extract_recurring_pattern, extract_tags, extract_target_date, normalize_natural_dates,
     parse_filter_date, parse_filter_query, parse_later_date, parse_natural_date,
     parse_recurring_pattern, strip_recurring_tags,
+};
+
+// Re-export project registry types
+pub use project_registry::{
+    ProjectInfo, ProjectRegistry, ensure_project_config, get_registry_path, write_project_identity,
 };
 
 #[cfg(test)]

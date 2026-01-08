@@ -4,16 +4,21 @@ use chrono::Local;
 
 use crate::config::{Config, resolve_path};
 use crate::dispatch::Keymap;
-use crate::storage::JournalSlot;
+use crate::storage::{JournalSlot, ProjectRegistry};
 
 use super::{App, ConfirmContext, InputMode};
 
 impl App {
-    /// Reset to daily view and refresh tag cache (for journal switches).
     fn reset_journal_view(&mut self) -> io::Result<()> {
         self.reset_daily_view(Local::now().date_naive())?;
         self.refresh_tag_cache();
         Ok(())
+    }
+
+    fn apply_config(&mut self, config: Config) {
+        self.keymap = Keymap::new(&config.keys).unwrap_or_default();
+        self.hide_completed = config.hide_completed;
+        self.config = config;
     }
 
     pub fn open_journal(&mut self, path: &str) -> io::Result<()> {
@@ -34,12 +39,11 @@ impl App {
         self.save();
         self.journal_context.set_active_slot(slot);
 
-        self.config = match slot {
+        let config = match slot {
             JournalSlot::Hub => Config::load_hub()?,
             JournalSlot::Project => Config::load_merged()?,
         };
-        self.keymap = Keymap::new(&self.config.keys).unwrap_or_default();
-        self.hide_completed = self.config.hide_completed;
+        self.apply_config(config);
 
         self.reset_journal_view()?;
         self.set_status(match slot {
@@ -62,10 +66,8 @@ impl App {
             JournalSlot::Hub => {
                 if self.journal_context.project_path().is_some() {
                     self.switch_to_project()?;
-                } else if self.in_git_repo {
-                    self.input_mode = InputMode::Confirm(ConfirmContext::CreateProjectJournal);
                 } else {
-                    self.set_status("Not in a git repository - no project journal available");
+                    self.input_mode = InputMode::Confirm(ConfirmContext::CreateProjectJournal);
                 }
             }
             JournalSlot::Project => {
@@ -76,13 +78,47 @@ impl App {
     }
 
     pub fn reload_config(&mut self) -> io::Result<()> {
-        self.config = match self.active_journal() {
+        let config = match self.active_journal() {
             JournalSlot::Hub => Config::load_hub()?,
             JournalSlot::Project => Config::load_merged()?,
         };
-        self.keymap = Keymap::new(&self.config.keys).unwrap_or_default();
-        self.hide_completed = self.config.hide_completed;
+        self.apply_config(config);
         self.set_status("Config reloaded");
         Ok(())
+    }
+
+    pub fn switch_to_registered_project(&mut self, id: &str) -> io::Result<()> {
+        let registry = ProjectRegistry::load();
+        let project = registry.find_by_id(id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Project '{}' not found in registry", id),
+            )
+        })?;
+
+        if !project.available {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Project '{}' is unavailable (path missing)", id),
+            ));
+        }
+
+        self.save();
+        self.journal_context.set_project_path(project.journal_path());
+        self.journal_context.set_active_slot(JournalSlot::Project);
+
+        let config = Config::load_merged_from(&project.root)?;
+        self.apply_config(config);
+
+        self.reset_journal_view()?;
+        self.set_status(format!("Switched to: {}", project.name));
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn current_project_id(&self) -> Option<String> {
+        let path = self.journal_context.project_path()?;
+        let registry = ProjectRegistry::load();
+        registry.find_by_path(path).map(|p| p.id.clone())
     }
 }

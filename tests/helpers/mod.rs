@@ -101,6 +101,9 @@ impl TestContext {
                 InputMode::Datepicker(_) => {
                     let _ = handlers::handle_datepicker_key(&mut self.app, key);
                 }
+                InputMode::ProjectPicker(_) => {
+                    let _ = handlers::handle_project_picker_key(&mut self.app, key);
+                }
             }
         }
     }

@@ -32,3 +32,13 @@ name = "quit"
 help = "Quit application"
 readme = "Save and exit the application."
 completion_hint = "Save and exit the application."
+
+[[command]]
+name = "project"
+args = "[init|remove|<id>]"
+subargs = [
+  { options = ["init", "remove"] },
+]
+help = "Manage projects"
+readme = "Manage projects. `init` creates and registers project in current folder, `remove` unregisters current or specified project, `<id>` switches to registered project."
+completion_hint = "Manage projects: init, remove, or project ID to switch"

@@ -52,6 +52,16 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
         (_, InputMode::Datepicker(_)) => {
             build_footer_line(" DATE ", Color::Cyan, FooterMode::Datepicker, &app.keymap)
         }
+        (_, InputMode::ProjectPicker(_)) => RatatuiLine::from(vec![
+            Span::styled(
+                " PROJECTS ",
+                Style::default().fg(Color::Black).bg(Color::Cyan),
+            ),
+            Span::styled("  Enter", Style::default().fg(Color::Gray)),
+            Span::styled(" Select  ", Style::default().dim()),
+            Span::styled("Esc", Style::default().fg(Color::Gray)),
+            Span::styled(" Close", Style::default().dim()),
+        ]),
         (ViewMode::Daily(_), InputMode::Normal) => {
             build_footer_line(" DAILY ", Color::Cyan, FooterMode::NormalDaily, &app.keymap)
         }

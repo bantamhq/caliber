@@ -111,11 +111,11 @@ fn init_config() -> io::Result<()> {
 fn init_project() -> io::Result<()> {
     match storage::create_project_journal() {
         Ok(path) => {
-            println!("Created project journal at: {}", path.display());
+            println!("Created and registered project at: {}", path.display());
             Ok(())
         }
         Err(e) => {
-            eprintln!("Failed to create project journal: {e}");
+            eprintln!("Failed to create project: {e}");
             Err(e)
         }
     }
@@ -129,9 +129,16 @@ fn run_app<B: ratatui::backend::Backend>(
     let date = chrono::Local::now().date_naive();
     let mut app = App::new_with_context(config, date, journal_context)?;
 
-    // If in git repo without project journal, prompt to create one
-    if app.in_git_repo && app.journal_context.project_path().is_none() {
-        app.input_mode = InputMode::Confirm(ConfirmContext::CreateProjectJournal);
+    // Auto-init project in git repo if config enabled
+    if app.in_git_repo
+        && app.journal_context.project_path().is_none()
+        && app.config.auto_init_project
+    {
+        // Auto-create project and prompt for gitignore
+        if let Ok(path) = storage::create_project_journal() {
+            app.journal_context.set_project_path(path);
+            app.input_mode = InputMode::Confirm(ConfirmContext::AddToGitignore);
+        }
     }
 
     loop {
@@ -351,8 +358,14 @@ fn run_app<B: ratatui::backend::Backend>(
             ui::render_hint_overlay(f, &app.hint_state, chunks[1]);
 
             let (indicator, indicator_color) = match app.active_journal() {
-                JournalSlot::Hub => ("[HUB]", Color::Green),
-                JournalSlot::Project => ("[PROJECT]", Color::Blue),
+                JournalSlot::Hub => ("[HUB]".to_string(), Color::Green),
+                JournalSlot::Project => {
+                    let id = app
+                        .current_project_id()
+                        .map(|id| format!("[{}]", id.to_uppercase()))
+                        .unwrap_or_else(|| "[PROJECT]".to_string());
+                    (id, Color::Blue)
+                }
             };
             let indicator_width = indicator.len() as u16;
             let indicator_area = ratatui::layout::Rect {
@@ -484,6 +497,10 @@ fn run_app<B: ratatui::backend::Backend>(
             if let InputMode::Datepicker(ref state) = app.input_mode {
                 ui::render_datepicker(f, state, &app.keymap, size);
             }
+
+            if let InputMode::ProjectPicker(ref state) = app.input_mode {
+                ui::render_project_picker(f, state, size);
+            }
         })?;
 
         if event::poll(std::time::Duration::from_millis(16))?
@@ -503,6 +520,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     InputMode::Confirm(_) => handlers::handle_confirm_key(&mut app, key.code)?,
                     InputMode::Selection(_) => handlers::handle_selection_key(&mut app, key)?,
                     InputMode::Datepicker(_) => handlers::handle_datepicker_key(&mut app, key)?,
+                    InputMode::ProjectPicker(_) => {
+                        handlers::handle_project_picker_key(&mut app, key)?
+                    }
                 }
             }
         }

@@ -160,6 +160,62 @@ impl DatepickerState {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ProjectPickerState {
+    pub query: CursorBuffer,
+    pub filtered_indices: Vec<usize>,
+    pub selected: usize,
+    pub projects: Vec<storage::ProjectInfo>,
+}
+
+impl Default for ProjectPickerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ProjectPickerState {
+    #[must_use]
+    pub fn new() -> Self {
+        let registry = storage::ProjectRegistry::load();
+        let mut state = Self {
+            query: CursorBuffer::empty(),
+            filtered_indices: Vec::new(),
+            selected: 0,
+            projects: registry.projects,
+        };
+        state.update_filter();
+        state
+    }
+
+    pub fn update_filter(&mut self) {
+        let query = self.query.content().to_lowercase();
+        self.filtered_indices = self
+            .projects
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| {
+                !p.hidden
+                    && (query.is_empty()
+                        || p.name.to_lowercase().contains(&query)
+                        || p.id.to_lowercase().contains(&query))
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if self.selected >= self.filtered_indices.len() {
+            self.selected = self.filtered_indices.len().saturating_sub(1);
+        }
+    }
+
+    #[must_use]
+    pub fn selected_project(&self) -> Option<&storage::ProjectInfo> {
+        self.filtered_indices
+            .get(self.selected)
+            .and_then(|&i| self.projects.get(i))
+    }
+}
+
 /// Which view is currently active and its state
 #[derive(Clone)]
 pub enum ViewMode {
@@ -204,6 +260,7 @@ pub enum InputMode {
     Confirm(ConfirmContext),
     Selection(SelectionState),
     Datepicker(DatepickerState),
+    ProjectPicker(ProjectPickerState),
 }
 
 /// Where to insert a new entry
@@ -376,6 +433,10 @@ impl App {
 
     pub fn set_status(&mut self, msg: impl Into<String>) {
         self.status_message = Some(msg.into());
+    }
+
+    pub fn open_project_picker(&mut self) {
+        self.input_mode = InputMode::ProjectPicker(ProjectPickerState::new());
     }
 
     pub fn execute_action(&mut self, action: Box<dyn actions::Action>) -> io::Result<()> {

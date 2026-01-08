@@ -12,6 +12,7 @@ use crossterm::{
 
 use super::{App, InputMode};
 use crate::config;
+use crate::storage::{ProjectRegistry, create_project_journal};
 
 impl App {
     pub fn execute_command(&mut self) -> io::Result<()> {
@@ -34,6 +35,9 @@ impl App {
             }
             "scratchpad" => {
                 self.handle_scratchpad_command()?;
+            }
+            "project" => {
+                self.handle_project_command(arg)?;
             }
             _ => {
                 if !command.is_empty() {
@@ -66,6 +70,66 @@ impl App {
     fn handle_scratchpad_command(&mut self) -> io::Result<()> {
         let path = self.config.get_scratchpad_path();
         self.open_in_editor(&path, false)
+    }
+
+    fn handle_project_command(&mut self, arg: &str) -> io::Result<()> {
+        let parts: Vec<&str> = arg.trim().splitn(2, ' ').collect();
+        let subcommand = parts.first().copied().unwrap_or("");
+        let subarg = parts.get(1).copied().unwrap_or("").trim();
+
+        match subcommand {
+            "" => {
+                self.set_status("Usage: :project [init|remove|<id>]");
+            }
+            "init" => {
+                self.handle_project_init()?;
+            }
+            "remove" => {
+                self.handle_project_remove(subarg)?;
+            }
+            id => {
+                self.switch_to_registered_project(id)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_project_init(&mut self) -> io::Result<()> {
+        let path = create_project_journal()?;
+        self.journal_context.set_project_path(path);
+        self.switch_to_project()?;
+        self.set_status("Project initialized");
+        Ok(())
+    }
+
+    fn handle_project_remove(&mut self, id: &str) -> io::Result<()> {
+        let mut registry = ProjectRegistry::load();
+
+        let target_id = if id.is_empty() {
+            let Some(path) = self.journal_context.project_path() else {
+                self.set_status("No project to remove. Specify an ID or switch to a project first.");
+                return Ok(());
+            };
+            registry
+                .find_by_path(path)
+                .map(|p| p.id.clone())
+                .unwrap_or_default()
+        } else {
+            id.to_string()
+        };
+
+        if target_id.is_empty() {
+            self.set_status("Current project is not registered");
+            return Ok(());
+        }
+
+        if registry.remove(&target_id) {
+            registry.save()?;
+            self.set_status(format!("Removed project: {}", target_id));
+        } else {
+            self.set_status(format!("Project not found: {}", target_id));
+        }
+        Ok(())
     }
 
     fn resolve_config_path(&self, scope: Option<&str>) -> Result<PathBuf, String> {

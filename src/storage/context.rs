@@ -75,11 +75,8 @@ pub fn find_git_root() -> Option<PathBuf> {
     None
 }
 
-/// Detects if a project journal exists and returns its path.
-/// Returns Some(path) if .caliber/journal.md exists, None otherwise.
 #[must_use]
 pub fn detect_project_journal() -> Option<PathBuf> {
-    // First check for git root
     if let Some(root) = find_git_root() {
         let project_journal = root.join(".caliber").join("journal.md");
         if project_journal.exists() {
@@ -88,7 +85,6 @@ pub fn detect_project_journal() -> Option<PathBuf> {
         return None;
     }
 
-    // Fallback: check current directory for .caliber/
     let cwd = std::env::current_dir().ok()?;
     let project_journal = cwd.join(".caliber").join("journal.md");
     if project_journal.exists() {
@@ -98,11 +94,12 @@ pub fn detect_project_journal() -> Option<PathBuf> {
     None
 }
 
-/// Creates a project journal at .caliber/journal.md in the git root.
-/// Also creates an empty config.toml for project-specific settings.
+/// Creates journal and config if missing, registers if not registered.
+/// Uses git root if available, otherwise current directory.
 pub fn create_project_journal() -> io::Result<PathBuf> {
-    let root = find_git_root()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Not in a git repository"))?;
+    use crate::storage::ProjectRegistry;
+
+    let root = find_git_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
     let caliber_dir = root.join(".caliber");
     fs::create_dir_all(&caliber_dir)?;
@@ -112,9 +109,13 @@ pub fn create_project_journal() -> io::Result<PathBuf> {
         fs::write(&journal_path, "")?;
     }
 
-    let config_path = caliber_dir.join("config.toml");
-    if !config_path.exists() {
-        fs::write(&config_path, "")?;
+    let mut registry = ProjectRegistry::load();
+    if registry.find_by_path(&caliber_dir).is_none() {
+        if let Ok(_info) = registry.register(caliber_dir.clone()) {
+            let _ = registry.save();
+        }
+    } else if let Some(info) = registry.find_by_path(&caliber_dir) {
+        let _ = super::ensure_project_config(&caliber_dir, &info.name, &info.id);
     }
 
     Ok(journal_path)

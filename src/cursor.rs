@@ -1,6 +1,6 @@
 use unicode_width::UnicodeWidthStr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CursorBuffer {
     content: String,
     cursor_char_pos: usize,

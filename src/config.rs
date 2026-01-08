@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,10 @@ fn default_scratchpad_file() -> PathBuf {
     get_config_dir().join("scratchpad.md")
 }
 
+fn default_auto_init_project() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
@@ -58,6 +62,18 @@ pub struct Config {
     pub hide_completed: bool,
     #[serde(default)]
     pub keys: HashMap<String, HashMap<String, String>>,
+    /// Auto-initialize project journals in git repositories (base config only)
+    #[serde(default = "default_auto_init_project")]
+    pub auto_init_project: bool,
+    /// Project display name for registry
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Project short ID for registry
+    #[serde(default)]
+    pub id: Option<String>,
+    /// Hide project from picker (project config only)
+    #[serde(default)]
+    pub hidden: bool,
 }
 
 /// Raw config for deserialization - all fields are Option to distinguish "not set" from "set to default"
@@ -72,6 +88,10 @@ struct RawConfig {
     pub header_date_format: Option<String>,
     pub hide_completed: Option<bool>,
     pub keys: Option<HashMap<String, HashMap<String, String>>>,
+    pub auto_init_project: Option<bool>,
+    pub name: Option<String>,
+    pub id: Option<String>,
+    pub hidden: Option<bool>,
 }
 
 impl RawConfig {
@@ -88,6 +108,10 @@ impl RawConfig {
                 .unwrap_or_else(default_header_date_format),
             hide_completed: self.hide_completed.unwrap_or(false),
             keys: self.keys.unwrap_or_default(),
+            auto_init_project: self.auto_init_project.unwrap_or_else(default_auto_init_project),
+            name: self.name,
+            id: self.id,
+            hidden: self.hidden.unwrap_or(false),
         }
     }
 
@@ -102,6 +126,12 @@ impl RawConfig {
             favorite_tags: Some(merge_hashmaps(base.favorite_tags, self.favorite_tags)),
             filters: Some(merge_hashmaps(base.filters, self.filters)),
             keys: Some(merge_keys(base.keys, self.keys)),
+            // auto_init_project only comes from base config
+            auto_init_project: base.auto_init_project,
+            name: self.name.or(base.name),
+            id: self.id.or(base.id),
+            // hidden only comes from project config
+            hidden: self.hidden,
         }
     }
 }
@@ -184,6 +214,19 @@ impl Config {
         let base = load_raw_config(get_config_path())?;
 
         if let Some(project) = load_project_config() {
+            Ok(project.merge_over(base).into_config())
+        } else {
+            Ok(base.into_config())
+        }
+    }
+
+    /// Load project config from a specific project root path
+    pub fn load_merged_from(project_root: &Path) -> io::Result<Self> {
+        let base = load_raw_config(get_config_path())?;
+        let project_config_path = project_root.join(".caliber").join("config.toml");
+
+        if project_config_path.exists() {
+            let project = load_raw_config(project_config_path)?;
             Ok(project.merge_over(base).into_config())
         } else {
             Ok(base.into_config())
@@ -274,14 +317,23 @@ fn load_raw_config(path: PathBuf) -> io::Result<RawConfig> {
 }
 
 fn load_project_config() -> Option<RawConfig> {
-    let root = find_git_root()?;
-    let path = root.join(".caliber").join("config.toml");
+    if let Some(root) = find_git_root() {
+        let path = root.join(".caliber").join("config.toml");
+        if path.exists() {
+            let content = fs::read_to_string(&path).ok()?;
+            return toml::from_str(&content).ok();
+        }
+        return None;
+    }
+
+    let cwd = std::env::current_dir().ok()?;
+    let path = cwd.join(".caliber").join("config.toml");
     if path.exists() {
         let content = fs::read_to_string(&path).ok()?;
-        toml::from_str(&content).ok()
-    } else {
-        None
+        return toml::from_str(&content).ok();
     }
+
+    None
 }
 
 fn load_hub_config() -> Option<RawConfig> {

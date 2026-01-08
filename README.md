@@ -274,6 +274,7 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `:` | Command mode |
 | `?` | Show help |
 | `\` | Open datepicker |
+| `C-p` | Open project picker |
 
 
 ### Filter Mode
@@ -302,6 +303,7 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `:` | Command mode |
 | `?` | Show help |
 | `\` | Open datepicker |
+| `C-p` | Open project picker |
 | `Enter` | Quick add to today |
 | `r` | Refresh results |
 | `Esc`/`Tab` | Exit to daily |
@@ -378,6 +380,7 @@ Press `\` to open the calendar picker.
 | `:journal [hub|project]` | Edit journal in $EDITOR |
 | `:scratchpad ` | Edit scratchpad in $EDITOR |
 | `:quit ` | Quit application |
+| `:project [init|remove|<id>]` | Manage projects |
 
 
 ### Filter Syntax
