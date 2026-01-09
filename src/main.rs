@@ -488,11 +488,21 @@ fn run_app<B: ratatui::backend::Backend>(
                 f.render_widget(paragraph, inner_area);
             }
 
-            if let InputMode::Interface(ref ctx) = app.input_mode {
+            if let InputMode::Interface(ref mut ctx) = app.input_mode {
                 match ctx {
                     InterfaceContext::Date(state) => ui::render_date_interface(f, state, size),
-                    InterfaceContext::Project(state) => ui::render_project_interface(f, state, size),
-                    InterfaceContext::Tag(_) => {} // Stub for future implementation
+                    InterfaceContext::Project(state) => {
+                        let visible_height =
+                            (ui::POPUP_HEIGHT.saturating_sub(4) as usize).min(size.height as usize);
+                        ensure_selected_visible(
+                            &mut state.scroll_offset,
+                            state.selected,
+                            state.filtered_indices.len(),
+                            visible_height,
+                        );
+                        ui::render_project_interface(f, state, size);
+                    }
+                    InterfaceContext::Tag(_) => {}
                 }
             }
         })?;

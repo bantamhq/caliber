@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::Paragraph,
@@ -20,12 +20,37 @@ pub fn render_project_interface(f: &mut Frame, state: &ProjectInterfaceState, ar
     render_popup_frame(f, &layout, "Projects");
     render_query_input(f, &layout, &state.query, true);
 
-    let mut lines = Vec::new();
-    for (i, &project_idx) in state.filtered_indices.iter().enumerate() {
-        if i >= layout.content_area.height as usize {
-            break;
-        }
+    let visible_height = layout.content_area.height as usize;
+    let total_items = state.filtered_indices.len();
+    let can_scroll_up = state.scroll_offset > 0;
+    let can_scroll_down = state.scroll_offset + visible_height < total_items;
 
+    if can_scroll_up || can_scroll_down {
+        let arrows = match (can_scroll_up, can_scroll_down) {
+            (true, true) => "▲▼",
+            (true, false) => "▲",
+            (false, true) => "▼",
+            (false, false) => "",
+        };
+        let indicator_area = Rect {
+            x: layout.query_area.x,
+            y: layout.query_area.y.saturating_sub(1),
+            width: layout.query_area.width,
+            height: 1,
+        };
+        let indicator = Paragraph::new(Span::styled(arrows, Style::new().dim()))
+            .alignment(Alignment::Right);
+        f.render_widget(indicator, indicator_area);
+    }
+
+    let mut lines = Vec::new();
+    for (i, &project_idx) in state
+        .filtered_indices
+        .iter()
+        .enumerate()
+        .skip(state.scroll_offset)
+        .take(visible_height)
+    {
         let project = &state.projects[project_idx];
         let is_selected = i == state.selected;
 
@@ -48,21 +73,12 @@ pub fn render_project_interface(f: &mut Frame, state: &ProjectInterfaceState, ar
     }
 
     if lines.is_empty() {
-        if state.projects.is_empty() {
-            lines.push(Line::from(Span::styled(
-                "  No registered projects",
-                Style::new().dim(),
-            )));
-            lines.push(Line::from(Span::styled(
-                "  Use :project init to add",
-                Style::new().dim(),
-            )));
+        let message = if state.projects.is_empty() {
+            "No projects registered"
         } else {
-            lines.push(Line::from(Span::styled(
-                "  No matching projects",
-                Style::new().dim(),
-            )));
-        }
+            "No matching projects"
+        };
+        lines.push(Line::from(Span::styled(message, Style::new().dim())));
     }
 
     f.render_widget(Paragraph::new(lines), layout.content_area);

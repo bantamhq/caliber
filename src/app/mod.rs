@@ -170,6 +170,7 @@ pub struct ProjectInterfaceState {
     pub query: CursorBuffer,
     pub filtered_indices: Vec<usize>,
     pub selected: usize,
+    pub scroll_offset: usize,
     pub projects: Vec<storage::ProjectInfo>,
 }
 
@@ -183,11 +184,14 @@ impl ProjectInterfaceState {
     #[must_use]
     pub fn new() -> Self {
         let registry = storage::ProjectRegistry::load();
+        let mut projects = registry.projects;
+        projects.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         let mut state = Self {
             query: CursorBuffer::empty(),
             filtered_indices: Vec::new(),
             selected: 0,
-            projects: registry.projects,
+            scroll_offset: 0,
+            projects,
         };
         state.update_filter();
         state
@@ -211,6 +215,7 @@ impl ProjectInterfaceState {
         if self.selected >= self.filtered_indices.len() {
             self.selected = self.filtered_indices.len().saturating_sub(1);
         }
+        self.scroll_offset = 0;
     }
 
     #[must_use]

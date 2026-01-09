@@ -110,25 +110,13 @@ fn help_line_from_action(
         .unwrap_or_default();
 
     let key_display = if keys.is_empty() {
-        match action.default_keys {
-            [first, second, ..] => {
-                format!(
-                    "{}/{}",
-                    format_key_for_display(first),
-                    format_key_for_display(second)
-                )
-            }
-            [first] => format_key_for_display(first),
-            [] => String::new(),
-        }
-    } else if keys.len() == 1 {
-        format_key_for_display(&keys[0])
+        action
+            .default_keys
+            .first()
+            .map(|k| format_key_for_display(k))
+            .unwrap_or_default()
     } else {
-        format!(
-            "{}/{}",
-            format_key_for_display(&keys[0]),
-            format_key_for_display(&keys[1])
-        )
+        format_key_for_display(&keys[0])
     };
 
     help_line(&key_display, action.help, key_style, desc_style)

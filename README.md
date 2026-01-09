@@ -260,8 +260,8 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `↑`/`k` | Navigate up |
 | `g` | Jump to first |
 | `G` | Jump to last |
-| `[`/`h` | Previous day |
-| `]`/`l` | Next day |
+| `[`/`h`/`←` | Previous day |
+| `]`/`l`/`→` | Next day |
 | `t` | Go to today |
 | `z` | Toggle hide completed |
 | `T` | Tidy entries |
@@ -378,8 +378,8 @@ Press `+` to open the project switcher.
 
 | Key | Action |
 |-----|--------|
-| `↑`/`k` | Previous project |
-| `↓`/`j` | Next project |
+| `↑` | Previous project |
+| `↓` | Next project |
 | `Enter` | Open project |
 | `Esc`/`.` | Close project interface |
 

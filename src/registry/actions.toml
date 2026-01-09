@@ -171,7 +171,7 @@ readme = "Jump to the last entry"
 
 [[action]]
 key_action_id = "prev_day"
-default_keys = ["[", "h"]
+default_keys = ["[", "h", "left"]
 contexts = ["daily_normal"]
 help_sections = ["daily"]
 help = "Previous day"
@@ -179,7 +179,7 @@ readme = "Navigate to the previous day"
 
 [[action]]
 key_action_id = "next_day"
-default_keys = ["]", "l"]
+default_keys = ["]", "l", "right"]
 contexts = ["daily_normal"]
 help_sections = ["daily"]
 help = "Next day"
@@ -595,6 +595,7 @@ key_action_id = "date_interface_prev_month"
 default_keys = ["["]
 contexts = ["date_interface"]
 help_sections = ["date"]
+footer = { modes = ["date_interface"], text = "Prev month" }
 help = "Previous month"
 readme = "Navigate to the previous month"
 
@@ -603,6 +604,7 @@ key_action_id = "date_interface_next_month"
 default_keys = ["]"]
 contexts = ["date_interface"]
 help_sections = ["date"]
+footer = { modes = ["date_interface"], text = "Next month" }
 help = "Next month"
 readme = "Navigate to the next month"
 
@@ -611,6 +613,7 @@ key_action_id = "date_interface_prev_year"
 default_keys = ["Y"]
 contexts = ["date_interface"]
 help_sections = ["date"]
+footer = { modes = ["date_interface"], text = "Prev year" }
 help = "Previous year"
 readme = "Navigate to the previous year"
 
@@ -619,6 +622,7 @@ key_action_id = "date_interface_next_year"
 default_keys = ["y"]
 contexts = ["date_interface"]
 help_sections = ["date"]
+footer = { modes = ["date_interface"], text = "Next year" }
 help = "Next year"
 readme = "Navigate to the next year"
 
@@ -646,22 +650,6 @@ help_sections = ["date"]
 help = "Close date interface"
 readme = "Close date interface without navigating"
 
-# Footer-only entries for compact date interface popup (not shown in help)
-[[action]]
-key_action_id = "date_interface_footer_nav_month"
-default_keys = ["[]"]
-contexts = ["date_interface"]
-footer = { modes = ["date_interface"], text = "Month" }
-help = "Month"
-readme = "Navigate months"
-
-[[action]]
-key_action_id = "date_interface_footer_nav_year"
-default_keys = ["y/Y"]
-contexts = ["date_interface"]
-footer = { modes = ["date_interface"], text = "Year" }
-help = "Year"
-readme = "Navigate years"
 
 # =============================================================================
 # Project Interface Mode
@@ -669,7 +657,7 @@ readme = "Navigate years"
 
 [[action]]
 key_action_id = "project_interface_move_up"
-default_keys = ["up", "k"]
+default_keys = ["up"]
 contexts = ["project_interface"]
 help_sections = ["project"]
 help = "Previous project"
@@ -677,7 +665,7 @@ readme = "Move selection to the previous project"
 
 [[action]]
 key_action_id = "project_interface_move_down"
-default_keys = ["down", "j"]
+default_keys = ["down"]
 contexts = ["project_interface"]
 help_sections = ["project"]
 help = "Next project"

@@ -183,12 +183,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             app.project_interface_select()?;
         }
         ProjectInterfaceCancel => app.close_interface(),
-        NoOp
-        | QuickFilterTag
-        | AppendFavoriteTag
-        | SelectionAppendTag
-        | DateInterfaceFooterNavMonth
-        | DateInterfaceFooterNavYear => {}
+        NoOp | QuickFilterTag | AppendFavoriteTag | SelectionAppendTag => {}
     }
     Ok(true)
 }
