@@ -68,58 +68,73 @@ fn shift_v_double_tap_deselects_range() {
     let content = "# 2026/01/15\n- [ ] Entry A\n- [ ] Entry B\n- [ ] Entry C\n- [ ] Entry D\n";
     let mut ctx = TestContext::with_journal_content(date, content);
 
-    // Enter selection at first entry
     ctx.press(KeyCode::Char('g'));
     ctx.press(KeyCode::Char('v'));
-
-    // Move to last entry
     ctx.press(KeyCode::Char('G'));
 
-    // Range select: selects 0-3
     ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
-    let state = ctx.app.get_selection_state().unwrap();
-    assert_eq!(state.count(), 4);
+    assert_eq!(ctx.app.get_selection_state().unwrap().count(), 4);
 
-    // Double-tap range select: should deselect 0-3
     ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
-    let state = ctx.app.get_selection_state().unwrap();
-    assert_eq!(state.count(), 0);
+    assert_eq!(ctx.app.get_selection_state().unwrap().count(), 0);
 }
 
 #[test]
 fn range_select_anchor_updates_on_move() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let content =
-        "# 2026/01/15\n- [ ] Entry A\n- [ ] Entry B\n- [ ] Entry C\n- [ ] Entry D\n- [ ] Entry E\n- [ ] Entry F\n";
+        "# 2026/01/15\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n";
     let mut ctx = TestContext::with_journal_content(date, content);
 
-    // Enter selection at first entry (index 0)
     ctx.press(KeyCode::Char('g'));
     ctx.press(KeyCode::Char('v'));
-
-    // Move to index 3
     ctx.press(KeyCode::Char('j'));
     ctx.press(KeyCode::Char('j'));
     ctx.press(KeyCode::Char('j'));
 
-    // Range select: selects 0-3
     ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
     let state = ctx.app.get_selection_state().unwrap();
     assert_eq!(state.count(), 4);
     assert!(state.is_selected(0));
     assert!(state.is_selected(3));
 
-    // Move to index 5 - anchor should update to 3 (last operation position)
     ctx.press(KeyCode::Char('j'));
     ctx.press(KeyCode::Char('j'));
 
-    // Range select from new anchor (3) to cursor (5): selects 3-5
     ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
     let state = ctx.app.get_selection_state().unwrap();
-    // Should have 0,1,2,3,4,5 selected (original 0-3 plus new 3-5)
     assert_eq!(state.count(), 6);
     assert!(state.is_selected(4));
     assert!(state.is_selected(5));
+}
+
+#[test]
+fn deselect_then_move_keeps_original_anchor() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n- [ ] G\n- [ ] H\n- [ ] I\n- [ ] J\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('G'));
+    ctx.press(KeyCode::Char('v'));
+    ctx.press(KeyCode::Char('k'));
+    ctx.press(KeyCode::Char('k'));
+    ctx.press(KeyCode::Char('k'));
+
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    assert_eq!(ctx.app.get_selection_state().unwrap().count(), 4);
+
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    assert_eq!(ctx.app.get_selection_state().unwrap().count(), 0);
+
+    ctx.press(KeyCode::Char('k'));
+    ctx.press(KeyCode::Char('k'));
+    ctx.press(KeyCode::Char('k'));
+
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    let state = ctx.app.get_selection_state().unwrap();
+    assert_eq!(state.count(), 7);
+    assert!(state.is_selected(3));
+    assert!(state.is_selected(9));
 }
 
 #[test]

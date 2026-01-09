@@ -126,9 +126,12 @@ impl SelectionState {
     }
 
     /// Call before cursor movement - updates anchor to last operation position
+    /// only if that position is still selected
     pub fn on_cursor_move(&mut self) {
         if let Some(pos) = self.last_operation_at.take() {
-            self.anchor = pos;
+            if self.selected_indices.contains(&pos) {
+                self.anchor = pos;
+            }
         }
     }
 
