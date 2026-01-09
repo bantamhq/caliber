@@ -30,8 +30,8 @@ impl App {
         let selected = entries.len().saturating_sub(1);
 
         self.view = ViewMode::Filter(FilterState {
+            query_buffer: CursorBuffer::new(query.clone()),
             query,
-            query_buffer: CursorBuffer::empty(),
             entries,
             selected,
             scroll_offset: 0,

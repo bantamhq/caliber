@@ -26,6 +26,9 @@ impl App {
                 self.should_quit = true;
                 self.input_mode = InputMode::Normal;
             }
+            "date" => {
+                self.open_date_interface();
+            }
             "project" => {
                 self.open_project_interface();
             }

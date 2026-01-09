@@ -14,6 +14,12 @@ readme = "Open scratchpad for quick notes"
 completion_hint = "Open scratchpad for quick notes"
 
 [[command]]
+name = "date"
+help = "Open date interface"
+readme = "Open date interface"
+completion_hint = "Open date interface"
+
+[[command]]
 name = "quit"
 help = "Quit application"
 readme = "Save and exit the application."

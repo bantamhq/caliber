@@ -390,6 +390,7 @@ Press `+` to open the project switcher.
 |-----|--------|
 | `:project ` | Open project interface |
 | `:scratchpad ` | Open scratchpad for quick notes |
+| `:date ` | Open date interface |
 | `:quit ` | Quit application |
 
 
