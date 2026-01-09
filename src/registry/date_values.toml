@@ -70,6 +70,22 @@ completion_hint = "Relative days (d1, d7, d30). Use +/- suffix for direction."
 # =============================================================================
 
 [[date_value]]
+syntax = "every-day"
+display = "@every-day"
+scopes = ["entry"]
+help = "Recurring every day"
+readme = "Recurring every day."
+completion_hint = "Recurring every day."
+
+[[date_value]]
+syntax = "every-weekday"
+display = "@every-weekday"
+scopes = ["entry"]
+help = "Recurring Monday-Friday"
+readme = "Recurring Monday through Friday."
+completion_hint = "Recurring Monday through Friday."
+
+[[date_value]]
 syntax = "every-[mon-sun]"
 display = "@every-[mon-sun]"
 values = ["every-mon", "every-tue", "every-wed", "every-thu", "every-fri", "every-sat", "every-sun"]

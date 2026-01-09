@@ -1,0 +1,17 @@
+# Documentation-only entries for help overlay and README
+# These are not filters or keybindings, just reference information
+
+[[help_entry]]
+section = "date_syntax"
+key = "Dates"
+description = "MM/DD, MM/DD/YY, MM/DD/YYYY, YYYY/MM/DD"
+
+[[help_entry]]
+section = "date_syntax"
+key = "Relative"
+description = "today, tomorrow, yesterday, [mon-sun], d[1-999] (+/- for direction)"
+
+[[help_entry]]
+section = "date_syntax"
+key = "Recurring"
+description = "every-[mon-sun], every-[1-31], every-day, every-weekday"

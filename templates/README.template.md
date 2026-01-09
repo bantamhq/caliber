@@ -279,6 +279,10 @@ Press `+` to open the project switcher.
 
 <!-- GENERATED:FILTER_SYNTAX -->
 
+### Date Syntax
+
+<!-- GENERATED:DATE_SYNTAX -->
+
 ## Journal Format
 
 Caliber uses a markdown-compatible format:

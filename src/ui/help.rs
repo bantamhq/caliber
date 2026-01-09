@@ -5,7 +5,8 @@ use ratatui::{
 
 use crate::dispatch::Keymap;
 use crate::registry::{
-    COMMANDS, FILTER_SYNTAX, FilterCategory, HelpSection, KeyAction, KeyContext, help_section_keys,
+    COMMANDS, FILTER_SYNTAX, FilterCategory, HelpSection, KeyAction, KeyContext,
+    help_entries_for_section, help_section_keys,
 };
 
 use super::shared::format_key_for_display;
@@ -83,18 +84,12 @@ fn build_help_lines(keymap: &Keymap) -> Vec<RatatuiLine<'static>> {
             desc_style,
         ));
     }
-    lines.push(help_line(
-        "Dates:",
-        "MM/DD, MM/DD/YY, YYYY/MM/DD",
-        key_style,
-        desc_style,
-    ));
-    lines.push(help_line(
-        "Relative:",
-        "today, tomorrow, yesterday, mon..sun, d1..d999 (+ for future)",
-        key_style,
-        desc_style,
-    ));
+    lines.push(RatatuiLine::from(""));
+
+    lines.push(section_header("[Date Syntax]", &header_indent, header_style));
+    for entry in help_entries_for_section("date_syntax") {
+        lines.push(help_line(entry.key, entry.description, key_style, desc_style));
+    }
 
     lines
 }

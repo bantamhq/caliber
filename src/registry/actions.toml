@@ -354,7 +354,7 @@ default_keys = ["S-tab"]
 contexts = ["edit"]
 help_sections = ["edit"]
 footer = { modes = ["edit"], text = "Type" }
-help = "Toggle entry type"
+help = "Cycle entry type"
 readme = "Cycle through entry types (task, note, event)"
 
 [[action]]

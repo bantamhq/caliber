@@ -81,6 +81,18 @@ struct DateValueDef {
     completion_hint: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct HelpEntriesFile {
+    help_entry: Vec<HelpEntryDef>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelpEntryDef {
+    section: String,
+    key: String,
+    description: String,
+}
+
 const VALID_CONTEXTS: &[&str] = &[
     "shared_normal",
     "daily_normal",
@@ -658,6 +670,32 @@ fn generate_date_values_code(date_values: &[DateValueDef]) -> String {
     code
 }
 
+fn generate_help_entries_code(entries: &[HelpEntryDef]) -> String {
+    let mut code = String::new();
+
+    code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    code.push_str("pub struct HelpEntry {\n");
+    code.push_str("    pub section: &'static str,\n");
+    code.push_str("    pub key: &'static str,\n");
+    code.push_str("    pub description: &'static str,\n");
+    code.push_str("}\n\n");
+
+    code.push_str("pub static HELP_ENTRIES: &[HelpEntry] = &[\n");
+    for entry in entries {
+        code.push_str(&format!(
+            "    HelpEntry {{ section: \"{}\", key: \"{}\", description: \"{}\" }},\n",
+            entry.section, entry.key, entry.description
+        ));
+    }
+    code.push_str("];\n\n");
+
+    code.push_str("pub fn help_entries_for_section(section: &str) -> impl Iterator<Item = &'static HelpEntry> {\n");
+    code.push_str("    HELP_ENTRIES.iter().filter(move |e| e.section == section)\n");
+    code.push_str("}\n");
+
+    code
+}
+
 fn format_keys_display(action: &ActionDef) -> String {
     let format_single = |k: &str| {
         let display = format_key_for_display(k);
@@ -732,11 +770,24 @@ fn generate_filter_syntax_table(filters: &[FilterDef]) -> String {
     table
 }
 
+fn generate_help_entries_table(entries: &[HelpEntryDef], section: &str) -> String {
+    let mut table = String::from("| Type | Syntax |\n|------|--------|");
+
+    for entry in entries {
+        if entry.section == section {
+            table.push_str(&format!("\n| {} | {} |", entry.key, entry.description));
+        }
+    }
+
+    table
+}
+
 fn generate_readme(
     manifest_dir: &Path,
     actions: &[ActionDef],
     commands: &[CommandDef],
     filters: &[FilterDef],
+    help_entries: &[HelpEntryDef],
 ) {
     let template_path = manifest_dir.join("templates/README.template.md");
     let readme_path = manifest_dir.join("README.md");
@@ -758,6 +809,7 @@ fn generate_readme(
     let filter_table = generate_keys_table_by_section(actions, "filter");
     let commands_table = generate_commands_table(commands);
     let filter_syntax_table = generate_filter_syntax_table(filters);
+    let date_syntax_table = generate_help_entries_table(help_entries, "date_syntax");
 
     let readme = template
         .replace("<!-- GENERATED:DAILY_KEYS -->", &daily_table)
@@ -768,7 +820,8 @@ fn generate_readme(
         .replace("<!-- GENERATED:SELECTION_KEYS -->", &selection_table)
         .replace("<!-- GENERATED:FILTER_KEYS -->", &filter_table)
         .replace("<!-- GENERATED:COMMANDS -->", &commands_table)
-        .replace("<!-- GENERATED:FILTER_SYNTAX -->", &filter_syntax_table);
+        .replace("<!-- GENERATED:FILTER_SYNTAX -->", &filter_syntax_table)
+        .replace("<!-- GENERATED:DATE_SYNTAX -->", &date_syntax_table);
 
     let readme = format!(
         "<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. Edit /templates/README.template.md instead. -->\n\n{}",
@@ -789,6 +842,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/registry/commands.toml");
     println!("cargo:rerun-if-changed=src/registry/filters.toml");
     println!("cargo:rerun-if-changed=src/registry/date_values.toml");
+    println!("cargo:rerun-if-changed=src/registry/help_entries.toml");
 
     let actions_toml =
         fs::read_to_string(registry_dir.join("actions.toml")).expect("Failed to read actions.toml");
@@ -798,6 +852,8 @@ fn main() {
         fs::read_to_string(registry_dir.join("filters.toml")).expect("Failed to read filters.toml");
     let date_values_toml = fs::read_to_string(registry_dir.join("date_values.toml"))
         .expect("Failed to read date_values.toml");
+    let help_entries_toml = fs::read_to_string(registry_dir.join("help_entries.toml"))
+        .expect("Failed to read help_entries.toml");
 
     let actions: ActionsFile = toml::from_str(&actions_toml).expect("Failed to parse actions.toml");
     let commands: CommandsFile =
@@ -805,6 +861,8 @@ fn main() {
     let filters: FiltersFile = toml::from_str(&filters_toml).expect("Failed to parse filters.toml");
     let date_values: DateValuesFile =
         toml::from_str(&date_values_toml).expect("Failed to parse date_values.toml");
+    let help_entries: HelpEntriesFile =
+        toml::from_str(&help_entries_toml).expect("Failed to parse help_entries.toml");
 
     validate_actions(&actions.action);
     validate_date_values(&date_values.date_value);
@@ -818,6 +876,8 @@ fn main() {
     code.push_str(&generate_filters_code(&filters.filter));
     code.push('\n');
     code.push_str(&generate_date_values_code(&date_values.date_value));
+    code.push('\n');
+    code.push_str(&generate_help_entries_code(&help_entries.help_entry));
 
     fs::write(&out_path, code).expect("Failed to write generated code");
 
@@ -826,5 +886,6 @@ fn main() {
         &actions.action,
         &commands.command,
         &filters.filter,
+        &help_entries.help_entry,
     );
 }

@@ -315,7 +315,7 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `Enter` | Save and exit |
 | `Tab` | Autocomplete hint |
 | `↓` | Save and new |
-| `Shift+tab` | Toggle entry type |
+| `Shift+tab` | Cycle entry type |
 | `Esc` | Cancel |
 
 
@@ -414,6 +414,14 @@ Press `+` to open the project switcher.
 | `#tag` | Entries with tag |
 | `$name` | Saved filter |
 | `word` | Entries containing text |
+
+### Date Syntax
+
+| Type | Syntax |
+|------|--------|
+| Dates | MM/DD, MM/DD/YY, MM/DD/YYYY, YYYY/MM/DD |
+| Relative | today, tomorrow, yesterday, [mon-sun], d[1-999] (+/- for direction) |
+| Recurring | every-[mon-sun], every-[1-31], every-day, every-weekday |
 
 ## Journal Format
 
