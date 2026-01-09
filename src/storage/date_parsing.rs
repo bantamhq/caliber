@@ -3,9 +3,9 @@ use chrono::{Days, NaiveDate};
 /// Context for date parsing, determining default behavior for relative dates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseContext {
-    /// Entry context: future bias, reject `-`, ignore `+`
+    /// Entry context: future bias by default, `+/-` allowed for explicit direction
     Entry,
-    /// Filter context: past bias, `+/-` allowed for explicit direction
+    /// Filter context: past bias by default, `+/-` allowed for explicit direction
     Filter,
     /// Interface context: same as Filter (past bias, `+/-` allowed)
     Interface,
@@ -91,11 +91,8 @@ pub fn parse_relative_date(input: &str, today: NaiveDate, ctx: ParseContext) -> 
     // Determine final direction based on context and explicit markers
     let is_future = match ctx {
         ParseContext::Entry => {
-            // Entry: reject `-`, ignore `+`, always future
-            if explicit_past {
-                return None;
-            }
-            true
+            // Entry: default future, but respect explicit `-` for past
+            !explicit_past
         }
         ParseContext::Filter | ParseContext::Interface => {
             // Filter/Interface: default past, respect explicit markers
@@ -228,10 +225,10 @@ mod tests {
     }
 
     #[test]
-    fn entry_context_ignores_plus() {
+    fn entry_context_explicit_future() {
         let today = test_date(2026, 1, 15);
 
-        // d7+ in Entry context = same as d7 (+ ignored)
+        // d7+ in Entry context = same as d7 (still future)
         assert_eq!(
             parse_relative_date("d7+", today, ParseContext::Entry),
             Some(test_date(2026, 1, 22))
@@ -239,11 +236,20 @@ mod tests {
     }
 
     #[test]
-    fn entry_context_rejects_minus() {
+    fn entry_context_explicit_past() {
         let today = test_date(2026, 1, 15);
 
-        // d7- in Entry context = None (rejected)
-        assert_eq!(parse_relative_date("d7-", today, ParseContext::Entry), None);
+        // d7- in Entry context = 7 days in past (now allowed)
+        assert_eq!(
+            parse_relative_date("d7-", today, ParseContext::Entry),
+            Some(test_date(2026, 1, 8))
+        );
+
+        // mon- in Entry context = last Monday
+        assert_eq!(
+            parse_relative_date("mon-", today, ParseContext::Entry),
+            Some(test_date(2026, 1, 12))
+        );
     }
 
     #[test]

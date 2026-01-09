@@ -72,6 +72,10 @@ struct DateValueDef {
     syntax: String,
     display: String,
     scopes: Vec<String>,
+    #[serde(default)]
+    values: Option<Vec<String>>,
+    #[serde(default)]
+    pattern: Option<String>,
     help: String,
     readme: String,
     completion_hint: String,
@@ -606,6 +610,10 @@ fn generate_date_values_code(date_values: &[DateValueDef]) -> String {
     code.push_str("    pub syntax: &'static str,\n");
     code.push_str("    pub display: &'static str,\n");
     code.push_str("    pub scopes: &'static [DateScope],\n");
+    code.push_str("    /// Enumerated valid values (for grouped hints like weekdays)\n");
+    code.push_str("    pub values: Option<&'static [&'static str]>,\n");
+    code.push_str("    /// Regex pattern for validation (for pattern-based hints like d[1-999])\n");
+    code.push_str("    pub pattern: Option<&'static str>,\n");
     code.push_str("    pub help: &'static str,\n");
     code.push_str("    pub readme: &'static str,\n");
     code.push_str("    pub completion_hint: &'static str,\n");
@@ -618,11 +626,24 @@ fn generate_date_values_code(date_values: &[DateValueDef]) -> String {
             .iter()
             .map(|s| format!("DateScope::{}", to_pascal_case(s)))
             .collect();
+        let values_str = match &dv.values {
+            Some(vals) => {
+                let quoted: Vec<String> = vals.iter().map(|v| format!(r#""{v}""#)).collect();
+                format!("Some(&[{}])", quoted.join(", "))
+            }
+            None => "None".to_string(),
+        };
+        let pattern_str = match &dv.pattern {
+            Some(p) => format!("Some(r#\"{}\"#)", p),
+            None => "None".to_string(),
+        };
         code.push_str(&format!(
-            "    DateValue {{\n        syntax: r#\"{}\"#,\n        display: r#\"{}\"#,\n        scopes: &[{}],\n        help: r#\"{}\"#,\n        readme: r#\"{}\"#,\n        completion_hint: r#\"{}\"#,\n    }},\n",
+            "    DateValue {{\n        syntax: r#\"{}\"#,\n        display: r#\"{}\"#,\n        scopes: &[{}],\n        values: {},\n        pattern: {},\n        help: r#\"{}\"#,\n        readme: r#\"{}\"#,\n        completion_hint: r#\"{}\"#,\n    }},\n",
             dv.syntax,
             dv.display,
             scopes_str.join(", "),
+            values_str,
+            pattern_str,
             dv.help,
             dv.readme,
             dv.completion_hint

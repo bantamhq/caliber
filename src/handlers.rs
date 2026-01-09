@@ -3,8 +3,8 @@ use std::io;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::{
-    App, ConfirmContext, HintContext, InputMode, InsertPosition, InterfaceContext, PromptContext,
-    SelectedItem, ViewMode,
+    App, ConfirmContext, InputMode, InsertPosition, InterfaceContext, PromptContext, SelectedItem,
+    ViewMode,
 };
 use crate::cursor::CursorBuffer;
 use crate::dispatch::KeySpec;
@@ -180,7 +180,8 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         | AppendFavoriteTag
         | SelectionAppendTag
         | DateInterfaceFooterNavMonth
-        | DateInterfaceFooterNavYear => {}
+        | DateInterfaceFooterNavYear
+        | Autocomplete => {}
     }
     Ok(true)
 }
@@ -196,7 +197,7 @@ pub fn handle_help_key(app: &mut App, key: KeyEvent) {
 ///
 /// Autocomplete behavior differs by key:
 /// - Enter: autocomplete, then submit (unless input ends with `:`)
-/// - Right: autocomplete, then add space (unless input ends with `:`)
+/// - Tab: autocomplete, then add space (unless input ends with `:`)
 pub fn handle_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
     let is_command = matches!(app.input_mode, InputMode::Prompt(PromptContext::Command { .. }));
 
@@ -214,6 +215,15 @@ pub fn handle_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
                 }
             }
         }
+        KeyCode::Tab => {
+            app.accept_hint();
+            if !app.input_needs_continuation()
+                && let Some(buffer) = app.prompt_buffer_mut()
+            {
+                buffer.insert_char(' ');
+            }
+            app.update_hints();
+        }
         KeyCode::Esc => {
             app.clear_hints();
             app.exit_prompt();
@@ -221,24 +231,6 @@ pub fn handle_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
         KeyCode::Backspace if app.prompt_is_empty() => {
             app.clear_hints();
             app.exit_prompt();
-        }
-        KeyCode::Right
-            if !matches!(
-                app.hint_state,
-                HintContext::Inactive | HintContext::Commands { .. }
-            ) =>
-        {
-            if app.accept_hint() {
-                if !app.input_needs_continuation()
-                    && let Some(buffer) = app.prompt_buffer_mut()
-                {
-                    buffer.insert_char(' ');
-                }
-                app.update_hints();
-            } else if let Some(buffer) = app.prompt_buffer_mut() {
-                handle_text_input(buffer, key);
-                app.update_hints();
-            }
         }
         _ => {
             if let Some(buffer) = app.prompt_buffer_mut() {
@@ -289,27 +281,28 @@ pub fn handle_edit_key(app: &mut App, key: KeyEvent) {
             return;
         }
         KeyCode::Tab => {
-            app.clear_hints();
-            app.commit_and_add_new();
+            app.accept_hint();
+            // Always add space in edit mode (colon continuation only applies to prompts)
+            if let Some(ref mut buffer) = app.edit_buffer {
+                buffer.insert_char(' ');
+            }
+            app.update_hints();
             return;
         }
         KeyCode::Enter => {
+            app.accept_hint();
             app.clear_hints();
             app.exit_edit();
+            return;
+        }
+        KeyCode::Down => {
+            app.clear_hints();
+            app.commit_and_add_new();
             return;
         }
         KeyCode::Esc => {
             app.clear_hints();
             app.cancel_edit();
-            return;
-        }
-        KeyCode::Right if !matches!(app.hint_state, HintContext::Inactive) => {
-            if !app.accept_hint()
-                && let Some(ref mut buffer) = app.edit_buffer
-            {
-                handle_text_input(buffer, key);
-                app.update_hints();
-            }
             return;
         }
         _ => {}

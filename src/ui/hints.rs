@@ -43,102 +43,45 @@ pub fn render_hint_overlay(f: &mut Frame, hint_state: &HintContext, footer_area:
     true
 }
 
-/// Get the effective hint context for rendering (unwraps Negation)
-fn effective_context(hint_state: &HintContext) -> &HintContext {
-    match hint_state {
-        HintContext::Negation { inner } => inner.as_ref(),
-        _ => hint_state,
+fn build_guidance_lines(message: &str, max_rows: usize) -> Vec<Line<'static>> {
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    for _ in 0..max_rows.saturating_sub(1) {
+        lines.push(Line::from(""));
     }
+    lines.push(Line::from(Span::styled(
+        message.to_string(),
+        Style::default().fg(Color::Gray).italic(),
+    )));
+    lines
 }
 
 fn build_hint_lines(hint_state: &HintContext, width: usize, max_rows: usize) -> Vec<Line<'static>> {
     let is_negation = matches!(hint_state, HintContext::Negation { .. });
     let negation_prefix = if is_negation { "not:" } else { "" };
-    let effective = effective_context(hint_state);
 
-    if let HintContext::GuidanceMessage { message } = effective {
-        let mut lines: Vec<Line<'static>> = Vec::new();
-        for _ in 0..max_rows.saturating_sub(1) {
-            lines.push(Line::from(""));
-        }
-        lines.push(Line::from(Span::styled(
-            (*message).to_string(),
-            Style::default().fg(Color::Gray).italic(),
-        )));
-        return lines;
+    if let HintContext::GuidanceMessage { message } = hint_state {
+        return build_guidance_lines(message, max_rows);
+    }
+    if let HintContext::Negation { inner } = hint_state
+        && let HintContext::GuidanceMessage { message } = inner.as_ref()
+    {
+        return build_guidance_lines(message, max_rows);
     }
 
-    let description: Option<&str> = match effective {
-        HintContext::Commands { prefix, matches } if !prefix.is_empty() => {
-            matches.first().map(|c| c.completion_hint)
-        }
-        HintContext::FilterTypes { prefix, matches } if !prefix.is_empty() => {
-            matches.first().map(|f| f.completion_hint)
-        }
-        HintContext::DateOps { prefix, matches } if !prefix.is_empty() => {
-            matches.first().map(|f| f.completion_hint)
-        }
-        HintContext::DateValues {
-            prefix, matches, ..
-        } if !prefix.is_empty() => matches.first().map(|dv| dv.completion_hint),
-        HintContext::DateValues { .. } => Some("Dates default to past. Append + for future."),
-        _ => None,
-    };
-
-    let hint_color = match effective {
-        HintContext::Tags { .. } => Color::Yellow,
-        HintContext::Commands { .. } => Color::Blue,
-        HintContext::FilterTypes { .. }
-        | HintContext::DateOps { .. }
-        | HintContext::DateValues { .. }
-        | HintContext::SavedFilters { .. } => Color::Magenta,
-        HintContext::Inactive
-        | HintContext::GuidanceMessage { .. }
-        | HintContext::Negation { .. } => {
-            return vec![];
-        }
-    };
-
-    let items: Vec<String> = match effective {
-        HintContext::Inactive
-        | HintContext::GuidanceMessage { .. }
-        | HintContext::Negation { .. } => {
-            return vec![];
-        }
-        HintContext::Tags { matches, .. } => matches
-            .iter()
-            .map(|t| format!("{}#{t}", negation_prefix))
-            .collect(),
-        HintContext::Commands { matches, .. } => {
-            matches.iter().map(|cmd| format!(":{}", cmd.name)).collect()
-        }
-        HintContext::FilterTypes { matches, .. } => matches
-            .iter()
-            .map(|f| format!("{}{}", negation_prefix, f.syntax))
-            .collect(),
-        HintContext::DateOps { matches, .. } => matches
-            .iter()
-            .map(|f| format!("{}{}", negation_prefix, f.syntax))
-            .collect(),
-        HintContext::DateValues { matches, .. } => {
-            matches.iter().map(|dv| dv.syntax.to_string()).collect()
-        }
-        HintContext::SavedFilters { matches, .. } => matches
-            .iter()
-            .map(|f| format!("{}${f}", negation_prefix))
-            .collect(),
-    };
+    let description = hint_state.description();
+    let hint_color = hint_state.color();
+    let items = hint_state.display_items(negation_prefix);
 
     let num_cols = width / COLUMN_WIDTH;
+    if hint_color == Color::Reset || items.is_empty() || max_rows == 0 || num_cols == 0 {
+        return vec![];
+    }
+
     let hint_rows = if description.is_some() {
         max_rows.saturating_sub(1)
     } else {
         max_rows
     };
-
-    if items.is_empty() || max_rows == 0 || num_cols == 0 {
-        return vec![];
-    }
 
     let mut lines: Vec<Line<'static>> = Vec::new();
 

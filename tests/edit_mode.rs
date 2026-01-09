@@ -97,12 +97,12 @@ fn ctrl_k_deletes_to_line_end() {
 }
 
 #[test]
-fn tab_saves_and_starts_new_entry() {
+fn down_saves_and_starts_new_entry() {
     let mut ctx = TestContext::new();
 
     ctx.press(KeyCode::Enter);
     ctx.type_str("First entry");
-    ctx.press(KeyCode::Tab);
+    ctx.press(KeyCode::Down);
 
     assert!(matches!(ctx.app.input_mode, InputMode::Edit(_)));
 

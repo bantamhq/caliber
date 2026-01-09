@@ -313,7 +313,8 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | Key | Action |
 |-----|--------|
 | `Enter` | Save and exit |
-| `Tab` | Save and new |
+| `Tab` | Autocomplete hint |
+| `↓` | Save and new |
 | `Shift+Tab` | Toggle entry type |
 | `Esc` | Cancel |
 

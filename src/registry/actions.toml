@@ -331,8 +331,17 @@ help = "Save and exit"
 readme = "Save the entry and exit edit mode"
 
 [[action]]
-key_action_id = "save_and_new"
+key_action_id = "autocomplete"
 default_keys = ["tab"]
+contexts = ["edit"]
+help_sections = ["edit"]
+footer = { modes = ["edit"], text = "Complete" }
+help = "Autocomplete hint"
+readme = "Accept the current autocomplete hint and continue editing"
+
+[[action]]
+key_action_id = "save_and_new"
+default_keys = ["down"]
 contexts = ["edit"]
 help_sections = ["edit"]
 footer = { modes = ["edit"], text = "Save+new" }
