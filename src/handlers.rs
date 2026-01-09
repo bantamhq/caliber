@@ -530,9 +530,9 @@ fn handle_project_interface_key(app: &mut App, key: KeyEvent) -> io::Result<()> 
         return Ok(());
     }
 
-    // Handle text input for filtering
+    // Handle text input for filtering (only alphanumeric, underscore, hyphen, space)
     match key.code {
-        KeyCode::Char(c) => {
+        KeyCode::Char(c) if c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ' => {
             let InputMode::Interface(InterfaceContext::Project(ref mut state)) = app.input_mode
             else {
                 return Ok(());
