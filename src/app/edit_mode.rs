@@ -265,8 +265,7 @@ impl App {
         }
     }
 
-    /// Cancel edit mode without saving (Esc)
-    pub fn cancel_edit(&mut self) {
+    pub fn cancel_edit_mode(&mut self) {
         self.edit_buffer = None;
         self.original_edit_content = None;
 

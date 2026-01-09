@@ -32,8 +32,7 @@ impl App {
         }
     }
 
-    /// Exit selection mode, returning to Normal
-    pub fn exit_selection_mode(&mut self) {
+    pub fn cancel_selection_mode(&mut self) {
         self.input_mode = InputMode::Normal;
     }
 
@@ -284,13 +283,13 @@ impl App {
 
         let targets = self.collect_delete_targets_from_selected();
         if targets.is_empty() {
-            self.exit_selection_mode();
+            self.cancel_selection_mode();
             return Ok(());
         }
 
         let action = super::actions::DeleteEntries::new(targets);
         self.execute_action(Box::new(action))?;
-        self.exit_selection_mode();
+        self.cancel_selection_mode();
         Ok(())
     }
 

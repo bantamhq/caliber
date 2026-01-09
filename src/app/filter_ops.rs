@@ -64,7 +64,7 @@ impl App {
         self.input_mode = InputMode::Normal;
     }
 
-    pub fn exit_filter(&mut self) {
+    pub fn cancel_filter(&mut self) {
         if let ViewMode::Filter(state) = &self.view {
             self.last_filter_query = Some(state.query.clone());
         }

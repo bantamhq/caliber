@@ -103,6 +103,8 @@ const VALID_CONTEXTS: &[&str] = &[
     "help",
     "date_interface",
     "project_interface",
+    "command_prompt",
+    "filter_prompt",
 ];
 
 const VALID_HELP_SECTIONS: &[&str] = &[

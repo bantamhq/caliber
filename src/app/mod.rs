@@ -710,18 +710,15 @@ impl App {
         self.input_mode = InputMode::Prompt(PromptContext::Filter { buffer });
     }
 
-    /// Exit prompt mode and return to normal
-    pub fn exit_prompt(&mut self) {
+    pub fn cancel_prompt(&mut self) {
         self.input_mode = InputMode::Normal;
     }
 
-    /// Open the project interface
     pub fn open_project_interface(&mut self) {
         self.input_mode =
             InputMode::Interface(InterfaceContext::Project(ProjectInterfaceState::new()));
     }
 
-    /// Move selection up in project interface
     pub fn project_interface_move_up(&mut self) {
         let InputMode::Interface(InterfaceContext::Project(ref mut state)) = self.input_mode else {
             return;
@@ -729,7 +726,6 @@ impl App {
         state.selected = state.selected.saturating_sub(1);
     }
 
-    /// Move selection down in project interface
     pub fn project_interface_move_down(&mut self) {
         let InputMode::Interface(InterfaceContext::Project(ref mut state)) = self.input_mode else {
             return;
@@ -739,7 +735,6 @@ impl App {
         }
     }
 
-    /// Select the current project in the interface
     pub fn project_interface_select(&mut self) -> std::io::Result<()> {
         let project_info = {
             let InputMode::Interface(InterfaceContext::Project(ref state)) = self.input_mode else {
@@ -763,8 +758,7 @@ impl App {
         Ok(())
     }
 
-    /// Close the current interface and return to normal
-    pub fn close_interface(&mut self) {
+    pub fn cancel_interface(&mut self) {
         self.input_mode = InputMode::Normal;
     }
 }

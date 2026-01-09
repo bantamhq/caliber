@@ -111,6 +111,7 @@ help_sections = ["daily", "filter"]
 help = "Remove all tags"
 readme = "Remove all trailing tags from the selected entry"
 
+# Documentation-only: handled by direct key logic, not keymap dispatch.
 [[action]]
 key_action_id = "quick_filter_tag"
 default_keys = ["0-9"]
@@ -119,6 +120,7 @@ help_sections = ["daily", "filter"]
 help = "Filter favorite tag"
 readme = "Quick filter by favorite tag (configured in config.toml)"
 
+# Documentation-only: handled by direct key logic, not keymap dispatch.
 [[action]]
 key_action_id = "append_favorite_tag"
 default_keys = ["S-0-9"]
@@ -230,12 +232,12 @@ readme = "Enter selection mode for multi-entry operations"
 # --- Mode Switching ---
 
 [[action]]
-key_action_id = "return_to_filter"
+key_action_id = "toggle_filter"
 default_keys = ["tab"]
-contexts = ["daily_normal"]
-help_sections = ["daily"]
-help = "Return to filter"
-readme = "Return to the previous filter view"
+contexts = ["daily_normal", "filter_normal"]
+help_sections = ["daily", "filter"]
+help = "Toggle filter view"
+readme = "Toggle between daily view and filter view"
 
 [[action]]
 key_action_id = "toggle_journal"
@@ -246,46 +248,46 @@ help = "Toggle Hub/Project journal"
 readme = "Switch between Hub and Project journal"
 
 [[action]]
-key_action_id = "enter_filter_mode"
+key_action_id = "toggle_filter_prompt"
 default_keys = ["/"]
-contexts = ["shared_normal"]
+contexts = ["shared_normal", "filter_prompt"]
 help_sections = ["daily", "filter"]
 footer = { modes = ["normal_daily"], text = "Filter" }
 help = "Filter mode"
-readme = "Enter filter mode to search entries"
+readme = "Toggle filter mode to search entries"
 
 [[action]]
-key_action_id = "enter_command_mode"
+key_action_id = "toggle_command_prompt"
 default_keys = [":"]
-contexts = ["shared_normal"]
+contexts = ["shared_normal", "command_prompt"]
 help_sections = ["daily", "filter"]
 help = "Command mode"
-readme = "Enter command mode for :quit, :project, etc."
+readme = "Toggle command mode for :quit, :project, etc."
 
 [[action]]
-key_action_id = "show_help"
+key_action_id = "toggle_help"
 default_keys = ["?"]
-contexts = ["shared_normal"]
+contexts = ["shared_normal", "help"]
 help_sections = ["daily", "filter"]
 footer = { modes = ["normal_daily", "normal_filter"], text = "Help" }
-help = "Show help"
-readme = "Display the help overlay with all keybindings"
+help = "Toggle help"
+readme = "Toggle the help overlay"
 
 [[action]]
-key_action_id = "open_date_interface"
+key_action_id = "toggle_date_interface"
 default_keys = ["\\"]
-contexts = ["shared_normal"]
+contexts = ["shared_normal", "date_interface"]
 help_sections = ["daily", "filter"]
-help = "Open date interface"
-readme = "Open the date interface to navigate to a specific date"
+help = "Toggle date interface"
+readme = "Toggle the date interface for date navigation"
 
 [[action]]
-key_action_id = "open_project_interface"
+key_action_id = "toggle_project_interface"
 default_keys = ["."]
-contexts = ["shared_normal"]
+contexts = ["shared_normal", "project_interface"]
 help_sections = ["daily", "filter"]
-help = "Open project interface"
-readme = "Open the project interface to switch between registered projects"
+help = "Toggle project interface"
+readme = "Toggle the project interface for switching projects"
 
 # =============================================================================
 # Filter Normal Mode
@@ -307,15 +309,6 @@ help_sections = ["filter"]
 footer = { modes = ["normal_filter"], text = "Refresh" }
 help = "Refresh results"
 readme = "Refresh the filter results"
-
-[[action]]
-key_action_id = "exit_filter"
-default_keys = ["esc", "tab"]
-contexts = ["filter_normal"]
-help_sections = ["filter"]
-footer = { modes = ["normal_filter"], text = "Exit" }
-help = "Exit to daily"
-readme = "Exit filter view and return to daily view"
 
 # =============================================================================
 # Edit Mode
@@ -339,6 +332,7 @@ footer = { modes = ["edit"], text = "Save+new" }
 help = "Save and new"
 readme = "Save the current entry and create a new one"
 
+# Documentation-only: handled by direct key logic, not keymap dispatch.
 [[action]]
 key_action_id = "autocomplete"
 default_keys = ["tab"]
@@ -356,15 +350,6 @@ help_sections = ["edit"]
 footer = { modes = ["edit"], text = "Type" }
 help = "Cycle entry type"
 readme = "Cycle through entry types (task, note, event)"
-
-[[action]]
-key_action_id = "cancel_edit"
-default_keys = ["esc"]
-contexts = ["edit"]
-help_sections = ["edit"]
-footer = { modes = ["edit"], text = "Cancel" }
-help = "Cancel"
-readme = "Cancel editing without saving"
 
 # =============================================================================
 # Reorder Mode
@@ -395,15 +380,6 @@ help_sections = ["reorder"]
 footer = { modes = ["reorder"], text = "Save" }
 help = "Save"
 readme = "Save the new order"
-
-[[action]]
-key_action_id = "reorder_cancel"
-default_keys = ["esc"]
-contexts = ["reorder"]
-help_sections = ["reorder"]
-footer = { modes = ["reorder"], text = "Cancel" }
-help = "Cancel"
-readme = "Cancel reordering and restore original order"
 
 # =============================================================================
 # Selection Mode
@@ -501,6 +477,7 @@ help_sections = ["selection"]
 help = "Remove all tags"
 readme = "Remove all trailing tags from all selected entries"
 
+# Documentation-only: handled by direct key logic, not keymap dispatch.
 [[action]]
 key_action_id = "selection_append_tag"
 default_keys = ["S-0-9"]
@@ -516,15 +493,6 @@ contexts = ["selection"]
 help_sections = ["selection"]
 help = "Cycle entry type"
 readme = "Cycle through entry types on all selected entries"
-
-[[action]]
-key_action_id = "selection_exit"
-default_keys = ["esc"]
-contexts = ["selection"]
-help_sections = ["selection"]
-footer = { modes = ["selection"], text = "Exit" }
-help = "Exit selection"
-readme = "Exit selection mode and return to normal mode"
 
 # =============================================================================
 # Help Popup
@@ -545,14 +513,6 @@ contexts = ["help"]
 help_sections = ["help"]
 help = "Scroll up"
 readme = "Scroll the help content up"
-
-[[action]]
-key_action_id = "close_help"
-default_keys = ["esc", "?"]
-contexts = ["help"]
-help_sections = ["help"]
-help = "Close help"
-readme = "Close the help overlay"
 
 # =============================================================================
 # Date Interface Mode
@@ -642,15 +602,6 @@ help_sections = ["date"]
 help = "Navigate to date"
 readme = "Navigate to the selected date"
 
-[[action]]
-key_action_id = "date_interface_cancel"
-default_keys = ["esc", "\\", "backspace"]
-contexts = ["date_interface"]
-help_sections = ["date"]
-help = "Close date interface"
-readme = "Close date interface without navigating"
-
-
 # =============================================================================
 # Project Interface Mode
 # =============================================================================
@@ -680,11 +631,15 @@ footer = { modes = ["project_interface"], text = "Select" }
 help = "Open project"
 readme = "Open the selected project journal"
 
+# =============================================================================
+# Unified Cancel Action
+# =============================================================================
+
 [[action]]
-key_action_id = "project_interface_cancel"
-default_keys = ["esc", "."]
-contexts = ["project_interface"]
-help_sections = ["project"]
-footer = { modes = ["project_interface"], text = "Close" }
-help = "Close project interface"
-readme = "Close project interface without switching"
+key_action_id = "cancel"
+default_keys = ["esc"]
+contexts = ["edit", "reorder", "selection", "filter_normal", "filter_prompt", "command_prompt", "date_interface", "project_interface", "help"]
+help_sections = ["edit", "reorder", "selection", "filter", "date", "project"]
+footer = { modes = ["edit", "reorder", "selection", "normal_filter", "date_interface", "project_interface"], text = "Cancel" }
+help = "Cancel"
+readme = "Cancel the current operation and return to normal mode"

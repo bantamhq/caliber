@@ -17,13 +17,22 @@ impl App {
         }
     }
 
-    pub fn exit_reorder_mode(&mut self, save: bool) {
+    pub fn save_reorder_mode(&mut self) {
         if !matches!(self.view, ViewMode::Daily(_)) {
             return;
         }
-        if save {
-            self.save();
-        } else if let ViewMode::Daily(state) = &mut self.view
+        self.save();
+        if let ViewMode::Daily(state) = &mut self.view {
+            state.original_lines = None;
+        }
+        self.input_mode = InputMode::Normal;
+    }
+
+    pub fn cancel_reorder_mode(&mut self) {
+        if !matches!(self.view, ViewMode::Daily(_)) {
+            return;
+        }
+        if let ViewMode::Daily(state) = &mut self.view
             && let Some(original) = state.original_lines.take()
         {
             self.lines = original;

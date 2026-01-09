@@ -267,13 +267,13 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `T` | Tidy entries |
 | `r` | Reorder mode |
 | `v` | Selection mode |
-| `Tab` | Return to filter |
+| `Tab` | Toggle filter view |
 | `` ` `` | Toggle Hub/Project journal |
 | `/` | Filter mode |
 | `:` | Command mode |
-| `?` | Show help |
-| `\` | Open date interface |
-| `.` | Open project interface |
+| `?` | Toggle help |
+| `\` | Toggle date interface |
+| `.` | Toggle project interface |
 
 
 ### Filter Mode
@@ -297,15 +297,16 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `g` | Jump to first |
 | `G` | Jump to last |
 | `v` | Selection mode |
+| `Tab` | Toggle filter view |
 | `` ` `` | Toggle Hub/Project journal |
 | `/` | Filter mode |
 | `:` | Command mode |
-| `?` | Show help |
-| `\` | Open date interface |
-| `.` | Open project interface |
+| `?` | Toggle help |
+| `\` | Toggle date interface |
+| `.` | Toggle project interface |
 | `Enter` | Quick add to today |
 | `r` | Refresh results |
-| `Esc`/`Tab` | Exit to daily |
+| `Esc` | Cancel |
 
 
 ### Edit Mode
@@ -350,7 +351,7 @@ Press `v` for batch operations on multiple entries.
 | `X` | Remove all tags |
 | `Shift+0-9` | Append favorite tag |
 | `Shift+Tab` | Cycle entry type |
-| `Esc` | Exit selection |
+| `Esc` | Cancel |
 
 
 ### Date Interface
@@ -369,7 +370,7 @@ Press `\` to open the calendar interface.
 | `y` | Next year |
 | `t` | Jump to today |
 | `Enter` | Navigate to date |
-| `Esc`/`\`/`Bksp` | Close date interface |
+| `Esc` | Cancel |
 
 
 ### Project Interface
@@ -381,7 +382,7 @@ Press `+` to open the project switcher.
 | `↑` | Previous project |
 | `↓` | Next project |
 | `Enter` | Open project |
-| `Esc`/`.` | Close project interface |
+| `Esc` | Cancel |
 
 
 ### Commands

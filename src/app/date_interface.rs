@@ -18,10 +18,6 @@ impl App {
         self.input_mode = InputMode::Interface(InterfaceContext::Date(state));
     }
 
-    pub fn close_date_interface(&mut self) {
-        self.input_mode = InputMode::Normal;
-    }
-
     pub fn confirm_date_interface(&mut self) -> io::Result<()> {
         let InputMode::Interface(InterfaceContext::Date(state)) =
             std::mem::replace(&mut self.input_mode, InputMode::Normal)

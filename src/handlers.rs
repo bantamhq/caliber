@@ -63,16 +63,49 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         CycleEntryTypeNormal => {
             app.cycle_current_entry_type()?;
         }
-        ShowHelp => {
-            app.show_help = true;
+        ToggleHelp => {
+            if app.show_help {
+                app.show_help = false;
+                app.help_scroll = 0;
+            } else {
+                app.show_help = true;
+            }
         }
-        EnterFilterMode => app.enter_filter_input(),
-        EnterCommandMode => {
-            app.enter_command_mode();
-            app.update_hints();
+        ToggleFilterPrompt => {
+            if matches!(app.input_mode, InputMode::Prompt(PromptContext::Filter { .. })) {
+                if app.prompt_is_empty() {
+                    app.clear_hints();
+                    app.cancel_prompt();
+                }
+            } else {
+                app.enter_filter_input();
+            }
         }
-        OpenDateInterface => app.open_date_interface(),
-        OpenProjectInterface => app.open_project_interface(),
+        ToggleCommandPrompt => {
+            if matches!(app.input_mode, InputMode::Prompt(PromptContext::Command { .. })) {
+                if app.prompt_is_empty() {
+                    app.clear_hints();
+                    app.cancel_prompt();
+                }
+            } else {
+                app.enter_command_mode();
+                app.update_hints();
+            }
+        }
+        ToggleDateInterface => {
+            if matches!(app.input_mode, InputMode::Interface(InterfaceContext::Date(_))) {
+                app.cancel_interface();
+            } else {
+                app.open_date_interface();
+            }
+        }
+        ToggleProjectInterface => {
+            if matches!(app.input_mode, InputMode::Interface(InterfaceContext::Project(_))) {
+                app.cancel_interface();
+            } else {
+                app.open_project_interface();
+            }
+        }
         NewEntryBottom => app.new_task(InsertPosition::Bottom),
         NewEntryBelow => {
             if let SelectedItem::Projected { entry, .. } = app.get_selected_item() {
@@ -94,14 +127,17 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         TidyEntries => app.tidy_entries(),
         EnterReorderMode => app.enter_reorder_mode(),
         ToggleHideCompleted => app.toggle_hide_completed(),
-        ReturnToFilter => {
-            app.return_to_filter()?;
+        ToggleFilter => {
+            if matches!(app.view, ViewMode::Filter(_)) {
+                app.cancel_filter();
+            } else {
+                app.return_to_filter()?;
+            }
         }
         FilterQuickAdd => app.filter_quick_add(),
         RefreshFilter => {
             app.refresh_filter()?;
         }
-        ExitFilter => app.exit_filter(),
         SaveEdit => {
             app.accept_hint();
             app.clear_hints();
@@ -112,10 +148,6 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             app.commit_and_add_new();
         }
         CycleEntryType => app.cycle_edit_entry_type(),
-        CancelEdit => {
-            app.clear_hints();
-            app.cancel_edit();
-        }
         Autocomplete => {
             app.accept_hint();
             if let Some(ref mut buffer) = app.edit_buffer {
@@ -125,8 +157,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         }
         ReorderMoveDown => app.reorder_move_down(),
         ReorderMoveUp => app.reorder_move_up(),
-        ReorderSave => app.exit_reorder_mode(true),
-        ReorderCancel => app.exit_reorder_mode(false),
+        ReorderSave => app.save_reorder_mode(),
         SelectionToggle => app.selection_toggle_current(),
         SelectionExtendRange => app.selection_extend_to_cursor(),
         SelectionMoveDown => app.selection_move_down(),
@@ -149,7 +180,6 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         SelectionCycleType => {
             app.cycle_selected_entry_types()?;
         }
-        SelectionExit => app.exit_selection_mode(),
         HelpScrollDown => {
             let total_lines = ui::get_help_total_lines(&app.keymap);
             let max_scroll = total_lines.saturating_sub(app.help_visible_height);
@@ -159,10 +189,6 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         }
         HelpScrollUp => {
             app.help_scroll = app.help_scroll.saturating_sub(1);
-        }
-        CloseHelp => {
-            app.show_help = false;
-            app.help_scroll = 0;
         }
         DateInterfaceMoveLeft => app.date_interface_move(-1, 0),
         DateInterfaceMoveRight => app.date_interface_move(1, 0),
@@ -176,13 +202,36 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         DateInterfaceConfirm => {
             app.confirm_date_interface()?;
         }
-        DateInterfaceCancel => app.close_date_interface(),
         ProjectInterfaceMoveUp => app.project_interface_move_up(),
         ProjectInterfaceMoveDown => app.project_interface_move_down(),
         ProjectInterfaceSelect => {
             app.project_interface_select()?;
         }
-        ProjectInterfaceCancel => app.close_interface(),
+        Cancel => {
+            match &app.input_mode {
+                InputMode::Edit(_) => {
+                    app.clear_hints();
+                    app.cancel_edit_mode();
+                }
+                InputMode::Reorder => app.cancel_reorder_mode(),
+                InputMode::Selection(_) => app.cancel_selection_mode(),
+                InputMode::Prompt(_) => {
+                    app.clear_hints();
+                    app.cancel_prompt();
+                }
+                InputMode::Interface(InterfaceContext::Date(_))
+                | InputMode::Interface(InterfaceContext::Project(_))
+                | InputMode::Interface(InterfaceContext::Tag(_)) => app.cancel_interface(),
+                InputMode::Normal | InputMode::Confirm(_) => {
+                    if app.show_help {
+                        app.show_help = false;
+                        app.help_scroll = 0;
+                    } else if matches!(app.view, ViewMode::Filter(_)) {
+                        app.cancel_filter();
+                    }
+                }
+            }
+        }
         NoOp | QuickFilterTag | AppendFavoriteTag | SelectionAppendTag => {}
     }
     Ok(true)
@@ -202,6 +251,27 @@ pub fn handle_help_key(app: &mut App, key: KeyEvent) {
 /// - Tab: autocomplete, then add space (unless input ends with `:`)
 pub fn handle_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
     let is_command = matches!(app.input_mode, InputMode::Prompt(PromptContext::Command { .. }));
+
+    // Check keymap for cancel action (always) and toggle action (only when empty)
+    let context = if is_command {
+        KeyContext::CommandPrompt
+    } else {
+        KeyContext::FilterPrompt
+    };
+    let spec = KeySpec::from_event(&key);
+    if let Some(action) = app.keymap.get(context, &spec) {
+        // Cancel always works, toggle only when empty
+        let should_dispatch = matches!(action, KeyActionId::Cancel)
+            || (app.prompt_is_empty()
+                && matches!(
+                    action,
+                    KeyActionId::ToggleFilterPrompt | KeyActionId::ToggleCommandPrompt
+                ));
+        if should_dispatch {
+            let _ = dispatch_action(app, action);
+            return Ok(());
+        }
+    }
 
     match key.code {
         KeyCode::Enter => {
@@ -226,13 +296,9 @@ pub fn handle_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
             }
             app.update_hints();
         }
-        KeyCode::Esc => {
-            app.clear_hints();
-            app.exit_prompt();
-        }
         KeyCode::Backspace if app.prompt_is_empty() => {
             app.clear_hints();
-            app.exit_prompt();
+            app.cancel_prompt();
         }
         _ => {
             if let Some(buffer) = app.prompt_buffer_mut() {
@@ -432,14 +498,14 @@ pub fn handle_interface_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
 
 fn handle_date_interface_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
     if app.date_interface_input_focused() {
-        // Check keymap for cancel action before handling text input
+        // Check keymap for cancel/toggle actions before handling text input
         // Skip backspace here - it has conditional behavior (only closes when input empty)
         if !matches!(key.code, KeyCode::Backspace) {
             let spec = KeySpec::from_event(&key);
-            if let Some(KeyActionId::DateInterfaceCancel) =
+            if let Some(KeyActionId::Cancel | KeyActionId::ToggleDateInterface) =
                 app.keymap.get(KeyContext::DateInterface, &spec)
             {
-                app.close_date_interface();
+                app.cancel_interface();
                 return Ok(());
             }
         }
@@ -453,7 +519,7 @@ fn handle_date_interface_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
                 app.date_interface_toggle_focus();
             }
             KeyCode::Backspace if app.date_interface_input_is_empty() => {
-                app.close_date_interface();
+                app.cancel_interface();
             }
             KeyCode::Backspace => {
                 app.date_interface_input_backspace();
@@ -521,7 +587,7 @@ fn handle_project_interface_key(app: &mut App, key: KeyEvent) -> io::Result<()> 
                 }
             };
             if is_empty {
-                app.close_interface();
+                app.cancel_interface();
             }
         }
         _ => {}
