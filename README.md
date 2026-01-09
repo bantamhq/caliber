@@ -402,6 +402,7 @@ Press `+` to open the project switcher.
 | `!completed` | Completed tasks |
 | `!notes` | Notes only |
 | `!events` | Events only |
+| `@on:DATE` | Entries on date |
 | `@before:DATE` | Entries before date |
 | `@after:DATE` | Entries after date |
 | `@overdue` | Entries with past @date |

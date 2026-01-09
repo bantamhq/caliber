@@ -231,6 +231,21 @@ fn before_filter_includes_entries_on_or_before_date() {
 }
 
 #[test]
+fn on_filter_includes_entries_only_on_date() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Today entry\n# 2026/01/14\n- [ ] Yesterday entry\n# 2026/01/10\n- [ ] Old entry\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    ctx.press(KeyCode::Char('/'));
+    ctx.type_str("@on:1/14/26");
+    ctx.press(KeyCode::Enter);
+
+    assert!(!ctx.screen_contains("Today entry"));
+    assert!(ctx.screen_contains("Yesterday entry"));
+    assert!(!ctx.screen_contains("Old entry"));
+}
+
+#[test]
 fn not_tasks_excludes_task_entries() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let content = "# 2026/01/15\n- [ ] A task\n- A note\n* An event\n";

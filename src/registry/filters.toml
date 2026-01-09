@@ -38,6 +38,14 @@ completion_hint = "Filter to show only events (* entries)"
 # =============================================================================
 
 [[filter]]
+syntax = "@on:"
+display = "@on:DATE"
+category = "date_op"
+help = "Entries on date"
+readme = "Filter entries from a single day. Supports relative dates."
+completion_hint = "Filter entries from a single day. Supports relative dates."
+
+[[filter]]
 syntax = "@before:"
 display = "@before:DATE"
 category = "date_op"

@@ -309,9 +309,22 @@ pub fn parse_filter_query(query: &str) -> Filter {
     let today = chrono::Local::now().date_naive();
 
     for token in query.split_whitespace() {
-        // Date filters: @before:DATE, @after:DATE, @overdue
+        // Date filters: @on:DATE, @before:DATE, @after:DATE, @overdue
         // Dates default to past (d7 = 7 days ago, mon = last Monday)
         // Append + for explicit future (d7+ = 7 days from now, mon+ = next Monday)
+        if let Some(date_str) = token.strip_prefix("@on:") {
+            if filter.before_date.is_some() || filter.after_date.is_some() {
+                filter
+                    .invalid_tokens
+                    .push("Cannot combine @on with @before/@after".to_string());
+            } else if let Some(date) = parse_filter_date(date_str, today) {
+                filter.before_date = Some(date);
+                filter.after_date = Some(date);
+            } else {
+                filter.invalid_tokens.push(token.to_string());
+            }
+            continue;
+        }
         if let Some(date_str) = token.strip_prefix("@before:") {
             if filter.before_date.is_some() {
                 filter

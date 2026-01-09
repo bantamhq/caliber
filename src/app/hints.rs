@@ -41,7 +41,7 @@ pub enum HintContext {
         prefix: String,
         matches: Vec<&'static FilterSyntax>,
     },
-    /// Date operation hints (@before:, @after:, @overdue)
+    /// Date operation hints (@on:, @before:, @after:, @overdue)
     DateOps {
         prefix: String,
         matches: Vec<&'static FilterSyntax>,
@@ -388,11 +388,14 @@ impl HintContext {
         }
 
         if let Some(date_prefix) = token.strip_prefix('@') {
-            if let Some(date_value) = date_prefix.strip_prefix("before:") {
-                return Self::compute_date_value_hints(date_value);
-            }
-            if let Some(date_value) = date_prefix.strip_prefix("after:") {
-                return Self::compute_date_value_hints(date_value);
+            for filter in FILTER_SYNTAX.iter() {
+                if filter.category == FilterCategory::DateOp && filter.syntax.ends_with(':') {
+                    if let Some(filter_prefix) = filter.syntax.strip_prefix('@') {
+                        if let Some(date_value) = date_prefix.strip_prefix(filter_prefix) {
+                            return Self::compute_date_value_hints(date_value);
+                        }
+                    }
+                }
             }
 
             let matches: Vec<&'static FilterSyntax> = FILTER_SYNTAX

@@ -1,5 +1,5 @@
 # Date value definitions for autocomplete
-# Used in entry @dates and filter @before:/@after: values
+# Used in entry @dates and filter @on:/@before:/@after: values
 #
 # Fields:
 # - syntax: Identifier for the entry (used for display grouping)
