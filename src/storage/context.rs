@@ -1,5 +1,3 @@
-use std::fs;
-use std::io;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,31 +90,4 @@ pub fn detect_project_journal() -> Option<PathBuf> {
     }
 
     None
-}
-
-/// Adds .caliber/ to .gitignore if not already present.
-pub fn add_caliber_to_gitignore() -> io::Result<()> {
-    let root = find_git_root()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Not in a git repository"))?;
-
-    let gitignore_path = root.join(".gitignore");
-    let entry = ".caliber/";
-
-    if gitignore_path.exists() {
-        let content = fs::read_to_string(&gitignore_path)?;
-        if content.lines().any(|line| line.trim() == entry) {
-            return Ok(());
-        }
-        let mut new_content = content;
-        if !new_content.ends_with('\n') && !new_content.is_empty() {
-            new_content.push('\n');
-        }
-        new_content.push_str(entry);
-        new_content.push('\n');
-        fs::write(&gitignore_path, new_content)?;
-    } else {
-        fs::write(&gitignore_path, format!("{entry}\n"))?;
-    }
-
-    Ok(())
 }

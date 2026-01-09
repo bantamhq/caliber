@@ -138,7 +138,8 @@ fn run_app<B: ratatui::backend::Backend>(
             }
 
             app.journal_context.set_project_path(journal_path);
-            app.input_mode = InputMode::Confirm(ConfirmContext::AddToGitignore);
+            app.switch_to_project()?;
+            app.set_status("Project initialized");
         }
     }
 
@@ -460,9 +461,6 @@ fn run_app<B: ratatui::backend::Backend>(
                         " Create Project Journal ",
                         &["No project journal found.", "Create .caliber/journal.md?"],
                     ),
-                    ConfirmContext::AddToGitignore => {
-                        (" Add to .gitignore ", &["Add .caliber/ to .gitignore?"])
-                    }
                 };
 
                 let popup_area = ui::centered_rect(50, 30, size);

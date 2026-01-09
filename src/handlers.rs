@@ -9,7 +9,7 @@ use crate::app::{
 use crate::cursor::CursorBuffer;
 use crate::dispatch::KeySpec;
 use crate::registry::{KeyActionId, KeyContext};
-use crate::storage::{self, add_caliber_to_gitignore};
+use crate::storage;
 use crate::ui;
 
 fn shifted_char_to_digit(c: char) -> Option<char> {
@@ -473,35 +473,14 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
                 }
 
                 app.journal_context.set_project_path(journal_path);
-
-                if app.in_git_repo {
-                    app.input_mode = InputMode::Confirm(ConfirmContext::AddToGitignore);
-                } else {
-                    app.switch_to_project()?;
-                    app.set_status("Project initialized");
-                    app.input_mode = InputMode::Normal;
-                }
-            }
-            ConfirmContext::AddToGitignore => {
-                if let Err(e) = add_caliber_to_gitignore() {
-                    app.set_status(format!("Failed to update .gitignore: {e}"));
-                } else {
-                    app.set_status("Project created and added to .gitignore");
-                }
                 app.switch_to_project()?;
+                app.set_status("Project initialized");
                 app.input_mode = InputMode::Normal;
             }
         },
-        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => match context {
-            ConfirmContext::CreateProjectJournal => {
-                app.set_status("Staying on Hub journal");
-                app.input_mode = InputMode::Normal;
-            }
-            ConfirmContext::AddToGitignore => {
-                app.set_status("Project created (not added to .gitignore)");
-                app.switch_to_project()?;
-                app.input_mode = InputMode::Normal;
-            }
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+            app.set_status("Staying on Hub journal");
+            app.input_mode = InputMode::Normal;
         },
         _ => {}
     }

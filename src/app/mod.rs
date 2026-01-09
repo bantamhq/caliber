@@ -321,7 +321,6 @@ pub enum EditContext {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConfirmContext {
     CreateProjectJournal,
-    AddToGitignore,
 }
 
 /// Context for prompt input modes (owns its buffer)
