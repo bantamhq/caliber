@@ -207,6 +207,20 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         ProjectInterfaceSelect => {
             app.project_interface_select()?;
         }
+        ProjectInterfaceRemove => {
+            if let InputMode::Interface(InterfaceContext::Project(ref mut state)) = app.input_mode
+                && let Some(id) = state.remove_selected()
+            {
+                app.set_status(format!("Removed {id} from registry"));
+            }
+        }
+        ProjectInterfaceHide => {
+            if let InputMode::Interface(InterfaceContext::Project(ref mut state)) = app.input_mode
+                && let Some(id) = state.hide_selected()
+            {
+                app.set_status(format!("Hidden {id} from registry"));
+            }
+        }
         Cancel => {
             match &app.input_mode {
                 InputMode::Edit(_) => {

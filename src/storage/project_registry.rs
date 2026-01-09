@@ -232,6 +232,27 @@ fn load_hide_from_registry(config_path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Set hide_from_registry in a project's config file, preserving other settings.
+pub fn set_hide_from_registry(caliber_path: &Path, hide: bool) -> io::Result<()> {
+    let config_path = caliber_path.join("config.toml");
+
+    let mut config: toml::Table = if config_path.exists() {
+        let content = fs::read_to_string(&config_path)?;
+        toml::from_str(&content).unwrap_or_default()
+    } else {
+        toml::Table::new()
+    };
+
+    config.insert(
+        "hide_from_registry".to_string(),
+        toml::Value::Boolean(hide),
+    );
+
+    let content = toml::to_string_pretty(&config)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    fs::write(&config_path, content)
+}
+
 fn derive_identity(root: &Path) -> (String, String) {
     let folder = root
         .file_name()

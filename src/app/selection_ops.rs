@@ -37,10 +37,16 @@ impl App {
     }
 
     pub fn selection_move_down(&mut self) {
+        if let InputMode::Selection(ref mut state) = self.input_mode {
+            state.on_cursor_move();
+        }
         self.move_down();
     }
 
     pub fn selection_move_up(&mut self) {
+        if let InputMode::Selection(ref mut state) = self.input_mode {
+            state.on_cursor_move();
+        }
         let projected_count = self.visible_projected_count();
         let current = self.current_visible_index();
         if current > projected_count {
@@ -49,6 +55,9 @@ impl App {
     }
 
     pub fn selection_jump_to_first(&mut self) {
+        if let InputMode::Selection(ref mut state) = self.input_mode {
+            state.on_cursor_move();
+        }
         let projected_count = self.visible_projected_count();
         match &mut self.view {
             ViewMode::Daily(state) => state.selected = projected_count,
@@ -57,6 +66,9 @@ impl App {
     }
 
     pub fn selection_jump_to_last(&mut self) {
+        if let InputMode::Selection(ref mut state) = self.input_mode {
+            state.on_cursor_move();
+        }
         self.jump_to_last();
     }
 

@@ -39,7 +39,7 @@ pub use filter::{
 };
 
 // Re-export project registry types
-pub use project_registry::{ProjectInfo, ProjectRegistry, get_registry_path};
+pub use project_registry::{ProjectInfo, ProjectRegistry, get_registry_path, set_hide_from_registry};
 
 #[cfg(test)]
 mod tests {

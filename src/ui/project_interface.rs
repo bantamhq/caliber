@@ -10,7 +10,12 @@ use crate::app::ProjectInterfaceState;
 
 use super::interface_popup::{PopupLayout, render_popup_frame, render_query_input};
 
-pub fn render_project_interface(f: &mut Frame, state: &ProjectInterfaceState, area: Rect) {
+pub fn render_project_interface(
+    f: &mut Frame,
+    state: &ProjectInterfaceState,
+    area: Rect,
+    current_project_id: Option<&str>,
+) {
     let layout = PopupLayout::new(area);
 
     if layout.is_too_small() {
@@ -53,8 +58,15 @@ pub fn render_project_interface(f: &mut Frame, state: &ProjectInterfaceState, ar
     {
         let project = &state.projects[project_idx];
         let is_selected = i == state.selected;
+        let is_current =
+            current_project_id.is_some_and(|id| project.id.eq_ignore_ascii_case(id));
 
-        let indicator = if is_selected { "→" } else { " " };
+        let (indicator, indicator_style) = match (is_current, is_selected) {
+            (true, true) => ("◆", Style::new().fg(Color::Blue)),
+            (true, false) => ("◆", Style::new().dim()),
+            (false, true) => ("→", Style::new().fg(Color::Blue)),
+            (false, false) => (" ", Style::new()),
+        };
 
         let name_style = if !project.available {
             Style::new().dim()
@@ -65,7 +77,7 @@ pub fn render_project_interface(f: &mut Frame, state: &ProjectInterfaceState, ar
         };
 
         let spans = vec![
-            Span::styled(format!("{} ", indicator), Style::new().fg(Color::Blue)),
+            Span::styled(format!("{} ", indicator), indicator_style),
             Span::styled(project.name.clone(), name_style),
         ];
 

@@ -488,6 +488,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 f.render_widget(paragraph, inner_area);
             }
 
+            let current_project_id = app.current_project_id();
             if let InputMode::Interface(ref mut ctx) = app.input_mode {
                 match ctx {
                     InterfaceContext::Date(state) => ui::render_date_interface(f, state, size),
@@ -500,7 +501,7 @@ fn run_app<B: ratatui::backend::Backend>(
                             state.filtered_indices.len(),
                             visible_height,
                         );
-                        ui::render_project_interface(f, state, size);
+                        ui::render_project_interface(f, state, size, current_project_id.as_deref());
                     }
                     InterfaceContext::Tag(_) => {}
                 }

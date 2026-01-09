@@ -63,6 +63,66 @@ fn shift_v_selects_range_of_entries() {
 }
 
 #[test]
+fn shift_v_double_tap_deselects_range() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content = "# 2026/01/15\n- [ ] Entry A\n- [ ] Entry B\n- [ ] Entry C\n- [ ] Entry D\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    // Enter selection at first entry
+    ctx.press(KeyCode::Char('g'));
+    ctx.press(KeyCode::Char('v'));
+
+    // Move to last entry
+    ctx.press(KeyCode::Char('G'));
+
+    // Range select: selects 0-3
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    let state = ctx.app.get_selection_state().unwrap();
+    assert_eq!(state.count(), 4);
+
+    // Double-tap range select: should deselect 0-3
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    let state = ctx.app.get_selection_state().unwrap();
+    assert_eq!(state.count(), 0);
+}
+
+#[test]
+fn range_select_anchor_updates_on_move() {
+    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+    let content =
+        "# 2026/01/15\n- [ ] Entry A\n- [ ] Entry B\n- [ ] Entry C\n- [ ] Entry D\n- [ ] Entry E\n- [ ] Entry F\n";
+    let mut ctx = TestContext::with_journal_content(date, content);
+
+    // Enter selection at first entry (index 0)
+    ctx.press(KeyCode::Char('g'));
+    ctx.press(KeyCode::Char('v'));
+
+    // Move to index 3
+    ctx.press(KeyCode::Char('j'));
+    ctx.press(KeyCode::Char('j'));
+    ctx.press(KeyCode::Char('j'));
+
+    // Range select: selects 0-3
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    let state = ctx.app.get_selection_state().unwrap();
+    assert_eq!(state.count(), 4);
+    assert!(state.is_selected(0));
+    assert!(state.is_selected(3));
+
+    // Move to index 5 - anchor should update to 3 (last operation position)
+    ctx.press(KeyCode::Char('j'));
+    ctx.press(KeyCode::Char('j'));
+
+    // Range select from new anchor (3) to cursor (5): selects 3-5
+    ctx.press_with_modifiers(KeyCode::Char('V'), KeyModifiers::SHIFT);
+    let state = ctx.app.get_selection_state().unwrap();
+    // Should have 0,1,2,3,4,5 selected (original 0-3 plus new 3-5)
+    assert_eq!(state.count(), 6);
+    assert!(state.is_selected(4));
+    assert!(state.is_selected(5));
+}
+
+#[test]
 fn d_key_batch_deletes_selected_entries() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let content = "# 2026/01/15\n- [ ] Keep\n- [ ] Delete A\n- [ ] Delete B\n";

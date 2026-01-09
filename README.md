@@ -382,6 +382,8 @@ Press `+` to open the project switcher.
 | `↑` | Previous project |
 | `↓` | Next project |
 | `Enter` | Open project |
+| `d` | Remove from registry |
+| `h` | Hide project |
 | `Esc` | Cancel |
 
 

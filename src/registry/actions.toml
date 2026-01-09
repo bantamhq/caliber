@@ -631,6 +631,24 @@ footer = { modes = ["project_interface"], text = "Select" }
 help = "Open project"
 readme = "Open the selected project journal"
 
+[[action]]
+key_action_id = "project_interface_remove"
+default_keys = ["d"]
+contexts = ["project_interface"]
+help_sections = ["project"]
+footer = { modes = ["project_interface"], text = "Remove" }
+help = "Remove from registry"
+readme = "Remove the selected project from the registry (does not delete files)"
+
+[[action]]
+key_action_id = "project_interface_hide"
+default_keys = ["h"]
+contexts = ["project_interface"]
+help_sections = ["project"]
+footer = { modes = ["project_interface"], text = "Hide" }
+help = "Hide project"
+readme = "Hide the selected project from the registry interface"
+
 # =============================================================================
 # Unified Cancel Action
 # =============================================================================

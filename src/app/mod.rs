@@ -76,6 +76,8 @@ pub struct SelectionState {
     pub anchor: usize,
     /// Set of all currently selected visible indices
     pub selected_indices: BTreeSet<usize>,
+    /// Cursor position of last selection operation - on next move, anchor updates to this
+    last_operation_at: Option<usize>,
 }
 
 impl SelectionState {
@@ -86,16 +88,18 @@ impl SelectionState {
         Self {
             anchor,
             selected_indices,
+            last_operation_at: None,
         }
     }
 
-    /// Toggle range from anchor to new index, then update anchor to new index
-    /// If any in range are unselected, select all; otherwise deselect all
-    pub fn extend_to(&mut self, new_index: usize) {
-        let (start, end) = if new_index < self.anchor {
-            (new_index, self.anchor)
+    /// Toggle range from anchor to cursor position.
+    /// If all in range are selected, deselect all; otherwise select all.
+    /// Anchor does NOT move - call on_cursor_move before movement to update anchor.
+    pub fn extend_to(&mut self, cursor: usize) {
+        let (start, end) = if cursor < self.anchor {
+            (cursor, self.anchor)
         } else {
-            (self.anchor, new_index)
+            (self.anchor, cursor)
         };
         let all_selected = (start..=end).all(|i| self.selected_indices.contains(&i));
         if all_selected {
@@ -107,10 +111,10 @@ impl SelectionState {
                 self.selected_indices.insert(i);
             }
         }
-        self.anchor = new_index;
+        self.last_operation_at = Some(cursor);
     }
 
-    /// Toggle a single index in selection and update anchor
+    /// Toggle a single index in selection and update anchor immediately
     pub fn toggle(&mut self, index: usize) {
         if self.selected_indices.contains(&index) {
             self.selected_indices.remove(&index);
@@ -118,6 +122,14 @@ impl SelectionState {
             self.selected_indices.insert(index);
         }
         self.anchor = index;
+        self.last_operation_at = Some(index);
+    }
+
+    /// Call before cursor movement - updates anchor to last operation position
+    pub fn on_cursor_move(&mut self) {
+        if let Some(pos) = self.last_operation_at.take() {
+            self.anchor = pos;
+        }
     }
 
     #[must_use]
@@ -223,6 +235,40 @@ impl ProjectInterfaceState {
         self.filtered_indices
             .get(self.selected)
             .and_then(|&i| self.projects.get(i))
+    }
+
+    /// Remove the selected project from the registry and return its ID.
+    pub fn remove_selected(&mut self) -> Option<String> {
+        let project = self.selected_project()?;
+        let id = project.id.clone();
+
+        let mut registry = storage::ProjectRegistry::load();
+        if registry.remove(&id) {
+            let _ = registry.save();
+        }
+
+        if let Some(pos) = self.projects.iter().position(|p| p.id == id) {
+            self.projects.remove(pos);
+        }
+        self.update_filter();
+
+        Some(id)
+    }
+
+    /// Hide the selected project by setting hide_from_registry in its config.
+    pub fn hide_selected(&mut self) -> Option<String> {
+        let project = self.selected_project()?;
+        let id = project.id.clone();
+        let path = project.path.clone();
+
+        if storage::set_hide_from_registry(&path, true).is_ok() {
+            if let Some(p) = self.projects.iter_mut().find(|p| p.id == id) {
+                p.hide_from_registry = true;
+            }
+            self.update_filter();
+            return Some(id);
+        }
+        None
     }
 }
 
