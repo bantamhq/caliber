@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
@@ -76,14 +76,22 @@ pub fn render_popup_frame(f: &mut Frame, layout: &PopupLayout, title: &str) {
     f.render_widget(Clear, layout.popup_area);
 
     let block = Block::default()
-        .title(Span::styled(format!(" {title} "), Style::new().fg(Color::Blue)))
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::new().fg(Color::Blue),
+        ))
         .borders(Borders::ALL)
         .border_style(Style::new().fg(Color::Blue));
 
     f.render_widget(block, layout.popup_area);
 }
 
-pub fn render_query_input(f: &mut Frame, layout: &PopupLayout, query: &CursorBuffer, focused: bool) {
+pub fn render_query_input(
+    f: &mut Frame,
+    layout: &PopupLayout,
+    query: &CursorBuffer,
+    focused: bool,
+) {
     let style = if focused {
         Style::new().fg(Color::Blue)
     } else {
@@ -99,5 +107,34 @@ pub fn render_query_input(f: &mut Frame, layout: &PopupLayout, query: &CursorBuf
     if focused {
         let cursor_x = layout.query_area.x + 2 + query.cursor_display_pos() as u16;
         f.set_cursor_position((cursor_x, layout.query_area.y));
+    }
+}
+
+pub fn render_scroll_indicators(
+    f: &mut Frame,
+    layout: &PopupLayout,
+    scroll_offset: usize,
+    visible_height: usize,
+    total_items: usize,
+) {
+    let can_scroll_up = scroll_offset > 0;
+    let can_scroll_down = scroll_offset + visible_height < total_items;
+
+    if can_scroll_up || can_scroll_down {
+        let arrows = match (can_scroll_up, can_scroll_down) {
+            (true, true) => "▲▼",
+            (true, false) => "▲",
+            (false, true) => "▼",
+            (false, false) => "",
+        };
+        let indicator_area = Rect {
+            x: layout.query_area.x,
+            y: layout.query_area.y.saturating_sub(1),
+            width: layout.query_area.width,
+            height: 1,
+        };
+        let indicator =
+            Paragraph::new(Span::styled(arrows, Style::new().dim())).alignment(Alignment::Right);
+        f.render_widget(indicator, indicator_area);
     }
 }

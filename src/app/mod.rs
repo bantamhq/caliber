@@ -5,10 +5,13 @@ mod edit_mode;
 mod entry_ops;
 mod filter_ops;
 pub mod hints;
+mod interface_ops;
 mod journal;
 mod navigation;
 mod reorder;
 mod selection_ops;
+mod tag_interface;
+mod tag_ops;
 
 pub use entry_ops::{DeleteTarget, EntryLocation, TagRemovalTarget, ToggleTarget, YankTarget};
 pub use hints::{HintContext, HintMode};
@@ -187,6 +190,7 @@ pub struct ProjectInterfaceState {
     pub selected: usize,
     pub scroll_offset: usize,
     pub projects: Vec<storage::ProjectInfo>,
+    pub input_focused: bool,
 }
 
 impl Default for ProjectInterfaceState {
@@ -207,6 +211,7 @@ impl ProjectInterfaceState {
             selected: 0,
             scroll_offset: 0,
             projects,
+            input_focused: false,
         };
         state.update_filter();
         state
@@ -245,9 +250,11 @@ impl ProjectInterfaceState {
         let project = self.selected_project()?;
         let id = project.id.clone();
 
-        let mut registry = storage::ProjectRegistry::load();
-        if registry.remove(&id) {
-            let _ = registry.save();
+        if std::env::var("CALIBER_SKIP_REGISTRY").is_err() {
+            let mut registry = storage::ProjectRegistry::load();
+            if registry.remove(&id) {
+                let _ = registry.save();
+            }
         }
 
         if let Some(pos) = self.projects.iter().position(|p| p.id == id) {
@@ -275,19 +282,60 @@ impl ProjectInterfaceState {
     }
 }
 
-/// State for the tag interface popup (stub for future implementation)
+/// Information about a tag in the journal
+#[derive(Clone, Debug)]
+pub struct TagInfo {
+    pub name: String,
+    pub count: usize,
+}
+
+/// State for the tag interface popup
 #[derive(Clone, Debug)]
 pub struct TagInterfaceState {
     pub query: CursorBuffer,
+    pub filtered_indices: Vec<usize>,
     pub selected: usize,
+    pub scroll_offset: usize,
+    pub tags: Vec<TagInfo>,
+    pub input_focused: bool,
 }
 
-impl Default for TagInterfaceState {
-    fn default() -> Self {
-        Self {
+impl TagInterfaceState {
+    #[must_use]
+    pub fn new(tags: Vec<TagInfo>) -> Self {
+        let mut state = Self {
             query: CursorBuffer::empty(),
+            filtered_indices: Vec::new(),
             selected: 0,
+            scroll_offset: 0,
+            tags,
+            input_focused: false,
+        };
+        state.update_filter();
+        state
+    }
+
+    pub fn update_filter(&mut self) {
+        let query = self.query.content().to_lowercase();
+        self.filtered_indices = self
+            .tags
+            .iter()
+            .enumerate()
+            .filter(|(_, tag)| query.is_empty() || tag.name.to_lowercase().starts_with(&query))
+            .map(|(i, _)| i)
+            .collect();
+
+        if self.selected >= self.filtered_indices.len() {
+            self.selected = self.filtered_indices.len().saturating_sub(1);
         }
+        self.scroll_offset = 0;
+    }
+
+    #[must_use]
+    pub fn selected_tag(&self) -> Option<&TagInfo> {
+        self.filtered_indices
+            .get(self.selected)
+            .and_then(|&i| self.tags.get(i))
     }
 }
 
@@ -321,13 +369,22 @@ pub enum EditContext {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConfirmContext {
     CreateProjectJournal,
+    DeleteTag(String),
 }
 
 /// Context for prompt input modes (owns its buffer)
 #[derive(Clone, Debug)]
 pub enum PromptContext {
-    Command { buffer: CursorBuffer },
-    Filter { buffer: CursorBuffer },
+    Command {
+        buffer: CursorBuffer,
+    },
+    Filter {
+        buffer: CursorBuffer,
+    },
+    RenameTag {
+        old_tag: String,
+        buffer: CursorBuffer,
+    },
 }
 
 /// Context for interface overlays
@@ -395,7 +452,7 @@ pub struct App {
     pub in_git_repo: bool,
     pub hide_completed: bool,
     pub hint_state: HintContext,
-    pub cached_journal_tags: Vec<String>,
+    pub cached_journal_tags: Vec<TagInfo>,
     pub executor: actions::ActionExecutor,
     pub keymap: Keymap,
     original_edit_content: Option<String>,
@@ -430,7 +487,7 @@ impl App {
         let projected_entries = storage::collect_projected_entries_for_date(date, &path)?;
         let projected_entries = navigation::filter_done_today_recurring(projected_entries, &lines);
         let in_git_repo = storage::find_git_root().is_some();
-        let cached_journal_tags = storage::collect_journal_tags(&path).unwrap_or_default();
+        let cached_journal_tags = Vec::new();
         let hide_completed = config.hide_completed;
 
         let keymap = Keymap::new(&config.keys).unwrap_or_else(|e| {
@@ -527,12 +584,9 @@ impl App {
 
         match result {
             Ok(Some(msg)) => {
-                self.refresh_tag_cache();
                 self.set_status(msg);
             }
-            Ok(None) => {
-                self.refresh_tag_cache();
-            }
+            Ok(None) => {}
             Err(e) => {
                 self.set_status(format!("Action failed: {e}"));
                 return Err(e);
@@ -556,7 +610,6 @@ impl App {
 
         match result {
             Ok(Some(msg)) => {
-                self.refresh_tag_cache();
                 self.set_status(msg);
             }
             Ok(None) => {}
@@ -571,7 +624,6 @@ impl App {
 
         match result {
             Ok(Some(msg)) => {
-                self.refresh_tag_cache();
                 self.set_status(msg);
             }
             Ok(None) => {}
@@ -634,14 +686,14 @@ impl App {
     pub fn update_hints(&mut self) {
         let (input, mode) = match &self.input_mode {
             InputMode::Prompt(PromptContext::Command { buffer }) => {
-                (buffer.content(), HintMode::Command)
+                (buffer.content().to_string(), HintMode::Command)
             }
             InputMode::Prompt(PromptContext::Filter { buffer }) => {
-                (buffer.content(), HintMode::Filter)
+                (buffer.content().to_string(), HintMode::Filter)
             }
             InputMode::Edit(_) => {
                 if let Some(ref buffer) = self.edit_buffer {
-                    (buffer.content(), HintMode::Entry)
+                    (buffer.content().to_string(), HintMode::Entry)
                 } else {
                     self.hint_state = HintContext::Inactive;
                     return;
@@ -653,13 +705,23 @@ impl App {
             }
         };
 
+        if matches!(self.hint_state, HintContext::Inactive) {
+            self.refresh_tag_cache();
+        }
+
         let saved_filters: Vec<String> = if mode == HintMode::Filter {
             self.config.filters.keys().cloned().collect()
         } else {
             Vec::new()
         };
-        self.hint_state =
-            HintContext::compute(input, mode, &self.cached_journal_tags, &saved_filters);
+
+        let tag_names: Vec<String> = self
+            .cached_journal_tags
+            .iter()
+            .map(|t| t.name.clone())
+            .collect();
+
+        self.hint_state = HintContext::compute(&input, mode, &tag_names, &saved_filters);
     }
 
     /// Clear any active hints.
@@ -668,8 +730,26 @@ impl App {
     }
 
     pub fn refresh_tag_cache(&mut self) {
-        self.cached_journal_tags =
-            storage::collect_journal_tags(self.active_path()).unwrap_or_default();
+        self.cached_journal_tags = self.collect_all_tags().unwrap_or_default();
+    }
+
+    fn collect_all_tags(&self) -> io::Result<Vec<TagInfo>> {
+        let journal = storage::load_journal(self.active_path())?;
+        let mut tag_counts: HashMap<String, usize> = HashMap::new();
+
+        for cap in storage::TAG_REGEX.captures_iter(&journal) {
+            let tag = cap[1].to_lowercase();
+            *tag_counts.entry(tag).or_insert(0) += 1;
+        }
+
+        let mut tags: Vec<TagInfo> = tag_counts
+            .into_iter()
+            .map(|(name, count)| TagInfo { name, count })
+            .collect();
+
+        tags.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(tags)
     }
 
     pub fn accept_hint(&mut self) -> bool {
@@ -712,6 +792,7 @@ impl App {
         match &self.input_mode {
             InputMode::Prompt(PromptContext::Command { buffer }) => Some(buffer.content()),
             InputMode::Prompt(PromptContext::Filter { buffer }) => Some(buffer.content()),
+            InputMode::Prompt(PromptContext::RenameTag { buffer, .. }) => Some(buffer.content()),
             _ => None,
         }
     }
@@ -722,6 +803,7 @@ impl App {
         match &self.input_mode {
             InputMode::Prompt(PromptContext::Command { buffer }) => buffer.is_empty(),
             InputMode::Prompt(PromptContext::Filter { buffer }) => buffer.is_empty(),
+            InputMode::Prompt(PromptContext::RenameTag { buffer, .. }) => buffer.is_empty(),
             _ => true,
         }
     }
@@ -731,6 +813,7 @@ impl App {
         match &mut self.input_mode {
             InputMode::Prompt(PromptContext::Command { buffer }) => Some(buffer),
             InputMode::Prompt(PromptContext::Filter { buffer }) => Some(buffer),
+            InputMode::Prompt(PromptContext::RenameTag { buffer, .. }) => Some(buffer),
             _ => None,
         }
     }
@@ -788,7 +871,9 @@ impl App {
             let InputMode::Interface(InterfaceContext::Project(ref state)) = self.input_mode else {
                 return Ok(());
             };
-            state.selected_project().map(|p| (p.id.clone(), p.available))
+            state
+                .selected_project()
+                .map(|p| (p.id.clone(), p.available))
         };
 
         match project_info {

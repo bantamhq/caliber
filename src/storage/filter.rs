@@ -37,6 +37,22 @@ pub struct Filter {
 pub static TAG_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"#([a-zA-Z][a-zA-Z0-9_-]*)").unwrap());
 
+/// The character class for valid tag characters (after the first letter)
+pub const TAG_CHAR_CLASS: &str = "[a-zA-Z0-9_-]";
+
+/// Create a regex that matches a specific tag (case-insensitive) with word boundary
+pub fn create_tag_match_regex(tag: &str) -> Result<Regex, regex::Error> {
+    Regex::new(&format!(r"(?i)#{}", regex::escape(tag)))
+}
+
+/// Matches trailing tags (one or more tags at end of line)
+pub static TRAILING_TAGS_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(\s+#[a-zA-Z]{}*)+\s*$", TAG_CHAR_CLASS)).unwrap());
+
+/// Matches the last trailing tag at end of line
+pub static LAST_TRAILING_TAG_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"\s+#[a-zA-Z]{}*\s*$", TAG_CHAR_CLASS)).unwrap());
+
 /// Matches @date patterns:
 /// - @MM/DD (e.g., @1/9, @01/09)
 /// - @MM/DD/YY (e.g., @1/9/26, @01/09/26)

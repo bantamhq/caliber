@@ -99,7 +99,9 @@ impl RawConfig {
                 .unwrap_or_else(default_header_date_format),
             hide_completed: self.hide_completed.unwrap_or(false),
             keys: self.keys.unwrap_or_default(),
-            auto_init_project: self.auto_init_project.unwrap_or_else(default_auto_init_project),
+            auto_init_project: self
+                .auto_init_project
+                .unwrap_or_else(default_auto_init_project),
         }
     }
 

@@ -11,7 +11,6 @@ use super::{App, ConfirmContext, InputMode};
 impl App {
     fn reset_journal_view(&mut self) -> io::Result<()> {
         self.reset_daily_view(Local::now().date_naive())?;
-        self.refresh_tag_cache();
         Ok(())
     }
 
@@ -94,7 +93,8 @@ impl App {
         }
 
         self.save();
-        self.journal_context.set_project_path(project.journal_path());
+        self.journal_context
+            .set_project_path(project.journal_path());
         self.journal_context.set_active_slot(JournalSlot::Project);
 
         let config = Config::load_merged_from(&project.root)?;

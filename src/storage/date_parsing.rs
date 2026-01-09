@@ -7,7 +7,7 @@ pub enum ParseContext {
     Entry,
     /// Filter context: past bias by default, `+/-` allowed for explicit direction
     Filter,
-    /// Interface context: same as Filter (past bias, `+/-` allowed)
+    /// Interface context: future bias (same as Entry)
     Interface,
 }
 
@@ -90,13 +90,12 @@ pub fn parse_relative_date(input: &str, today: NaiveDate, ctx: ParseContext) -> 
 
     // Determine final direction based on context and explicit markers
     let is_future = match ctx {
-        ParseContext::Entry => {
-            // Entry: default future, but respect explicit `-` for past
+        ParseContext::Entry | ParseContext::Interface => {
+            // Entry/Interface: default future, but respect explicit `-` for past
             !explicit_past
         }
-        ParseContext::Filter | ParseContext::Interface => {
-            // Filter/Interface: default past, respect explicit markers
-            // Only future if explicitly requested with '+'
+        ParseContext::Filter => {
+            // Filter: default past, only future if explicitly requested with '+'
             explicit_future
         }
     };
@@ -126,15 +125,41 @@ pub fn parse_relative_date(input: &str, today: NaiveDate, ctx: ParseContext) -> 
     None
 }
 
+/// For MM/DD without year: if date has passed this year, use next year.
+#[must_use]
+fn resolve_month_day_future(month: u32, day: u32, today: NaiveDate) -> Option<NaiveDate> {
+    use chrono::Datelike;
+    let date = NaiveDate::from_ymd_opt(today.year(), month, day)?;
+    if date < today {
+        NaiveDate::from_ymd_opt(today.year() + 1, month, day)
+    } else {
+        Some(date)
+    }
+}
+
+/// For MM/DD without year: if date is in future this year, use last year.
+#[must_use]
+fn resolve_month_day_past(month: u32, day: u32, today: NaiveDate) -> Option<NaiveDate> {
+    use chrono::Datelike;
+    let date = NaiveDate::from_ymd_opt(today.year(), month, day)?;
+    if date > today {
+        NaiveDate::from_ymd_opt(today.year() - 1, month, day)
+    } else {
+        Some(date)
+    }
+}
+
 /// Parses absolute date formats:
 /// - MM/DD (context determines year bias)
 /// - MM/DD/YY (assumed 20xx)
 /// - MM/DD/YYYY
 /// - YYYY/MM/DD (ISO format)
 #[must_use]
-pub fn parse_absolute_date(date_str: &str, today: NaiveDate, ctx: ParseContext) -> Option<NaiveDate> {
-    use chrono::Datelike;
-
+pub fn parse_absolute_date(
+    date_str: &str,
+    today: NaiveDate,
+    ctx: ParseContext,
+) -> Option<NaiveDate> {
     // YYYY/MM/DD (only if first part is exactly 4 digits)
     if let Some(first_slash) = date_str.find('/')
         && first_slash == 4
@@ -155,9 +180,7 @@ pub fn parse_absolute_date(date_str: &str, today: NaiveDate, ctx: ParseContext) 
             )
         {
             let full_year = if year < 100 { 2000 + year } else { year };
-            if let Some(date) = NaiveDate::from_ymd_opt(full_year, month, day) {
-                return Some(date);
-            }
+            return NaiveDate::from_ymd_opt(full_year, month, day);
         }
     }
 
@@ -167,26 +190,12 @@ pub fn parse_absolute_date(date_str: &str, today: NaiveDate, ctx: ParseContext) 
         let month: u32 = parts[0].parse().ok()?;
         let day: u32 = parts[1].parse().ok()?;
 
-        match ctx {
-            ParseContext::Entry => {
-                // Entry: always future - if date has passed this year, use next year
-                if let Some(date) = NaiveDate::from_ymd_opt(today.year(), month, day) {
-                    if date < today {
-                        return NaiveDate::from_ymd_opt(today.year() + 1, month, day);
-                    }
-                    return Some(date);
-                }
+        return match ctx {
+            ParseContext::Entry | ParseContext::Interface => {
+                resolve_month_day_future(month, day, today)
             }
-            ParseContext::Filter | ParseContext::Interface => {
-                // Filter/Interface: prefer past - if date is in future this year, use last year
-                if let Some(date) = NaiveDate::from_ymd_opt(today.year(), month, day) {
-                    if date > today {
-                        return NaiveDate::from_ymd_opt(today.year() - 1, month, day);
-                    }
-                    return Some(date);
-                }
-            }
-        }
+            ParseContext::Filter => resolve_month_day_past(month, day, today),
+        };
     }
 
     None
@@ -298,17 +307,17 @@ mod tests {
     }
 
     #[test]
-    fn interface_same_as_filter() {
+    fn interface_same_as_entry() {
         let today = test_date(2026, 1, 15);
 
-        // Interface context should behave like Filter
+        // Interface context should behave like Entry (future bias)
         assert_eq!(
             parse_relative_date("d7", today, ParseContext::Interface),
-            parse_relative_date("d7", today, ParseContext::Filter)
+            parse_relative_date("d7", today, ParseContext::Entry)
         );
         assert_eq!(
-            parse_relative_date("d7+", today, ParseContext::Interface),
-            parse_relative_date("d7+", today, ParseContext::Filter)
+            parse_absolute_date("1/1", today, ParseContext::Interface),
+            parse_absolute_date("1/1", today, ParseContext::Entry)
         );
     }
 

@@ -23,6 +23,7 @@ fn help_section_to_context(section: HelpSection) -> Option<KeyContext> {
         HelpSection::Selection => Some(KeyContext::Selection),
         HelpSection::Date => Some(KeyContext::DateInterface),
         HelpSection::Project => Some(KeyContext::ProjectInterface),
+        HelpSection::Tag => Some(KeyContext::TagInterface),
         HelpSection::Help => Some(KeyContext::Help),
         HelpSection::Commands | HelpSection::Filters => None,
     }
@@ -44,6 +45,7 @@ fn build_help_lines(keymap: &Keymap) -> Vec<RatatuiLine<'static>> {
         (HelpSection::Selection, "[Selection Mode]"),
         (HelpSection::Date, "[Date Interface]"),
         (HelpSection::Project, "[Project Interface]"),
+        (HelpSection::Tag, "[Tag Interface]"),
     ];
 
     for (section, title) in sections {
@@ -86,9 +88,18 @@ fn build_help_lines(keymap: &Keymap) -> Vec<RatatuiLine<'static>> {
     }
     lines.push(RatatuiLine::from(""));
 
-    lines.push(section_header("[Date Syntax]", &header_indent, header_style));
+    lines.push(section_header(
+        "[Date Syntax]",
+        &header_indent,
+        header_style,
+    ));
     for entry in help_entries_for_section("date_syntax") {
-        lines.push(help_line(entry.key, entry.description, key_style, desc_style));
+        lines.push(help_line(
+            entry.key,
+            entry.description,
+            key_style,
+            desc_style,
+        ));
     }
 
     lines

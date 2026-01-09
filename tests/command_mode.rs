@@ -58,7 +58,10 @@ fn escape_exits_command_mode() {
     let mut ctx = TestContext::new();
 
     ctx.press(KeyCode::Char(':'));
-    assert!(matches!(ctx.app.input_mode, InputMode::Prompt(PromptContext::Command { .. })));
+    assert!(matches!(
+        ctx.app.input_mode,
+        InputMode::Prompt(PromptContext::Command { .. })
+    ));
 
     ctx.type_str("goto");
 

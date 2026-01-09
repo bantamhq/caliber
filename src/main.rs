@@ -23,9 +23,11 @@ use caliber::app::{
 };
 use caliber::config::{self, Config, resolve_path};
 use caliber::cursor::cursor_position_in_wrap;
-use caliber::storage::{JournalContext, JournalSlot, Line};
 use caliber::registry::{KeyActionId, KeyContext};
-use caliber::ui::{CursorContext, ensure_selected_visible, format_key_for_display, set_edit_cursor};
+use caliber::storage::{JournalContext, JournalSlot, Line};
+use caliber::ui::{
+    CursorContext, ensure_selected_visible, format_key_for_display, set_edit_cursor,
+};
 use caliber::{handlers, storage, ui};
 
 fn main() -> Result<(), io::Error> {
@@ -387,10 +389,14 @@ fn run_app<B: ratatui::backend::Backend>(
             f.render_widget(indicator_widget, indicator_area);
 
             if let InputMode::Prompt(ref ctx) = app.input_mode {
-                let prefix_width = 1;
-                let cursor_pos = match ctx {
-                    PromptContext::Command { buffer } => buffer.cursor_display_pos(),
-                    PromptContext::Filter { buffer } => buffer.cursor_display_pos(),
+                let (prefix_width, cursor_pos) = match ctx {
+                    PromptContext::Command { buffer } => (1, buffer.cursor_display_pos()),
+                    PromptContext::Filter { buffer } => (1, buffer.cursor_display_pos()),
+                    PromptContext::RenameTag { old_tag, buffer } => {
+                        // "Rename #tagname to: " - calculate the full prefix width
+                        let rename_prefix_width = "Rename #".len() + old_tag.len() + " to: ".len();
+                        (rename_prefix_width as u16, buffer.cursor_display_pos())
+                    }
                 };
                 let cursor_x = chunks[1].x + prefix_width + cursor_pos as u16;
                 let cursor_y = chunks[1].y;
@@ -435,7 +441,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     height: 1,
                 };
 
-                let close_keys = app.keymap.keys_for_action_ordered(KeyContext::Help, KeyActionId::ToggleHelp);
+                let close_keys = app
+                    .keymap
+                    .keys_for_action_ordered(KeyContext::Help, KeyActionId::ToggleHelp);
                 let close_key = close_keys
                     .first()
                     .map(|k| format_key_for_display(k))
@@ -443,7 +451,10 @@ fn run_app<B: ratatui::backend::Backend>(
 
                 let footer_line = if arrows.is_empty() {
                     ratatui::text::Line::from(vec![
-                        ratatui::text::Span::styled(close_key.clone(), Style::default().fg(Color::White)),
+                        ratatui::text::Span::styled(
+                            close_key.clone(),
+                            Style::default().fg(Color::White),
+                        ),
                         ratatui::text::Span::styled(" close ", Style::default().dim()),
                     ])
                 } else {
@@ -460,10 +471,20 @@ fn run_app<B: ratatui::backend::Backend>(
             }
 
             if let InputMode::Confirm(context) = &app.input_mode {
-                let (title, messages): (&str, &[&str]) = match context {
+                let (title, messages): (&str, Vec<String>) = match context {
                     ConfirmContext::CreateProjectJournal => (
                         " Create Project Journal ",
-                        &["No project journal found.", "Create .caliber/journal.md?"],
+                        vec![
+                            "No project journal found.".to_string(),
+                            "Create .caliber/journal.md?".to_string(),
+                        ],
+                    ),
+                    ConfirmContext::DeleteTag(tag) => (
+                        " Delete Tag ",
+                        vec![
+                            format!("Delete all occurrences of #{}?", tag),
+                            "This cannot be undone.".to_string(),
+                        ],
                     ),
                 };
 
@@ -480,7 +501,7 @@ fn run_app<B: ratatui::backend::Backend>(
 
                 let mut lines = vec![ratatui::text::Line::raw("")];
                 for msg in messages {
-                    lines.push(ratatui::text::Line::raw(*msg));
+                    lines.push(ratatui::text::Line::raw(msg));
                 }
                 lines.push(ratatui::text::Line::raw(""));
                 lines.push(ratatui::text::Line::from(vec![
@@ -509,7 +530,17 @@ fn run_app<B: ratatui::backend::Backend>(
                         );
                         ui::render_project_interface(f, state, size, current_project_id.as_deref());
                     }
-                    InterfaceContext::Tag(_) => {}
+                    InterfaceContext::Tag(state) => {
+                        let visible_height =
+                            (ui::POPUP_HEIGHT.saturating_sub(4) as usize).min(size.height as usize);
+                        ensure_selected_visible(
+                            &mut state.scroll_offset,
+                            state.selected,
+                            state.filtered_indices.len(),
+                            visible_height,
+                        );
+                        ui::render_tag_interface(f, state, size);
+                    }
                 }
             }
         })?;

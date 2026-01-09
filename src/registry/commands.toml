@@ -14,6 +14,12 @@ readme = "Open project interface"
 completion_hint = "Open project interface"
 
 [[command]]
+name = "tag"
+help = "Open tag interface"
+readme = "Open tag interface"
+completion_hint = "Open tag interface to manage tags"
+
+[[command]]
 name = "scratchpad"
 help = "Open scratchpad for quick notes"
 readme = "Open scratchpad for quick notes"

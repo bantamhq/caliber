@@ -112,6 +112,9 @@ fn backtick_toggles_between_journals() {
 
 #[test]
 fn backtick_prompts_project_journal_creation() {
+    // SAFETY: Tests run single-threaded per test file
+    unsafe { std::env::set_var("CALIBER_SKIP_REGISTRY", "1") };
+
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let temp_dir = TempDir::new().unwrap();
 
@@ -145,6 +148,9 @@ fn backtick_prompts_project_journal_creation() {
 
 #[test]
 fn project_creation_preserves_existing_journal() {
+    // SAFETY: Tests run single-threaded per test file
+    unsafe { std::env::set_var("CALIBER_SKIP_REGISTRY", "1") };
+
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let temp_dir = TempDir::new().unwrap();
 

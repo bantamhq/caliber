@@ -193,7 +193,11 @@ fn date_value_hints_show_after_colon() {
     ctx.type_str("@before:d");
     ctx.press(KeyCode::Tab);
 
-    assert!(ctx.app.prompt_content().is_some_and(|s| s.starts_with("@before:d")));
+    assert!(
+        ctx.app
+            .prompt_content()
+            .is_some_and(|s| s.starts_with("@before:d"))
+    );
 }
 
 #[test]
@@ -263,7 +267,10 @@ fn entry_date_hints_show_all_for_bare_at() {
 
     if let caliber::app::HintContext::DateValues { matches, scope, .. } = &ctx.app.hint_state {
         assert_eq!(*scope, caliber::registry::DateScope::Entry);
-        assert!(matches.len() > 2, "Should show more than just every-* entries");
+        assert!(
+            matches.len() > 2,
+            "Should show more than just every-* entries"
+        );
         let syntaxes: Vec<_> = matches.iter().map(|m| m.syntax).collect();
         assert!(syntaxes.contains(&"today"), "Should include 'today'");
         assert!(syntaxes.contains(&"tomorrow"), "Should include 'tomorrow'");
@@ -285,7 +292,10 @@ fn entry_date_hints_show_for_at_prefix() {
 
     assert!(matches!(
         ctx.app.hint_state,
-        caliber::app::HintContext::DateValues { scope: caliber::registry::DateScope::Entry, .. }
+        caliber::app::HintContext::DateValues {
+            scope: caliber::registry::DateScope::Entry,
+            ..
+        }
     ));
 }
 
@@ -314,7 +324,10 @@ fn entry_every_hints_show_for_every_prefix() {
 
     assert!(matches!(
         ctx.app.hint_state,
-        caliber::app::HintContext::DateValues { scope: caliber::registry::DateScope::Entry, .. }
+        caliber::app::HintContext::DateValues {
+            scope: caliber::registry::DateScope::Entry,
+            ..
+        }
     ));
 }
 
@@ -329,7 +342,10 @@ fn entry_every_hints_persist_while_typing_day() {
         assert_eq!(*scope, caliber::registry::DateScope::Entry);
         assert!(!matches.is_empty(), "Hints should still show for @every-m");
     } else {
-        panic!("Expected DateValues hint state with Entry scope, got {:?}", ctx.app.hint_state);
+        panic!(
+            "Expected DateValues hint state with Entry scope, got {:?}",
+            ctx.app.hint_state
+        );
     }
 }
 
@@ -342,9 +358,15 @@ fn entry_every_hints_show_after_hyphen() {
 
     if let caliber::app::HintContext::DateValues { matches, scope, .. } = &ctx.app.hint_state {
         assert_eq!(*scope, caliber::registry::DateScope::Entry);
-        assert!(matches.len() >= 2, "Should show both @every-[1-31] and @every-[day]");
+        assert!(
+            matches.len() >= 2,
+            "Should show both @every-[1-31] and @every-[day]"
+        );
     } else {
-        panic!("Expected DateValues hint state with Entry scope, got {:?}", ctx.app.hint_state);
+        panic!(
+            "Expected DateValues hint state with Entry scope, got {:?}",
+            ctx.app.hint_state
+        );
     }
 }
 
@@ -423,7 +445,10 @@ fn every_weekday_group_shows_hints_for_partial_day() {
         assert_eq!(*scope, caliber::registry::DateScope::Entry);
         assert!(!matches.is_empty(), "Should show hints for @every-t");
     } else {
-        panic!("Expected DateValues hint state, got {:?}", ctx.app.hint_state);
+        panic!(
+            "Expected DateValues hint state, got {:?}",
+            ctx.app.hint_state
+        );
     }
 }
 
@@ -452,7 +477,10 @@ fn filter_weekday_group_shows_hints() {
 
     assert!(matches!(
         ctx.app.hint_state,
-        caliber::app::HintContext::DateValues { scope: caliber::registry::DateScope::Filter, .. }
+        caliber::app::HintContext::DateValues {
+            scope: caliber::registry::DateScope::Filter,
+            ..
+        }
     ));
 }
 

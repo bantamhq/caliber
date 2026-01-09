@@ -8,6 +8,7 @@ mod interface_popup;
 mod project_interface;
 mod scroll;
 mod shared;
+mod tag_interface;
 
 pub use daily::render_daily_view;
 pub use date_interface::render_date_interface;
@@ -18,4 +19,7 @@ pub use hints::{HINT_OVERLAY_HEIGHT, render_hint_overlay};
 pub use interface_popup::POPUP_HEIGHT;
 pub use project_interface::render_project_interface;
 pub use scroll::{CursorContext, ensure_selected_visible, set_edit_cursor};
-pub use shared::{format_key_for_display, remove_all_trailing_tags, remove_last_trailing_tag, wrap_text};
+pub use shared::{
+    format_key_for_display, remove_all_trailing_tags, remove_last_trailing_tag, wrap_text,
+};
+pub use tag_interface::render_tag_interface;

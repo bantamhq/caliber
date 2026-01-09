@@ -20,6 +20,14 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
             Span::styled("/", Style::default().fg(Color::Magenta)),
             Span::raw(buffer.content().to_string()),
         ]),
+        (_, InputMode::Prompt(PromptContext::RenameTag { old_tag, buffer })) => {
+            RatatuiLine::from(vec![
+                Span::styled("Rename ", Style::default().fg(Color::Blue)),
+                Span::styled(format!("#{}", old_tag), Style::default().fg(Color::Yellow)),
+                Span::styled(" to: ", Style::default().fg(Color::Blue)),
+                Span::raw(buffer.content().to_string()),
+            ])
+        }
         (_, InputMode::Edit(_)) => {
             build_footer_line(" EDIT ", Color::Green, FooterMode::Edit, &app.keymap)
         }
@@ -45,18 +53,21 @@ pub fn render_footer(app: &App) -> RatatuiLine<'static> {
                 &app.keymap,
             )
         }
-        (_, InputMode::Interface(InterfaceContext::Date(_))) => {
-            build_footer_line(" DATE ", Color::Blue, FooterMode::DateInterface, &app.keymap)
+        (_, InputMode::Interface(InterfaceContext::Date(_))) => build_footer_line(
+            " DATE ",
+            Color::Blue,
+            FooterMode::DateInterface,
+            &app.keymap,
+        ),
+        (_, InputMode::Interface(InterfaceContext::Project(_))) => build_footer_line(
+            " PROJECT ",
+            Color::Blue,
+            FooterMode::ProjectInterface,
+            &app.keymap,
+        ),
+        (_, InputMode::Interface(InterfaceContext::Tag(_))) => {
+            build_footer_line(" TAG ", Color::Blue, FooterMode::TagInterface, &app.keymap)
         }
-        (_, InputMode::Interface(InterfaceContext::Project(_))) => {
-            build_footer_line(" PROJECT ", Color::Blue, FooterMode::ProjectInterface, &app.keymap)
-        }
-        (_, InputMode::Interface(InterfaceContext::Tag(_))) => RatatuiLine::from(vec![
-            Span::styled(
-                " TAG ",
-                Style::default().fg(Color::Black).bg(Color::Blue),
-            ),
-        ]),
         (ViewMode::Daily(_), InputMode::Normal) => {
             build_footer_line(" DAILY ", Color::Cyan, FooterMode::NormalDaily, &app.keymap)
         }
@@ -78,6 +89,7 @@ fn footer_mode_to_context(mode: FooterMode) -> KeyContext {
         FooterMode::Selection => KeyContext::Selection,
         FooterMode::DateInterface => KeyContext::DateInterface,
         FooterMode::ProjectInterface => KeyContext::ProjectInterface,
+        FooterMode::TagInterface => KeyContext::TagInterface,
     }
 }
 

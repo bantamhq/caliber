@@ -289,7 +289,10 @@ fn date_interface_navigation_changes_selected_date() {
     ctx.press(KeyCode::Char('l'));
 
     if let InputMode::Interface(InterfaceContext::Date(ref state)) = ctx.app.input_mode {
-        assert_eq!(state.selected, NaiveDate::from_ymd_opt(2026, 1, 16).unwrap());
+        assert_eq!(
+            state.selected,
+            NaiveDate::from_ymd_opt(2026, 1, 16).unwrap()
+        );
     } else {
         panic!("Expected date interface mode");
     }
@@ -307,5 +310,8 @@ fn date_interface_enter_navigates_to_selected_date() {
     }
     ctx.press(KeyCode::Enter);
 
-    assert_eq!(ctx.app.current_date, NaiveDate::from_ymd_opt(2026, 1, 20).unwrap());
+    assert_eq!(
+        ctx.app.current_date,
+        NaiveDate::from_ymd_opt(2026, 1, 20).unwrap()
+    );
 }

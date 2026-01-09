@@ -1,14 +1,14 @@
-use std::sync::LazyLock;
-
 use chrono::NaiveDate;
 use ratatui::{
     style::{Color, Style},
     text::Span,
 };
-use regex::Regex;
 use unicode_width::UnicodeWidthStr;
 
-use crate::storage::{EntryType, LATER_DATE_REGEX, RECURRING_REGEX, RELATIVE_DATE_REGEX, TAG_REGEX};
+use crate::storage::{
+    EntryType, LAST_TRAILING_TAG_REGEX, LATER_DATE_REGEX, RECURRING_REGEX, RELATIVE_DATE_REGEX,
+    TAG_REGEX, TRAILING_TAGS_REGEX,
+};
 
 #[must_use]
 pub fn entry_style(entry_type: &EntryType) -> Style {
@@ -33,14 +33,6 @@ pub fn format_date_suffix(date: NaiveDate) -> (String, usize) {
 pub fn date_suffix_style(base: Style) -> Style {
     base.add_modifier(ratatui::style::Modifier::DIM)
 }
-
-/// Matches one or more trailing tags at end of line
-static TRAILING_TAGS_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(\s+#[a-zA-Z][a-zA-Z0-9_-]*)+\s*$").unwrap());
-
-/// Matches the last trailing tag (space + tag at end)
-static LAST_TRAILING_TAG_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\s+#[a-zA-Z][a-zA-Z0-9_-]*\s*$").unwrap());
 
 /// Remove the last trailing tag, returns None if no trailing tags or entry is only tags
 #[must_use]

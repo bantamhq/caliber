@@ -92,7 +92,6 @@ impl App {
             }
         }
 
-        self.refresh_tag_cache();
         Some((context, had_content))
     }
 

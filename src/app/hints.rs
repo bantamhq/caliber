@@ -490,11 +490,11 @@ impl HintContext {
             Self::DateOps { prefix, matches } => matches
                 .first()
                 .map(|f| Self::suffix_after(f.syntax, 1 + prefix.len())),
-            Self::DateValues { prefix, matches, .. } => {
-                matches
-                    .first()
-                    .and_then(|dv| Self::compute_date_completion(prefix, dv))
-            }
+            Self::DateValues {
+                prefix, matches, ..
+            } => matches
+                .first()
+                .and_then(|dv| Self::compute_date_completion(prefix, dv)),
             Self::SavedFilters { prefix, matches } => {
                 matches.first().map(|f| Self::suffix_after(f, prefix.len()))
             }
@@ -525,9 +525,9 @@ impl HintContext {
             Self::DateOps { prefix, matches } if !prefix.is_empty() => {
                 matches.first().map(|f| f.completion_hint)
             }
-            Self::DateValues { prefix, matches, .. } if !prefix.is_empty() => {
-                matches.first().map(|dv| dv.completion_hint)
-            }
+            Self::DateValues {
+                prefix, matches, ..
+            } if !prefix.is_empty() => matches.first().map(|dv| dv.completion_hint),
             Self::DateValues {
                 scope: DateScope::Filter,
                 ..

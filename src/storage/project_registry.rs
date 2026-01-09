@@ -63,7 +63,10 @@ impl ProjectRegistry {
                 let base_id = info.id.clone();
                 let mut final_id = base_id.clone();
                 let mut counter = 2;
-                while seen_ids.iter().any(|id: &String| id.eq_ignore_ascii_case(&final_id)) {
+                while seen_ids
+                    .iter()
+                    .any(|id: &String| id.eq_ignore_ascii_case(&final_id))
+                {
                     final_id = format!("{}-{}", base_id, counter);
                     counter += 1;
                 }
@@ -124,17 +127,14 @@ impl ProjectRegistry {
 
     pub fn remove(&mut self, id: &str) -> bool {
         let len_before = self.projects.len();
-        self.projects
-            .retain(|p| !p.id.eq_ignore_ascii_case(id));
+        self.projects.retain(|p| !p.id.eq_ignore_ascii_case(id));
         self.projects.len() < len_before
     }
 
     /// Find project by ID (case-insensitive)
     #[must_use]
     pub fn find_by_id(&self, id: &str) -> Option<&ProjectInfo> {
-        self.projects
-            .iter()
-            .find(|p| p.id.eq_ignore_ascii_case(id))
+        self.projects.iter().find(|p| p.id.eq_ignore_ascii_case(id))
     }
 
     /// Find project by path (accepts either .caliber/ or .caliber/journal.md)
@@ -172,9 +172,7 @@ impl ProjectRegistry {
     }
 
     fn id_exists(&self, id: &str) -> bool {
-        self.projects
-            .iter()
-            .any(|p| p.id.eq_ignore_ascii_case(id))
+        self.projects.iter().any(|p| p.id.eq_ignore_ascii_case(id))
     }
 }
 
@@ -255,10 +253,7 @@ pub fn set_hide_from_registry(caliber_path: &Path, hide: bool) -> io::Result<()>
         toml::Table::new()
     };
 
-    config.insert(
-        "hide_from_registry".to_string(),
-        toml::Value::Boolean(hide),
-    );
+    config.insert("hide_from_registry".to_string(), toml::Value::Boolean(hide));
 
     let content = toml::to_string_pretty(&config)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -414,6 +409,10 @@ mod tests {
         });
 
         assert!(registry.find_by_path(Path::new("/test/.caliber")).is_some());
-        assert!(registry.find_by_path(Path::new("/test/.caliber/journal.md")).is_some());
+        assert!(
+            registry
+                .find_by_path(Path::new("/test/.caliber/journal.md"))
+                .is_some()
+        );
     }
 }

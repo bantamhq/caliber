@@ -82,8 +82,7 @@ fn shift_v_double_tap_deselects_range() {
 #[test]
 fn range_select_anchor_updates_on_move() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content =
-        "# 2026/01/15\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n";
+    let content = "# 2026/01/15\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n";
     let mut ctx = TestContext::with_journal_content(date, content);
 
     ctx.press(KeyCode::Char('g'));

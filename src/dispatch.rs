@@ -351,11 +351,7 @@ impl Keymap {
     ///
     /// If the action is overridden by config, only config keys are returned (sorted).
     #[must_use]
-    pub fn keys_for_action_ordered(
-        &self,
-        context: KeyContext,
-        action: KeyActionId,
-    ) -> Vec<String> {
+    pub fn keys_for_action_ordered(&self, context: KeyContext, action: KeyActionId) -> Vec<String> {
         let is_overridden = self
             .overrides
             .get(&context)

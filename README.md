@@ -274,6 +274,7 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `?` | Toggle help |
 | `\` | Toggle date interface |
 | `.` | Toggle project interface |
+| `,` | Toggle tag interface |
 
 
 ### Filter Mode
@@ -304,6 +305,7 @@ Now `/$next` expands to `!tasks #next`. Combine them: `$t #work` expands to `!ta
 | `?` | Toggle help |
 | `\` | Toggle date interface |
 | `.` | Toggle project interface |
+| `,` | Toggle tag interface |
 | `Enter` | Quick add to today |
 | `r` | Refresh results |
 | `Esc` | Cancel |
@@ -360,6 +362,17 @@ Press `\` to open the calendar interface.
 
 | Key | Action |
 |-----|--------|
+| `↑`/`k` | Move up |
+| `↓`/`j` | Move down |
+| `←`/`h` | Move left |
+| `→`/`l` | Move right |
+| `Tab` | Toggle focus |
+| `Enter` | Submit/Select |
+| `]` | Next month |
+| `[` | Previous month |
+| `}` | Next year |
+| `{` | Previous year |
+| `t` | Go to today |
 | `←`/`h` | Previous day |
 | `→`/`l` | Next day |
 | `↑`/`k` | Previous week |
@@ -379,6 +392,12 @@ Press `+` to open the project switcher.
 
 | Key | Action |
 |-----|--------|
+| `↑`/`k` | Move up |
+| `↓`/`j` | Move down |
+| `Tab` | Toggle focus |
+| `Enter` | Submit/Select |
+| `d` | Delete/Remove |
+| `H` | Hide project |
 | `↑` | Previous project |
 | `↓` | Next project |
 | `Enter` | Open project |
@@ -393,6 +412,7 @@ Press `+` to open the project switcher.
 |-----|--------|
 | `:date ` | Open date interface |
 | `:project ` | Open project interface |
+| `:tag ` | Open tag interface |
 | `:scratchpad ` | Open scratchpad for quick notes |
 | `:quit ` | Quit application |
 

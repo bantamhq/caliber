@@ -32,6 +32,9 @@ impl App {
             "project" => {
                 self.open_project_interface();
             }
+            "tag" | "tags" => {
+                self.open_tag_interface();
+            }
             "scratchpad" => {
                 self.open_scratchpad()?;
                 self.input_mode = InputMode::Normal;

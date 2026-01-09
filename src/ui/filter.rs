@@ -142,7 +142,10 @@ pub fn render_filter_view(app: &App, width: usize) -> Vec<RatatuiLine<'static>> 
 
         let content_style = entry_style(entry_type);
         if wrapped.is_empty() {
-            lines.push(RatatuiLine::from(Span::styled(prefix.to_string(), content_style)));
+            lines.push(RatatuiLine::from(Span::styled(
+                prefix.to_string(),
+                content_style,
+            )));
         } else {
             for (i, line_text) in wrapped.iter().enumerate() {
                 let mut spans = if i == 0 {

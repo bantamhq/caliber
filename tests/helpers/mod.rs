@@ -20,13 +20,19 @@ pub struct TestContext {
 impl TestContext {
     pub fn new() -> Self {
         // SAFETY: Tests run single-threaded per test file, env var is set before any other work
-        unsafe { std::env::set_var("CALIBER_SKIP_CLIPBOARD", "1") };
+        unsafe {
+            std::env::set_var("CALIBER_SKIP_CLIPBOARD", "1");
+            std::env::set_var("CALIBER_SKIP_REGISTRY", "1");
+        }
         Self::with_date(NaiveDate::from_ymd_opt(2026, 1, 15).unwrap())
     }
 
     pub fn with_date(date: NaiveDate) -> Self {
         // SAFETY: Tests run single-threaded per test file, env var is set before any other work
-        unsafe { std::env::set_var("CALIBER_SKIP_CLIPBOARD", "1") };
+        unsafe {
+            std::env::set_var("CALIBER_SKIP_CLIPBOARD", "1");
+            std::env::set_var("CALIBER_SKIP_REGISTRY", "1");
+        }
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let journal_path = temp_dir.path().join("test_journal.md");
         std::fs::write(&journal_path, "").expect("Failed to create journal");
@@ -45,7 +51,10 @@ impl TestContext {
 
     pub fn with_config_and_content(date: NaiveDate, content: &str, config: Config) -> Self {
         // SAFETY: Tests run single-threaded per test file, env var is set before any other work
-        unsafe { std::env::set_var("CALIBER_SKIP_CLIPBOARD", "1") };
+        unsafe {
+            std::env::set_var("CALIBER_SKIP_CLIPBOARD", "1");
+            std::env::set_var("CALIBER_SKIP_REGISTRY", "1");
+        }
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let journal_path = temp_dir.path().join("test_journal.md");
         std::fs::write(&journal_path, content).expect("Failed to write journal");
@@ -103,16 +112,14 @@ impl TestContext {
     }
 
     pub fn render_daily(&self) -> Vec<String> {
-        let lines = ui::render_daily_view(&self.app, 76);
-        lines
+        ui::render_daily_view(&self.app, 76)
             .iter()
             .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
             .collect()
     }
 
     pub fn render_filter(&self) -> Vec<String> {
-        let lines = ui::render_filter_view(&self.app, 76);
-        lines
+        ui::render_filter_view(&self.app, 76)
             .iter()
             .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
             .collect()
@@ -127,6 +134,15 @@ impl TestContext {
 
     pub fn screen_contains(&self, text: &str) -> bool {
         self.render_current().iter().any(|line| line.contains(text))
+    }
+
+    pub fn render_footer(&self) -> String {
+        let line = ui::render_footer(&self.app);
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    pub fn footer_contains(&self, text: &str) -> bool {
+        self.render_footer().contains(text)
     }
 
     pub fn find_line(&self, text: &str) -> Option<String> {

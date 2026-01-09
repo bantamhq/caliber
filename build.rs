@@ -103,6 +103,7 @@ const VALID_CONTEXTS: &[&str] = &[
     "help",
     "date_interface",
     "project_interface",
+    "tag_interface",
     "command_prompt",
     "filter_prompt",
 ];
@@ -115,6 +116,7 @@ const VALID_HELP_SECTIONS: &[&str] = &[
     "selection",
     "date",
     "project",
+    "tag",
     "commands",
     "filters",
     "help",
@@ -128,6 +130,7 @@ const VALID_FOOTER_MODES: &[&str] = &[
     "selection",
     "date_interface",
     "project_interface",
+    "tag_interface",
 ];
 
 const VALID_DATE_SCOPES: &[&str] = &["entry", "filter"];
