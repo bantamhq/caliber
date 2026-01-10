@@ -61,9 +61,9 @@ impl App {
         let journal = storage::load_journal(&path)?;
         let count = count_tag_occurrences(&journal, tag);
 
-        let tag_regex = storage::create_tag_match_regex(tag).map_err(io::Error::other)?;
+        let tag_regex = storage::create_tag_delete_regex(tag).map_err(io::Error::other)?;
         let new_journal = replace_tag_matches(&journal, &tag_regex, None);
-        let cleaned = Self::clean_journal_after_tag_modification(&new_journal);
+        let cleaned = Self::clean_empty_entries(&new_journal);
 
         storage::save_journal(&path, &cleaned)?;
         Ok(count)
@@ -81,50 +81,40 @@ impl App {
         let tag_regex = storage::create_tag_match_regex(old_tag).map_err(io::Error::other)?;
         let replacement = format!("#{new_tag}");
         let new_journal = replace_tag_matches(&journal, &tag_regex, Some(&replacement));
-        let cleaned = Self::clean_journal_after_tag_modification(&new_journal);
+        let cleaned = Self::clean_empty_entries(&new_journal);
 
         storage::save_journal(&path, &cleaned)?;
         Ok(count)
     }
 
-    fn clean_journal_after_tag_modification(journal: &str) -> String {
-        let lines: Vec<String> = journal
+    /// Remove entries that became empty after tag operations
+    #[must_use]
+    fn clean_empty_entries(journal: &str) -> String {
+        journal
             .lines()
-            .filter_map(|line| {
-                if line.trim_start().starts_with('-') || line.trim_start().starts_with('*') {
-                    let content = if let Some(pos) = line.find("] ") {
-                        &line[pos + 2..]
-                    } else if let Some(pos) = line.find(' ') {
-                        &line[pos + 1..]
-                    } else {
-                        ""
-                    };
-
-                    if content.trim().is_empty() {
-                        None
-                    } else {
-                        Some(line.to_string())
-                    }
-                } else {
-                    Some(line.to_string())
+            .filter(|line| {
+                let trimmed = line.trim_start();
+                let is_entry = trimmed.starts_with('-') || trimmed.starts_with('*');
+                if !is_entry {
+                    return true;
                 }
+
+                let content = trimmed
+                    .find("] ")
+                    .map(|pos| &trimmed[pos + 2..])
+                    .or_else(|| {
+                        // Handle `- [ ]` or `- [x]` with no content after checkbox
+                        if trimmed.ends_with(']') && trimmed.contains('[') {
+                            Some("")
+                        } else {
+                            trimmed.find(' ').map(|pos| &trimmed[pos + 1..])
+                        }
+                    })
+                    .unwrap_or("");
+
+                !content.trim().is_empty()
             })
-            .collect();
-
-        let mut result = Vec::new();
-        let mut prev_blank = false;
-
-        for line in lines {
-            let is_blank = line.trim().is_empty();
-
-            if is_blank && prev_blank {
-                continue;
-            }
-
-            result.push(line);
-            prev_blank = is_blank;
-        }
-
-        result.join("\n")
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }

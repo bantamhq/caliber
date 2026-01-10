@@ -705,9 +705,7 @@ impl App {
             }
         };
 
-        if matches!(self.hint_state, HintContext::Inactive) {
-            self.refresh_tag_cache();
-        }
+        self.refresh_tag_cache();
 
         let saved_filters: Vec<String> = if mode == HintMode::Filter {
             self.config.filters.keys().cloned().collect()

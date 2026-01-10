@@ -682,7 +682,7 @@ fn handle_interface_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
         },
         InputMode::Interface(InterfaceContext::Project(state)) => match key.code {
             KeyCode::Enter => {
-                app.interface_submit()?;
+                app.interface_exit_input();
             }
             KeyCode::Tab => {
                 app.interface_toggle_focus();
@@ -703,7 +703,7 @@ fn handle_interface_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
         },
         InputMode::Interface(InterfaceContext::Tag(state)) => match key.code {
             KeyCode::Enter => {
-                app.interface_submit()?;
+                app.interface_exit_input();
             }
             KeyCode::Tab => {
                 app.interface_toggle_focus();

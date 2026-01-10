@@ -101,6 +101,22 @@ impl App {
         }
     }
 
+    /// Exit input mode in any interface (unfocus input field)
+    pub fn interface_exit_input(&mut self) {
+        match &mut self.input_mode {
+            InputMode::Interface(InterfaceContext::Date(state)) => {
+                state.input_focused = false;
+            }
+            InputMode::Interface(InterfaceContext::Project(state)) => {
+                state.set_input_focused(false);
+            }
+            InputMode::Interface(InterfaceContext::Tag(state)) => {
+                state.set_input_focused(false);
+            }
+            _ => {}
+        }
+    }
+
     /// Check if input is focused in current interface
     pub fn interface_input_focused(&self) -> bool {
         match &self.input_mode {

@@ -210,6 +210,7 @@ impl App {
         self.original_edit_content = Some(content.clone());
         self.edit_buffer = Some(CursorBuffer::new(content));
         self.input_mode = InputMode::Edit(ctx);
+        self.update_hints();
     }
 
     /// Extract yank target from current selection (includes prefix for round-trip paste)

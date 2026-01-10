@@ -45,6 +45,11 @@ pub fn create_tag_match_regex(tag: &str) -> Result<Regex, regex::Error> {
     Regex::new(&format!(r"(?i)#{}", regex::escape(tag)))
 }
 
+/// Create a regex for tag deletion - includes preceding space to avoid double spaces
+pub fn create_tag_delete_regex(tag: &str) -> Result<Regex, regex::Error> {
+    Regex::new(&format!(r"(?i)\s?#{}", regex::escape(tag)))
+}
+
 /// Matches trailing tags (one or more tags at end of line)
 pub static TRAILING_TAGS_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"(\s+#[a-zA-Z]{}*)+\s*$", TAG_CHAR_CLASS)).unwrap());
