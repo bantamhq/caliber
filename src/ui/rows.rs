@@ -54,27 +54,18 @@ pub fn build_projected_row(
     visible_idx: usize,
     width: usize,
 ) -> RowModel {
-    let content_style = entry_style(&projected_entry.entry_type);
-    let text = projected_entry.content.clone();
-    let prefix = projected_entry.entry_type.prefix();
-    let prefix_width = prefix.width();
-    let (source_suffix, source_suffix_width) = format_date_suffix(projected_entry.source_date);
-
-    let available = width.saturating_sub(prefix_width + source_suffix_width);
-    let display_text = truncate_with_tags(&text, available);
-    let (_, rest_of_prefix) = split_prefix(prefix);
-
-    let indicator =
-        get_projected_entry_indicator(app, is_selected, visible_idx, &projected_entry.source_type);
-
-    RowModel::new(
-        Some(indicator),
-        Some(Span::styled(rest_of_prefix, content_style)),
-        style_content(&display_text, content_style),
-        Some(Span::styled(
-            source_suffix,
-            date_suffix_style(content_style),
-        )),
+    let (source_suffix, _) = format_date_suffix(projected_entry.source_date);
+    build_entry_row(
+        app,
+        EntryRowSpec {
+            entry_type: &projected_entry.entry_type,
+            text: &projected_entry.content,
+            width,
+            is_selected,
+            visible_idx,
+            indicator: EntryIndicator::Projected(&projected_entry.source_type),
+            suffix: EntrySuffix::Date(source_suffix),
+        },
     )
 }
 
@@ -85,28 +76,17 @@ pub fn build_daily_entry_row(
     visible_idx: usize,
     width: usize,
 ) -> RowModel {
-    let content_style = entry_style(&entry.entry_type);
-    let text = entry.content.clone();
-    let prefix = entry.prefix();
-    let prefix_width = prefix.width();
-
-    let (first_char, rest_of_prefix) = split_prefix(prefix);
-    let indicator = get_entry_indicator(
+    build_entry_row(
         app,
-        is_selected,
-        visible_idx,
-        theme::ENTRY_CURSOR,
-        &first_char,
-        content_style,
-    );
-    let available = width.saturating_sub(prefix_width);
-    let display_text = truncate_with_tags(&text, available);
-
-    RowModel::new(
-        Some(indicator),
-        Some(Span::styled(rest_of_prefix, content_style)),
-        style_content(&display_text, content_style),
-        None,
+        EntryRowSpec {
+            entry_type: &entry.entry_type,
+            text: &entry.content,
+            width,
+            is_selected,
+            visible_idx,
+            indicator: EntryIndicator::Daily,
+            suffix: EntrySuffix::None,
+        },
     )
 }
 
@@ -134,24 +114,85 @@ pub fn build_filter_selected_row(app: &App, entry: &Entry, index: usize, width: 
     )
 }
 
-pub fn build_filter_row(app: &App, entry: &Entry, index: usize, width: usize) -> RowModel {
-    let content_style = entry_style(&entry.entry_type);
-    let text = entry.content.clone();
-    let prefix = entry.entry_type.prefix();
-    let prefix_width = prefix.width();
-    let (date_suffix, date_suffix_width) = format_date_suffix(entry.source_date);
+#[derive(Copy, Clone)]
+enum EntryIndicator<'a> {
+    Daily,
+    Filter,
+    Projected(&'a SourceType),
+}
 
-    let available = width.saturating_sub(prefix_width + date_suffix_width);
-    let display_text = truncate_with_tags(&text, available);
+enum EntrySuffix {
+    None,
+    Date(String),
+}
+
+struct EntryRowSpec<'a> {
+    entry_type: &'a EntryType,
+    text: &'a str,
+    width: usize,
+    is_selected: bool,
+    visible_idx: usize,
+    indicator: EntryIndicator<'a>,
+    suffix: EntrySuffix,
+}
+
+fn build_entry_row(app: &App, spec: EntryRowSpec<'_>) -> RowModel {
+    let content_style = entry_style(spec.entry_type);
+    let prefix = spec.entry_type.prefix();
+    let prefix_width = prefix.width();
+
+    let (suffix_text, suffix_width) = match spec.suffix {
+        EntrySuffix::None => (None, 0),
+        EntrySuffix::Date(text) => {
+            let width = text.width();
+            (Some(text), width)
+        }
+    };
+
+    let available = spec.width.saturating_sub(prefix_width + suffix_width);
+    let display_text = truncate_with_tags(spec.text, available);
 
     let (first_char, rest_of_prefix) = split_prefix(prefix);
-    let first_char = filter_list_indicator(app, &first_char, index, content_style);
+    let indicator = match spec.indicator {
+        EntryIndicator::Daily => get_entry_indicator(
+            app,
+            spec.is_selected,
+            spec.visible_idx,
+            theme::ENTRY_CURSOR,
+            &first_char,
+            content_style,
+        ),
+        EntryIndicator::Filter => {
+            filter_list_indicator(app, &first_char, spec.visible_idx, content_style)
+        }
+        EntryIndicator::Projected(source_type) => {
+            get_projected_entry_indicator(app, spec.is_selected, spec.visible_idx, source_type)
+        }
+    };
+
+    let suffix_span = suffix_text.map(|text| Span::styled(text, date_suffix_style(content_style)));
 
     RowModel::new(
-        Some(first_char),
+        Some(indicator),
         Some(Span::styled(rest_of_prefix, content_style)),
         style_content(&display_text, content_style),
-        Some(Span::styled(date_suffix, date_suffix_style(content_style))),
+        suffix_span,
+    )
+}
+
+pub fn build_filter_row(app: &App, entry: &Entry, index: usize, width: usize) -> RowModel {
+    let (date_suffix, _) = format_date_suffix(entry.source_date);
+    build_entry_row(
+        app,
+        EntryRowSpec {
+            entry_type: &entry.entry_type,
+            text: &entry.content,
+            width,
+            is_selected: false,
+            visible_idx: index,
+            indicator: EntryIndicator::Filter,
+            suffix: EntrySuffix::Date(date_suffix),
+        },
     )
 }
 
