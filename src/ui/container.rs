@@ -8,31 +8,14 @@ use ratatui::{
 use unicode_width::UnicodeWidthStr;
 
 use super::context::RenderContext;
+use super::layout::padded_content_area;
 use super::model::ListModel;
 use super::scroll_indicator::{ScrollIndicatorStyle, scroll_indicator_text};
-use super::theme;
 
 pub struct ContainerConfig {
     pub title: Option<RatatuiLine<'static>>,
     pub border_color: Color,
-}
-
-impl ContainerConfig {
-    #[must_use]
-    pub fn daily(title: RatatuiLine<'static>) -> Self {
-        Self {
-            title: Some(title),
-            border_color: theme::BORDER_DAILY,
-        }
-    }
-
-    #[must_use]
-    pub fn filter() -> Self {
-        Self {
-            title: None,
-            border_color: theme::BORDER_FILTER,
-        }
-    }
+    pub focused_border_color: Option<Color>,
 }
 
 pub struct ContainerLayout {
@@ -40,24 +23,44 @@ pub struct ContainerLayout {
     pub content_area: Rect,
 }
 
+#[allow(dead_code)]
 pub fn render_container(
     f: &mut Frame<'_>,
     context: &RenderContext,
     config: &ContainerConfig,
+    focused: bool,
 ) -> ContainerLayout {
+    render_container_in_area(f, context.main_area, config, focused)
+}
+
+pub fn render_container_in_area(
+    f: &mut Frame<'_>,
+    area: Rect,
+    config: &ContainerConfig,
+    focused: bool,
+) -> ContainerLayout {
+    let border_color = if focused {
+        config.focused_border_color.unwrap_or(config.border_color)
+    } else {
+        config.border_color
+    };
+
     let mut block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(config.border_color));
+        .border_style(Style::default().fg(border_color));
 
     if let Some(title) = config.title.clone() {
         block = block.title_top(title);
     }
 
-    f.render_widget(block, context.main_area);
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let content_area = padded_content_area(inner);
 
     ContainerLayout {
-        main_area: context.main_area,
-        content_area: context.content_area,
+        main_area: area,
+        content_area,
     }
 }
 

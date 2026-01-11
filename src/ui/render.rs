@@ -2,15 +2,14 @@ use ratatui::Frame;
 
 use crate::app::App;
 
-use super::container::{render_container, render_list};
+use super::container::{render_container_in_area, render_list};
 use super::context::RenderContext;
-use super::overlay::{
-    render_confirm_modal, render_footer_bar, render_help_modal, render_hint_overlay,
-    render_interface_modal, render_journal_indicator, render_status_banner,
-};
+use super::header::render_header_bar;
+use super::layout::layout_nodes;
+use super::overlay::{OverlayLayout, render_overlays};
 use super::prep::prepare_render;
 use super::scroll::set_edit_cursor;
-use super::view_model::build_view_model;
+use super::view_model::{PanelContent, build_view_model};
 
 pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
     let context = RenderContext::new(f.area());
@@ -28,31 +27,36 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
 
     let view_model = build_view_model(app, &context, prep);
 
-    let container_layout = render_container(f, &context, &view_model.container.config);
+    render_header_bar(f, context.header_area, view_model.header);
 
-    render_list(f, view_model.container.list, &container_layout);
+    let mut overlay_area = context.main_area;
+    for (panel_id, rect) in layout_nodes(context.main_area, &view_model.layout) {
+        if let Some(panel) = view_model.panels.get(panel_id) {
+            let focused = view_model.focused_panel == Some(panel_id);
+            let container_layout = render_container_in_area(f, rect, &panel.config, focused);
+            if focused {
+                overlay_area = container_layout.content_area;
+            }
+            match &panel.content {
+                PanelContent::EntryList(list) => {
+                    render_list(f, list.clone(), &container_layout);
+                }
+            }
+        }
+    }
 
-    render_status_banner(f, view_model.overlays.status, container_layout.content_area);
-
-    render_footer_bar(f, view_model.overlays.footer, context.footer_area);
-
-    render_hint_overlay(f, view_model.overlays.hint, context.footer_area);
-
-    render_journal_indicator(f, view_model.overlays.journal, context.footer_area);
+    render_overlays(
+        f,
+        view_model.overlays,
+        OverlayLayout {
+            content_area: overlay_area,
+            footer_area: context.footer_area,
+            help_popup_area: context.help_popup_area,
+            screen_area: context.size,
+        },
+    );
 
     if let Some((cursor_x, cursor_y)) = view_model.cursor.prompt {
         f.set_cursor_position((cursor_x, cursor_y));
-    }
-
-    if let Some(help) = view_model.overlays.help {
-        render_help_modal(f, help, context.help_popup_area);
-    }
-
-    if let Some(confirm) = view_model.overlays.confirm {
-        render_confirm_modal(f, confirm, context.size);
-    }
-
-    if let Some(interface) = view_model.overlays.interface {
-        render_interface_modal(f, interface, context.size);
     }
 }

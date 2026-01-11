@@ -8,9 +8,9 @@ use crate::app::{App, EditContext, InputMode, ViewMode};
 use crate::storage::{EntryType, Line};
 
 use super::helpers::edit_text;
-use super::list_helpers::{build_edit_rows, header_line};
 use super::model::ListModel;
 use super::rows;
+use super::rows::{build_edit_rows_with_prefix_width, header_line};
 use super::shared::entry_style;
 use super::theme;
 
@@ -94,7 +94,7 @@ pub fn build_daily_list(app: &App, width: usize) -> ListModel {
 
             if is_editing {
                 let text_width = width.saturating_sub(prefix_width);
-                rows.extend(build_edit_rows(
+                rows.extend(build_edit_rows_with_prefix_width(
                     prefix,
                     prefix_width,
                     content_style,

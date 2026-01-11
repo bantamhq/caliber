@@ -1,7 +1,7 @@
 use chrono::Timelike;
 use ratatui::{
     style::{Color, Style, Stylize},
-    text::Span,
+    text::{Line as RatatuiLine, Span},
 };
 use unicode_width::UnicodeWidthStr;
 
@@ -97,12 +97,7 @@ pub fn build_filter_selected_row(app: &App, entry: &Entry, index: usize, width: 
     let prefix_width = prefix.width();
     let (date_suffix, date_suffix_width) = format_date_suffix(entry.source_date);
 
-    let sel_prefix = match &entry.entry_type {
-        EntryType::Task { completed: false } => " [ ] ",
-        EntryType::Task { completed: true } => " [x] ",
-        EntryType::Note => " ",
-        EntryType::Event => " ",
-    };
+    let sel_prefix = format!(" {}", entry.entry_type.prefix());
     let available = width.saturating_sub(prefix_width + date_suffix_width);
     let display_text = truncate_with_tags(&text, available);
 
@@ -195,6 +190,10 @@ pub fn build_filter_row(app: &App, entry: &Entry, index: usize, width: usize) ->
             suffix: EntrySuffix::Date(date_suffix),
         },
     )
+}
+
+pub fn header_line(text: impl Into<String>, style: Style) -> RatatuiLine<'static> {
+    RatatuiLine::from(Span::styled(text.into(), style))
 }
 
 pub fn build_edit_rows_with_prefix_width(

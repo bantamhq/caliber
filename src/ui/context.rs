@@ -8,6 +8,7 @@ use ratatui::{
 
 pub struct RenderContext {
     pub size: Rect,
+    pub header_area: Rect,
     pub main_area: Rect,
     pub footer_area: Rect,
     pub content_area: Rect,
@@ -23,20 +24,18 @@ impl RenderContext {
     pub fn new(size: Rect) -> Self {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(3), Constraint::Length(1)])
-            .split(size);
-        let main_area = chunks[0];
-        let footer_area = chunks[1];
-
-        let inner = Block::default().borders(Borders::ALL).inner(main_area);
-        let content_area = Layout::default()
-            .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(1),
-                Constraint::Min(1),
+                Constraint::Min(3),
                 Constraint::Length(1),
             ])
-            .split(inner)[1];
+            .split(size);
+        let header_area = chunks[0];
+        let main_area = chunks[1];
+        let footer_area = chunks[2];
+
+        let inner = Block::default().borders(Borders::ALL).inner(main_area);
+        let content_area = super::layout::padded_content_area(inner);
 
         let content_height = content_area.height as usize;
         // Hint overlay overlaps by one line, so reserve HINT_OVERLAY_HEIGHT - 1.
@@ -50,6 +49,7 @@ impl RenderContext {
 
         Self {
             size,
+            header_area,
             main_area,
             footer_area,
             content_area,

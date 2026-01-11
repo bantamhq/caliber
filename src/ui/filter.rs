@@ -7,9 +7,9 @@ use unicode_width::UnicodeWidthStr;
 use crate::app::{App, EditContext, InputMode, ViewMode};
 
 use super::helpers::edit_text;
-use super::list_helpers::{build_edit_rows, header_line};
 use super::model::ListModel;
 use super::rows;
+use super::rows::{build_edit_rows_with_prefix_width, header_line};
 use super::shared::{date_suffix_style, entry_style, format_date_suffix};
 use super::theme;
 
@@ -47,7 +47,7 @@ pub fn build_filter_list(app: &App, width: usize) -> ListModel {
             if is_editing_this {
                 let (date_suffix, date_suffix_width) = format_date_suffix(filter_entry.source_date);
                 let text_width = width.saturating_sub(prefix_width + date_suffix_width);
-                rows.extend(build_edit_rows(
+                rows.extend(build_edit_rows_with_prefix_width(
                     prefix,
                     prefix_width,
                     content_style,
@@ -75,7 +75,7 @@ pub fn build_filter_list(app: &App, width: usize) -> ListModel {
         let text_width = width.saturating_sub(prefix_width);
 
         let content_style = entry_style(entry_type);
-        rows.extend(build_edit_rows(
+        rows.extend(build_edit_rows_with_prefix_width(
             prefix,
             prefix_width,
             content_style,

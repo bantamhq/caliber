@@ -60,6 +60,23 @@ impl JournalIndicatorModel {
     }
 }
 
+pub struct OverlayModel<'a> {
+    pub status: StatusModel<'a>,
+    pub footer: FooterModel<'a>,
+    pub hint: HintModel<'a>,
+    pub journal: JournalIndicatorModel,
+    pub help: Option<HelpModel<'a>>,
+    pub confirm: Option<ConfirmModel<'a>>,
+    pub interface: Option<InterfaceModel<'a>>,
+}
+
+pub struct OverlayLayout {
+    pub content_area: Rect,
+    pub footer_area: Rect,
+    pub help_popup_area: Rect,
+    pub screen_area: Rect,
+}
+
 pub struct HelpModel<'a> {
     pub keymap: &'a Keymap,
     pub scroll: usize,
@@ -282,5 +299,24 @@ pub fn render_interface_modal(f: &mut Frame<'_>, model: InterfaceModel<'_>, area
             current_project_id,
         } => render_project_interface(f, state, area, current_project_id.as_deref()),
         InterfaceModel::Tag(state) => render_tag_interface(f, state, area),
+    }
+}
+
+pub fn render_overlays(f: &mut Frame<'_>, overlays: OverlayModel<'_>, layout: OverlayLayout) {
+    render_status_banner(f, overlays.status, layout.content_area);
+    render_footer_bar(f, overlays.footer, layout.footer_area);
+    render_hint_overlay(f, overlays.hint, layout.footer_area);
+    render_journal_indicator(f, overlays.journal, layout.footer_area);
+
+    if let Some(help) = overlays.help {
+        render_help_modal(f, help, layout.help_popup_area);
+    }
+
+    if let Some(confirm) = overlays.confirm {
+        render_confirm_modal(f, confirm, layout.screen_area);
+    }
+
+    if let Some(interface) = overlays.interface {
+        render_interface_modal(f, interface, layout.screen_area);
     }
 }

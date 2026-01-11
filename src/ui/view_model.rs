@@ -1,38 +1,62 @@
-use ratatui::{layout::Alignment, text::Line as RatatuiLine};
-
-use crate::app::{App, EditContext, InputMode, InterfaceContext, ViewMode};
+use crate::app::{App, InputMode, InterfaceContext};
 
 use super::container::ContainerConfig;
 use super::context::RenderContext;
-use super::daily::build_daily_list;
-use super::filter::build_filter_list;
 use super::footer::FooterModel;
+use super::header::HeaderModel;
+use super::layout::{LayoutNode, PanelId};
 use super::model::ListModel;
 use super::overlay::{
-    ConfirmModel, HelpModel, HintModel, InterfaceModel, JournalIndicatorModel, StatusModel,
+    ConfirmModel, HelpModel, HintModel, InterfaceModel, JournalIndicatorModel, OverlayModel,
+    StatusModel,
 };
 use super::prep::RenderPrep;
 use super::scroll::CursorContext;
+use super::views::build_view_spec;
 
 pub struct ViewModel<'a> {
-    pub container: ContainerModel,
+    pub layout: LayoutNode,
+    pub panels: PanelRegistry,
     pub overlays: OverlayModel<'a>,
     pub cursor: CursorModel,
+    pub header: HeaderModel,
+    pub focused_panel: Option<PanelId>,
 }
 
-pub struct ContainerModel {
+pub struct PanelModel {
+    pub id: PanelId,
     pub config: ContainerConfig,
-    pub list: ListModel,
+    pub content: PanelContent,
 }
 
-pub struct OverlayModel<'a> {
-    pub status: StatusModel<'a>,
-    pub footer: FooterModel<'a>,
-    pub hint: HintModel<'a>,
-    pub journal: JournalIndicatorModel,
-    pub help: Option<HelpModel<'a>>,
-    pub confirm: Option<ConfirmModel<'a>>,
-    pub interface: Option<InterfaceModel<'a>>,
+impl PanelModel {
+    #[must_use]
+    pub fn new(id: PanelId, config: ContainerConfig, content: PanelContent) -> Self {
+        Self {
+            id,
+            config,
+            content,
+        }
+    }
+}
+
+pub enum PanelContent {
+    EntryList(ListModel),
+}
+
+pub struct PanelRegistry {
+    panels: Vec<PanelModel>,
+}
+
+impl PanelRegistry {
+    #[must_use]
+    pub fn new(panels: Vec<PanelModel>) -> Self {
+        Self { panels }
+    }
+
+    pub fn get(&self, id: PanelId) -> Option<&PanelModel> {
+        self.panels.get(id.0)
+    }
 }
 
 pub struct CursorModel {
@@ -45,27 +69,6 @@ pub fn build_view_model<'a>(
     context: &RenderContext,
     prep: RenderPrep,
 ) -> ViewModel<'a> {
-    let is_filter_context = matches!(app.view, ViewMode::Filter(_))
-        || matches!(
-            app.input_mode,
-            InputMode::Edit(EditContext::FilterEdit { .. })
-                | InputMode::Edit(EditContext::FilterQuickAdd { .. })
-        );
-
-    let container_config = if is_filter_context {
-        ContainerConfig::filter()
-    } else {
-        let date_title = app.current_date.format(" %m/%d/%y ").to_string();
-        let title_line = RatatuiLine::from(date_title).alignment(Alignment::Right);
-        ContainerConfig::daily(title_line)
-    };
-
-    let list = if is_filter_context {
-        build_filter_list(app, context.content_width)
-    } else {
-        build_daily_list(app, context.content_width)
-    };
-
     let current_project_id = app.current_project_id();
 
     let overlays = OverlayModel {
@@ -92,15 +95,17 @@ pub fn build_view_model<'a>(
         },
     };
 
+    let view_spec = build_view_spec(app, context);
+
     ViewModel {
-        container: ContainerModel {
-            config: container_config,
-            list,
-        },
+        layout: view_spec.layout,
+        panels: PanelRegistry::new(view_spec.panels),
         overlays,
         cursor: CursorModel {
             edit: prep.edit_cursor,
             prompt: prep.prompt_cursor,
         },
+        header: view_spec.header,
+        focused_panel: view_spec.focused_panel,
     }
 }
