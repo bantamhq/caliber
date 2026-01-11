@@ -182,7 +182,7 @@ pub fn format_key_for_display(key: &str) -> String {
         "down" => "↓".to_string(),
         "up" => "↑".to_string(),
         "left" => "←".to_string(),
-        "right" => "→".to_string(),
+        "right" => theme::GLYPH_CURSOR.to_string(),
         "ret" => "Enter".to_string(),
         "esc" => "Esc".to_string(),
         "tab" => "Tab".to_string(),

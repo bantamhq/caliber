@@ -183,7 +183,7 @@ pub fn render_help_modal(f: &mut Frame<'_>, model: HelpModel<'_>, popup_area: Re
 
     let arrows =
         scroll_indicator_text(can_scroll_up, can_scroll_down, ScrollIndicatorStyle::Arrows)
-            .unwrap_or("");
+            .unwrap_or_default();
 
     let help_block = Block::default()
         .title(" Keybindings ")

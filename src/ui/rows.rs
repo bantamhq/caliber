@@ -23,7 +23,7 @@ pub fn build_calendar_row(
 ) -> RowModel {
     let prefix = "* ";
     let prefix_width = prefix.width();
-    let indicator = "○";
+    let indicator = theme::GLYPH_UNSELECTED;
 
     let content = format_calendar_event(event, show_calendar_name);
     let available = width.saturating_sub(prefix_width);
@@ -106,8 +106,9 @@ pub fn build_filter_selected_row(app: &App, entry: &Entry, index: usize, width: 
     let available = width.saturating_sub(prefix_width + date_suffix_width);
     let display_text = truncate_with_tags(&text, available);
 
+    let resolver = IndicatorResolver::new(app);
     RowModel::new(
-        Some(filter_cursor_indicator(app, index)),
+        Some(resolver.filter_cursor_indicator(index)),
         Some(Span::styled(sel_prefix.to_string(), content_style)),
         style_content(&display_text, content_style),
         Some(Span::styled(date_suffix, date_suffix_style(content_style))),
@@ -153,9 +154,9 @@ fn build_entry_row(app: &App, spec: EntryRowSpec<'_>) -> RowModel {
     let display_text = truncate_with_tags(spec.text, available);
 
     let (first_char, rest_of_prefix) = split_prefix(prefix);
+    let resolver = IndicatorResolver::new(app);
     let indicator = match spec.indicator {
-        EntryIndicator::Daily => get_entry_indicator(
-            app,
+        EntryIndicator::Daily => resolver.entry_indicator(
             spec.is_selected,
             spec.visible_idx,
             theme::ENTRY_CURSOR,
@@ -163,10 +164,10 @@ fn build_entry_row(app: &App, spec: EntryRowSpec<'_>) -> RowModel {
             content_style,
         ),
         EntryIndicator::Filter => {
-            filter_list_indicator(app, &first_char, spec.visible_idx, content_style)
+            resolver.filter_list_indicator(&first_char, spec.visible_idx, content_style)
         }
         EntryIndicator::Projected(source_type) => {
-            get_projected_entry_indicator(app, spec.is_selected, spec.visible_idx, source_type)
+            resolver.projected_indicator(spec.is_selected, source_type)
         }
     };
 
@@ -245,32 +246,113 @@ fn split_prefix(prefix: &str) -> (String, String) {
     (first_char.to_string(), rest)
 }
 
-fn is_selected_in_selection(app: &App, index: usize) -> bool {
-    if let InputMode::Selection(ref state) = app.input_mode {
-        state.is_selected(index)
-    } else {
-        false
-    }
+struct IndicatorResolver<'a> {
+    app: &'a App,
 }
 
-fn filter_cursor_indicator(app: &App, index: usize) -> Span<'static> {
-    if is_selected_in_selection(app, index) {
-        Span::styled("◉", Style::default().fg(theme::ENTRY_SELECTION))
-    } else {
-        Span::styled("→", Style::default().fg(theme::ENTRY_CURSOR))
+impl<'a> IndicatorResolver<'a> {
+    fn new(app: &'a App) -> Self {
+        Self { app }
     }
-}
 
-fn filter_list_indicator(
-    app: &App,
-    first_char: &str,
-    index: usize,
-    content_style: Style,
-) -> Span<'static> {
-    if is_selected_in_selection(app, index) {
-        Span::styled("○", Style::default().fg(theme::ENTRY_SELECTION))
-    } else {
-        Span::styled(first_char.to_string(), content_style)
+    fn selection_active(&self, index: usize) -> bool {
+        if let InputMode::Selection(ref state) = self.app.input_mode {
+            state.is_selected(index)
+        } else {
+            false
+        }
+    }
+
+    fn filter_cursor_indicator(&self, index: usize) -> Span<'static> {
+        if self.selection_active(index) {
+            Span::styled(
+                theme::GLYPH_SELECTED,
+                Style::default().fg(theme::ENTRY_SELECTION),
+            )
+        } else {
+            Span::styled(
+                theme::GLYPH_CURSOR,
+                Style::default().fg(theme::ENTRY_CURSOR),
+            )
+        }
+    }
+
+    fn filter_list_indicator(
+        &self,
+        first_char: &str,
+        index: usize,
+        content_style: Style,
+    ) -> Span<'static> {
+        if self.selection_active(index) {
+            Span::styled(
+                theme::GLYPH_UNSELECTED,
+                Style::default().fg(theme::ENTRY_SELECTION),
+            )
+        } else {
+            Span::styled(first_char.to_string(), content_style)
+        }
+    }
+
+    fn projected_indicator(&self, is_cursor: bool, kind: &SourceType) -> Span<'static> {
+        let indicator = match kind {
+            SourceType::Later => theme::GLYPH_PROJECTED_LATER,
+            SourceType::Recurring => theme::GLYPH_PROJECTED_RECURRING,
+            SourceType::Local => unreachable!("projected entries are never Local"),
+            SourceType::Calendar { .. } => theme::GLYPH_PROJECTED_CALENDAR,
+        };
+
+        if is_cursor {
+            Span::styled(
+                indicator,
+                Style::default().fg(theme::ENTRY_PROJECTED_ACTIVE),
+            )
+        } else {
+            Span::styled(
+                indicator,
+                Style::default().fg(theme::ENTRY_PROJECTED_INACTIVE),
+            )
+        }
+    }
+
+    fn entry_indicator(
+        &self,
+        is_cursor: bool,
+        visible_idx: usize,
+        cursor_color: Color,
+        default_first_char: &str,
+        default_style: Style,
+    ) -> Span<'static> {
+        let is_selected_in_selection = self.selection_active(visible_idx);
+
+        if is_cursor {
+            if matches!(self.app.input_mode, InputMode::Reorder) {
+                Span::styled(
+                    theme::GLYPH_REORDER,
+                    Style::default().fg(theme::ENTRY_SELECTION),
+                )
+            } else if matches!(self.app.input_mode, InputMode::Selection(_)) {
+                if is_selected_in_selection {
+                    Span::styled(
+                        theme::GLYPH_SELECTED,
+                        Style::default().fg(theme::ENTRY_SELECTION),
+                    )
+                } else {
+                    Span::styled(
+                        theme::GLYPH_CURSOR,
+                        Style::default().fg(theme::ENTRY_CURSOR),
+                    )
+                }
+            } else {
+                Span::styled(theme::GLYPH_CURSOR, Style::default().fg(cursor_color))
+            }
+        } else if is_selected_in_selection {
+            Span::styled(
+                theme::GLYPH_UNSELECTED,
+                Style::default().fg(theme::ENTRY_SELECTION),
+            )
+        } else {
+            Span::styled(default_first_char.to_string(), default_style)
+        }
     }
 }
 
@@ -309,60 +391,5 @@ fn format_calendar_event(event: &CalendarEvent, show_calendar_name: bool) -> Str
         format!("{} {last}", parts.join(" - "))
     } else {
         parts.join(" - ")
-    }
-}
-
-fn get_projected_entry_indicator(
-    _app: &App,
-    is_cursor: bool,
-    _visible_idx: usize,
-    kind: &SourceType,
-) -> Span<'static> {
-    let indicator = match kind {
-        SourceType::Later => "↪",
-        SourceType::Recurring => "↺",
-        SourceType::Local => unreachable!("projected entries are never Local"),
-        SourceType::Calendar { .. } => "○",
-    };
-
-    if is_cursor {
-        Span::styled(
-            indicator,
-            Style::default().fg(theme::ENTRY_PROJECTED_ACTIVE),
-        )
-    } else {
-        Span::styled(
-            indicator,
-            Style::default().fg(theme::ENTRY_PROJECTED_INACTIVE),
-        )
-    }
-}
-
-fn get_entry_indicator(
-    app: &App,
-    is_cursor: bool,
-    visible_idx: usize,
-    cursor_color: Color,
-    default_first_char: &str,
-    default_style: Style,
-) -> Span<'static> {
-    let is_selected_in_selection = is_selected_in_selection(app, visible_idx);
-
-    if is_cursor {
-        if matches!(app.input_mode, InputMode::Reorder) {
-            Span::styled("↕", Style::default().fg(theme::ENTRY_SELECTION))
-        } else if matches!(app.input_mode, InputMode::Selection(_)) {
-            if is_selected_in_selection {
-                Span::styled("◉", Style::default().fg(theme::ENTRY_SELECTION))
-            } else {
-                Span::styled("→", Style::default().fg(theme::ENTRY_CURSOR))
-            }
-        } else {
-            Span::styled("→", Style::default().fg(cursor_color))
-        }
-    } else if is_selected_in_selection {
-        Span::styled("○", Style::default().fg(theme::ENTRY_SELECTION))
-    } else {
-        Span::styled(default_first_char.to_string(), default_style)
     }
 }

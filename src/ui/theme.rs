@@ -69,3 +69,18 @@ pub const TAG_NORMAL_FG: Color = Color::Yellow;
 
 pub const ENTRY_TAG: Color = Color::Yellow;
 pub const ENTRY_DATE: Color = Color::Red;
+
+pub const GLYPH_CURSOR: &str = "→";
+pub const GLYPH_SELECTED: &str = "◉";
+pub const GLYPH_UNSELECTED: &str = "○";
+pub const GLYPH_REORDER: &str = "↕";
+pub const GLYPH_PROJECTED_LATER: &str = "↪";
+pub const GLYPH_PROJECTED_RECURRING: &str = "↺";
+pub const GLYPH_PROJECTED_CALENDAR: &str = "○";
+
+pub const GLYPH_SCROLL_UP: &str = "▲";
+pub const GLYPH_SCROLL_DOWN: &str = "▼";
+pub const GLYPH_SCROLL_BOTH: &str = "▲▼";
+
+pub const SCROLL_LABEL: &str = " scroll";
+pub const SCROLL_PADDING: &str = " ";
