@@ -50,9 +50,9 @@ pub fn padded_content_area(inner: Rect) -> Rect {
     Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(1),
+            Constraint::Length(2),
             Constraint::Min(1),
-            Constraint::Length(1),
+            Constraint::Length(2),
         ])
         .split(inner)[1]
 }

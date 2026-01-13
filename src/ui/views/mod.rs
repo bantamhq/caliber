@@ -2,13 +2,15 @@ use crate::app::{App, ViewMode};
 
 use super::context::RenderContext;
 
+mod agenda;
+mod daily;
+mod filter;
+
+pub use self::agenda::build_agenda_view_spec;
 pub use self::daily::build_daily_view_spec;
 pub use self::filter::build_filter_view_spec;
 
-mod daily;
-
 pub(crate) use daily::{list_content_height_for_daily, list_content_width_for_daily};
-mod filter;
 pub(crate) use filter::{list_content_height_for_filter, list_content_width_for_filter};
 
 pub struct ViewSpec {
@@ -37,5 +39,6 @@ pub fn build_view_spec(app: &App, context: &RenderContext) -> ViewSpec {
     match app.view {
         ViewMode::Daily(_) => build_daily_view_spec(app, context),
         ViewMode::Filter(_) => build_filter_view_spec(app, context),
+        ViewMode::Agenda(_) => build_agenda_view_spec(context),
     }
 }

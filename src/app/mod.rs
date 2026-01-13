@@ -35,7 +35,6 @@ use crate::storage::{
     self, Entry, EntryType, JournalContext, JournalSlot, Line, ProjectRegistry, RawEntry,
 };
 
-pub const DAILY_HEADER_LINES: usize = 1;
 pub const FILTER_HEADER_LINES: usize = 1;
 pub const DATE_SUFFIX_WIDTH: usize = " (MM/DD)".len();
 
@@ -76,6 +75,19 @@ pub struct FilterState {
     pub entries: Vec<Entry>,
     pub selected: usize,
     pub scroll_offset: usize,
+}
+
+/// State specific to the Agenda view (stub for now)
+#[derive(Clone, Default)]
+pub struct AgendaState {
+    pub scroll_offset: usize,
+}
+
+impl AgendaState {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 /// Which palette is currently active
@@ -188,6 +200,7 @@ pub struct TagInfo {
 pub enum ViewMode {
     Daily(DailyState),
     Filter(FilterState),
+    Agenda(AgendaState),
 }
 
 /// Context for what is being edited

@@ -1,7 +1,4 @@
-use crate::app::{
-    App, DAILY_HEADER_LINES, DATE_SUFFIX_WIDTH, EditContext, FILTER_HEADER_LINES, InputMode,
-    ViewMode,
-};
+use crate::app::{App, DATE_SUFFIX_WIDTH, EditContext, FILTER_HEADER_LINES, InputMode, ViewMode};
 use crate::cursor::cursor_position_in_wrap;
 use crate::storage::Line;
 use unicode_width::UnicodeWidthStr;
@@ -13,8 +10,14 @@ use super::views::{
     list_content_width_for_filter,
 };
 
+const DAILY_LIST_HEADER_LINES: usize = 0;
+
 pub struct RenderPrep {
     pub edit_cursor: Option<CursorContext>,
+}
+
+fn daily_fixed_lines(app: &App) -> usize {
+    DAILY_LIST_HEADER_LINES + app.calendar_event_count()
 }
 
 /// Prepares render state and mutates view scroll offsets for visibility.
@@ -22,8 +25,7 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
     let filter_visual_line = app.filter_visual_line();
     let filter_total_lines = app.filter_total_lines();
     let visible_entry_count = app.visible_entry_count();
-    let calendar_event_count = app.calendar_event_count();
-    let show_calendar_sidebar = app.show_calendar_sidebar();
+    let daily_fixed_lines = daily_fixed_lines(app);
 
     match &mut app.view {
         ViewMode::Filter(state) => {
@@ -39,18 +41,18 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
             }
         }
         ViewMode::Daily(state) => {
-            let scroll_height = list_content_height_for_daily(layout, show_calendar_sidebar);
-            let fixed_lines = DAILY_HEADER_LINES + calendar_event_count;
+            let scroll_height = list_content_height_for_daily(layout);
             ensure_selected_visible(
                 &mut state.scroll_offset,
-                state.selected + fixed_lines,
-                visible_entry_count + fixed_lines,
+                state.selected + daily_fixed_lines,
+                visible_entry_count + daily_fixed_lines,
                 scroll_height,
             );
             if state.selected == 0 {
                 state.scroll_offset = 0;
             }
         }
+        ViewMode::Agenda(_) => {}
     }
 
     let edit_cursor = if let InputMode::Edit(ref ctx) = app.input_mode
@@ -109,8 +111,7 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                     }
                 })
                 .map(|entry_type| {
-                    let list_content_width =
-                        list_content_width_for_daily(layout, show_calendar_sidebar);
+                    let list_content_width = list_content_width_for_daily(layout);
 
                     let prefix_width = entry_type.prefix().width();
                     let text_width = list_content_width.saturating_sub(prefix_width);
@@ -125,9 +126,9 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                         prefix_width,
                         cursor_row,
                         cursor_col,
-                        entry_start_line: app.visible_projected_count()
-                            + app.visible_entries_before(*entry_index)
-                            + DAILY_HEADER_LINES,
+                        entry_start_line: daily_fixed_lines
+                            + app.visible_projected_count()
+                            + app.visible_entries_before(*entry_index),
                     }
                 }),
         }

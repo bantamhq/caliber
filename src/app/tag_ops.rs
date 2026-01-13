@@ -52,6 +52,7 @@ impl App {
             ViewMode::Filter(_) => {
                 self.refresh_filter()?;
             }
+            ViewMode::Agenda(_) => {}
         }
         Ok(())
     }

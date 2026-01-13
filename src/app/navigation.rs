@@ -50,6 +50,7 @@ impl App {
         match &self.view {
             ViewMode::Filter(state) => state.scroll_offset,
             ViewMode::Daily(state) => state.scroll_offset,
+            ViewMode::Agenda(state) => state.scroll_offset,
         }
     }
 
@@ -57,6 +58,7 @@ impl App {
         match &mut self.view {
             ViewMode::Filter(state) => &mut state.scroll_offset,
             ViewMode::Daily(state) => &mut state.scroll_offset,
+            ViewMode::Agenda(state) => &mut state.scroll_offset,
         }
     }
 
@@ -119,6 +121,7 @@ impl App {
             ViewMode::Filter(state) => {
                 state.selected = state.selected.saturating_sub(1);
             }
+            ViewMode::Agenda(_) => {}
         }
     }
 
@@ -141,6 +144,7 @@ impl App {
         match &mut self.view {
             ViewMode::Daily(state) => state.selected = 0,
             ViewMode::Filter(state) => state.selected = 0,
+            ViewMode::Agenda(_) => {}
         }
     }
 
@@ -226,6 +230,7 @@ impl App {
                 },
                 None => SelectedItem::None,
             },
+            ViewMode::Agenda(_) => SelectedItem::None,
         }
     }
 
@@ -233,6 +238,7 @@ impl App {
     pub fn visible_entry_count(&self) -> usize {
         match &self.view {
             ViewMode::Filter(state) => state.entries.len(),
+            ViewMode::Agenda(_) => 0,
             ViewMode::Daily(state) => {
                 if !self.hide_completed {
                     return state.projected_entries.len() + self.entry_indices.len();

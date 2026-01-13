@@ -3,7 +3,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style, Stylize},
     text::Line as RatatuiLine,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, BorderType, Borders, Paragraph},
 };
 use unicode_width::UnicodeWidthStr;
 
@@ -18,6 +18,20 @@ pub struct ContainerConfig {
     pub focused_border_color: Option<Color>,
     pub padded: bool,
     pub borders: Borders,
+    pub rounded: bool,
+}
+
+/// Shared container config for view content panels (no borders, with padding).
+#[must_use]
+pub fn view_content_container_config(border_color: Color) -> ContainerConfig {
+    ContainerConfig {
+        title: None,
+        border_color,
+        focused_border_color: Some(super::theme::BORDER_FOCUSED),
+        padded: true,
+        borders: Borders::NONE,
+        rounded: false,
+    }
 }
 
 pub struct ContainerLayout {
@@ -47,8 +61,15 @@ pub fn render_container_in_area(
         config.border_color
     };
 
+    let border_type = if config.rounded {
+        BorderType::Rounded
+    } else {
+        BorderType::Plain
+    };
+
     let mut block = Block::default()
         .borders(config.borders)
+        .border_type(border_type)
         .border_style(Style::default().fg(border_color));
 
     if let Some(title) = config.title.clone() {

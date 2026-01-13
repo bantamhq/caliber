@@ -62,6 +62,7 @@ impl App {
         match &mut self.view {
             ViewMode::Daily(state) => state.selected = projected_count,
             ViewMode::Filter(state) => state.selected = 0,
+            ViewMode::Agenda(_) => {}
         }
     }
 
@@ -98,6 +99,7 @@ impl App {
         match &self.view {
             ViewMode::Daily(state) => state.selected,
             ViewMode::Filter(state) => state.selected,
+            ViewMode::Agenda(_) => 0,
         }
     }
 
@@ -163,6 +165,7 @@ impl App {
                         entry,
                     })
             }
+            ViewMode::Agenda(_) => None,
         }
     }
 

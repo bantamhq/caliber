@@ -1,19 +1,15 @@
-use ratatui::widgets::Borders;
-
 use crate::app::App;
+use crate::ui::container::{content_area_for, view_content_container_config};
+use crate::ui::context::RenderContext;
+use crate::ui::filter::build_filter_list;
+use crate::ui::layout::PanelId;
+use crate::ui::theme;
+use crate::ui::view_model::{PanelContent, PanelModel};
 
-use super::super::container::{ContainerConfig, content_area_for};
-use super::super::filter::build_filter_list;
-use super::super::layout::PanelId;
-use super::super::theme;
-use super::super::view_model::{PanelContent, PanelModel};
 use super::ViewSpec;
 
-pub fn build_filter_view_spec(
-    app: &App,
-    context: &super::super::context::RenderContext,
-) -> ViewSpec {
-    let config = list_container_config();
+pub fn build_filter_view_spec(app: &App, context: &RenderContext) -> ViewSpec {
+    let config = view_content_container_config(theme::BORDER_FILTER);
     let list = build_filter_list(app, list_content_width_for_filter(context));
 
     let panel_id = PanelId(0);
@@ -22,30 +18,14 @@ pub fn build_filter_view_spec(
     ViewSpec::single_panel(panel)
 }
 
-pub(crate) fn list_content_width_for_filter(
-    context: &super::super::context::RenderContext,
-) -> usize {
+pub(crate) fn list_content_width_for_filter(context: &RenderContext) -> usize {
     list_panel_content_area(context).width as usize
 }
 
-pub(crate) fn list_content_height_for_filter(
-    context: &super::super::context::RenderContext,
-) -> usize {
+pub(crate) fn list_content_height_for_filter(context: &RenderContext) -> usize {
     list_panel_content_area(context).height as usize
 }
 
-fn list_panel_content_area(
-    context: &super::super::context::RenderContext,
-) -> ratatui::layout::Rect {
-    content_area_for(context.main_area, &list_container_config())
-}
-
-fn list_container_config() -> ContainerConfig {
-    ContainerConfig {
-        title: None,
-        border_color: theme::BORDER_FILTER,
-        focused_border_color: Some(theme::BORDER_FOCUSED),
-        padded: true,
-        borders: Borders::ALL,
-    }
+fn list_panel_content_area(context: &RenderContext) -> ratatui::layout::Rect {
+    content_area_for(context.content_area, &view_content_container_config(theme::BORDER_FILTER))
 }

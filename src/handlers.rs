@@ -38,6 +38,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             InputMode::Normal => match app.view {
                 ViewMode::Daily(_) => app.new_task(InsertPosition::Bottom),
                 ViewMode::Filter(_) => app.filter_quick_add(),
+                ViewMode::Agenda(_) => {}
             },
             _ => {}
         },
@@ -191,11 +192,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         }
         SelectionExtendRange => app.selection_extend_to_cursor(),
         ToggleFilterView => {
-            if matches!(app.view, ViewMode::Filter(_)) {
-                app.cancel_filter();
-            } else {
-                app.return_to_filter()?;
-            }
+            app.cycle_to_next_tab()?;
         }
         ToggleJournal => {
             app.toggle_journal()?;
@@ -204,9 +201,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             app.toggle_command_palette();
         }
         ToggleCalendarSidebar => {
-            if app.is_daily_view() {
-                app.toggle_calendar_sidebar();
-            }
+            app.toggle_calendar_sidebar();
         }
         FilterQuickAdd => app.filter_quick_add(),
         Refresh => {
@@ -256,7 +251,7 @@ pub fn handle_normal_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
 
     let spec = KeySpec::from_event(&key);
     let context = match &app.view {
-        ViewMode::Daily(_) => KeyContext::DailyNormal,
+        ViewMode::Daily(_) | ViewMode::Agenda(_) => KeyContext::DailyNormal,
         ViewMode::Filter(_) => KeyContext::FilterNormal,
     };
 

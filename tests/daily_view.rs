@@ -238,16 +238,6 @@ fn reorder_skips_hidden_completed_entries() {
 }
 
 #[test]
-fn config_header_date_format_customizes_display() {
-    let mut config = Config::default();
-    config.header_date_format = "%A, %B %d".to_string();
-    let date = NaiveDate::from_ymd_opt(2026, 1, 4).unwrap();
-    let mut ctx = TestContext::with_config_and_content(date, "", config);
-
-    assert!(ctx.screen_contains("Sunday, January 04"));
-}
-
-#[test]
 fn config_hide_completed_hides_on_startup() {
     let mut config = Config::default();
     config.hide_completed = true;
@@ -257,5 +247,4 @@ fn config_hide_completed_hides_on_startup() {
 
     assert!(ctx.screen_contains("Incomplete"));
     assert!(!ctx.screen_contains("Complete"));
-    assert!(ctx.screen_contains("Hiding 1 completed"));
 }
