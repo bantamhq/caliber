@@ -77,6 +77,7 @@ impl App {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub(super) fn rename_tag_occurrences(
         &mut self,
         old_tag: &str,

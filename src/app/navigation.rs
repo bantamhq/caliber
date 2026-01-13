@@ -1,6 +1,6 @@
 use std::io;
 
-use chrono::{Days, Local, NaiveDate};
+use chrono::{Days, Local, Months, NaiveDate};
 
 use crate::storage::{self, Entry, EntryType, Line, RawEntry, SourceType, strip_recurring_tags};
 
@@ -380,6 +380,7 @@ impl App {
         self.reset_daily_view(date)?;
         self.edit_buffer = None;
         self.last_daily_date = date;
+        self.sync_calendar_state(date);
 
         Ok(())
     }
@@ -400,6 +401,52 @@ impl App {
 
     pub fn goto_today(&mut self) -> io::Result<()> {
         self.goto_day(Local::now().date_naive())
+    }
+
+    pub fn prev_week(&mut self) -> io::Result<()> {
+        if let Some(prev) = self.current_date.checked_sub_days(Days::new(7)) {
+            self.goto_day(prev)?;
+        }
+        Ok(())
+    }
+
+    pub fn next_week(&mut self) -> io::Result<()> {
+        if let Some(next) = self.current_date.checked_add_days(Days::new(7)) {
+            self.goto_day(next)?;
+        }
+        Ok(())
+    }
+
+    pub fn prev_month(&mut self) -> io::Result<()> {
+        if let Some(prev) = self.current_date.checked_sub_months(Months::new(1)) {
+            let target = super::calendar::clamp_day_to_month(self.current_date, prev);
+            self.goto_day(target)?;
+        }
+        Ok(())
+    }
+
+    pub fn next_month(&mut self) -> io::Result<()> {
+        if let Some(next) = self.current_date.checked_add_months(Months::new(1)) {
+            let target = super::calendar::clamp_day_to_month(self.current_date, next);
+            self.goto_day(target)?;
+        }
+        Ok(())
+    }
+
+    pub fn prev_year(&mut self) -> io::Result<()> {
+        if let Some(prev) = self.current_date.checked_sub_months(Months::new(12)) {
+            let target = super::calendar::clamp_day_to_month(self.current_date, prev);
+            self.goto_day(target)?;
+        }
+        Ok(())
+    }
+
+    pub fn next_year(&mut self) -> io::Result<()> {
+        if let Some(next) = self.current_date.checked_add_months(Months::new(12)) {
+            let target = super::calendar::clamp_day_to_month(self.current_date, next);
+            self.goto_day(target)?;
+        }
+        Ok(())
     }
 
     /// Navigate to the source date and select the entry at the given line index.

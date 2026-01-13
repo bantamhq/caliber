@@ -25,6 +25,8 @@ pub enum Key {
     Right,
     Home,
     End,
+    PageUp,
+    PageDown,
     F(u8),
     Unknown,
 }
@@ -105,6 +107,8 @@ impl KeySpec {
             "right" => Key::Right,
             "home" => Key::Home,
             "end" => Key::End,
+            "pageup" => Key::PageUp,
+            "pagedown" => Key::PageDown,
             "space" => Key::Char(' '),
             s if s.starts_with('f') && s.len() > 1 => {
                 if let Ok(n) = s[1..].parse::<u8>() {
@@ -135,6 +139,8 @@ impl KeySpec {
             KeyCode::Right => Key::Right,
             KeyCode::Home => Key::Home,
             KeyCode::End => Key::End,
+            KeyCode::PageUp => Key::PageUp,
+            KeyCode::PageDown => Key::PageDown,
             KeyCode::F(n) => Key::F(n),
             _ => Key::Unknown,
         };
@@ -185,6 +191,8 @@ impl KeySpec {
             Key::Right => s.push_str("right"),
             Key::Home => s.push_str("home"),
             Key::End => s.push_str("end"),
+            Key::PageUp => s.push_str("pageup"),
+            Key::PageDown => s.push_str("pagedown"),
             Key::F(n) => s.push_str(&format!("f{}", n)),
             Key::Unknown => s.push_str("unknown"),
         }
@@ -456,8 +464,12 @@ fn parse_action_id(s: &str) -> Option<KeyActionId> {
         "move_right" => Some(KeyActionId::MoveRight),
         "jump_to_first" => Some(KeyActionId::JumpToFirst),
         "jump_to_last" => Some(KeyActionId::JumpToLast),
-        "prev_period" => Some(KeyActionId::PrevPeriod),
-        "next_period" => Some(KeyActionId::NextPeriod),
+        "prev_week" => Some(KeyActionId::PrevWeek),
+        "next_week" => Some(KeyActionId::NextWeek),
+        "prev_month" => Some(KeyActionId::PrevMonth),
+        "next_month" => Some(KeyActionId::NextMonth),
+        "prev_year" => Some(KeyActionId::PrevYear),
+        "next_year" => Some(KeyActionId::NextYear),
         "goto_today" => Some(KeyActionId::GotoToday),
         "new_entry_below" => Some(KeyActionId::NewEntryBelow),
         "new_entry_above" => Some(KeyActionId::NewEntryAbove),
@@ -482,6 +494,7 @@ fn parse_action_id(s: &str) -> Option<KeyActionId> {
         "tidy_entries" => Some(KeyActionId::TidyEntries),
         "hide" => Some(KeyActionId::Hide),
         "autocomplete" => Some(KeyActionId::Autocomplete),
+        "toggle_calendar_sidebar" => Some(KeyActionId::ToggleCalendarSidebar),
         "quit" => Some(KeyActionId::Quit),
         "no_op" => Some(KeyActionId::NoOp),
         _ => None,

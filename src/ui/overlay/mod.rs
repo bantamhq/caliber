@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Rect},
-    style::{Style, Stylize},
+    style::Style,
     text::{Line as RatatuiLine, Span},
     widgets::{Block, Borders, Clear, Paragraph},
 };
@@ -11,27 +11,27 @@ use crate::app::ConfirmContext;
 use super::footer::centered_rect;
 use super::theme;
 
-pub struct OverlayModel<'a> {
-    pub confirm: Option<ConfirmModel<'a>>,
+pub struct OverlayModel {
+    pub confirm: Option<ConfirmModel>,
 }
 
 pub struct OverlayLayout {
     pub screen_area: Rect,
 }
 
-pub struct ConfirmModel<'a> {
-    pub context: &'a ConfirmContext,
+pub struct ConfirmModel {
+    pub context: ConfirmContext,
 }
 
-impl<'a> ConfirmModel<'a> {
+impl ConfirmModel {
     #[must_use]
-    pub fn new(context: &'a ConfirmContext) -> Self {
+    pub fn new(context: ConfirmContext) -> Self {
         Self { context }
     }
 }
 
-pub fn render_confirm_modal(f: &mut Frame<'_>, model: ConfirmModel<'_>, area: Rect) {
-    let (title, messages): (&str, Vec<String>) = match model.context {
+pub fn render_confirm_modal(f: &mut Frame<'_>, model: ConfirmModel, area: Rect) {
+    let (title, messages): (&str, Vec<String>) = match &model.context {
         ConfirmContext::CreateProjectJournal => (
             " Create Project Journal ",
             vec![
@@ -75,7 +75,7 @@ pub fn render_confirm_modal(f: &mut Frame<'_>, model: ConfirmModel<'_>, area: Re
     f.render_widget(paragraph, inner_area);
 }
 
-pub fn render_overlays(f: &mut Frame<'_>, overlays: OverlayModel<'_>, layout: OverlayLayout) {
+pub fn render_overlays(f: &mut Frame<'_>, overlays: OverlayModel, layout: OverlayLayout) {
     if let Some(confirm) = overlays.confirm {
         render_confirm_modal(f, confirm, layout.screen_area);
     }

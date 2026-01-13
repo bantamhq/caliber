@@ -1,5 +1,6 @@
 use crate::app::{App, InputMode};
 
+use super::calendar::CalendarModel;
 use super::container::ContainerConfig;
 use super::context::RenderContext;
 use super::header::HeaderModel;
@@ -10,10 +11,10 @@ use super::prep::RenderPrep;
 use super::scroll::CursorContext;
 use super::views::build_view_spec;
 
-pub struct ViewModel<'a> {
+pub struct ViewModel {
     pub layout: LayoutNode,
     pub panels: PanelRegistry,
-    pub overlays: OverlayModel<'a>,
+    pub overlays: OverlayModel,
     pub cursor: CursorModel,
     pub header: HeaderModel,
     pub focused_panel: Option<PanelId>,
@@ -38,6 +39,8 @@ impl PanelModel {
 
 pub enum PanelContent {
     EntryList(ListModel),
+    Calendar(CalendarModel),
+    Empty,
 }
 
 pub struct PanelRegistry {
@@ -59,14 +62,10 @@ pub struct CursorModel {
     pub edit: Option<CursorContext>,
 }
 
-pub fn build_view_model<'a>(
-    app: &'a App,
-    context: &RenderContext,
-    prep: RenderPrep,
-) -> ViewModel<'a> {
+pub fn build_view_model(app: &App, context: &RenderContext, prep: RenderPrep) -> ViewModel {
     let overlays = OverlayModel {
         confirm: match &app.input_mode {
-            InputMode::Confirm(confirm_context) => Some(ConfirmModel::new(confirm_context)),
+            InputMode::Confirm(confirm_context) => Some(ConfirmModel::new(confirm_context.clone())),
             _ => None,
         },
     };

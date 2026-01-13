@@ -8,6 +8,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::context::RenderContext;
 use super::scroll::{CursorContext, ensure_selected_visible};
+use super::views::list_content_width_for_daily;
 
 pub struct RenderPrep {
     pub edit_cursor: Option<CursorContext>,
@@ -56,10 +57,11 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                 };
                 let prefix_width = entry_type.prefix().len();
                 let text_width = layout.content_width.saturating_sub(prefix_width);
+                let wrap_width = text_width.saturating_sub(1).max(1);
                 let (cursor_row, cursor_col) = cursor_position_in_wrap(
                     buffer.content(),
                     buffer.cursor_display_pos(),
-                    text_width,
+                    wrap_width,
                 );
                 Some(CursorContext {
                     prefix_width,
@@ -77,10 +79,11 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                     let text_width = layout
                         .content_width
                         .saturating_sub(prefix_width + DATE_SUFFIX_WIDTH);
+                    let wrap_width = text_width.saturating_sub(1).max(1);
                     let (cursor_row, cursor_col) = cursor_position_in_wrap(
                         buffer.content(),
                         buffer.cursor_display_pos(),
-                        text_width,
+                        wrap_width,
                     );
                     CursorContext {
                         prefix_width,
@@ -101,12 +104,19 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                     }
                 })
                 .map(|entry_type| {
+                    let list_content_width = list_content_width_for_daily(
+                        layout.main_area.width,
+                        app.show_calendar_sidebar(),
+                    );
+
                     let prefix_width = entry_type.prefix().width();
-                    let text_width = layout.content_width.saturating_sub(prefix_width);
+                    let text_width = list_content_width.saturating_sub(prefix_width);
+                    let wrap_width = text_width.saturating_sub(1).max(1);
+
                     let (cursor_row, cursor_col) = cursor_position_in_wrap(
                         buffer.content(),
                         buffer.cursor_display_pos(),
-                        text_width,
+                        wrap_width,
                     );
                     CursorContext {
                         prefix_width,

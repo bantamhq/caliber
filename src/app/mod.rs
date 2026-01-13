@@ -1,4 +1,5 @@
 pub mod actions;
+mod calendar;
 mod command;
 mod edit_mode;
 mod entry_ops;
@@ -22,9 +23,10 @@ use chrono::{Local, NaiveDate};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-use crate::calendar::{
-    CalendarFetchResult, CalendarStore, fetch_all_calendars, get_visible_calendar_ids, update_store,
-};
+use crate::calendar::{CalendarStore, fetch_all_calendars, get_visible_calendar_ids, update_store};
+
+use self::calendar::CalendarState;
+
 use crate::config::Config;
 use crate::cursor::CursorBuffer;
 use crate::dispatch::Keymap;
@@ -237,8 +239,8 @@ pub struct App {
     pub current_date: NaiveDate,
     pub last_daily_date: NaiveDate,
     pub lines: Vec<Line>,
-    pub entry_indices: Vec<usize>,
     pub view: ViewMode,
+    pub entry_indices: Vec<usize>,
     pub input_mode: InputMode,
     pub edit_buffer: Option<CursorBuffer>,
     pub should_quit: bool,
@@ -253,11 +255,13 @@ pub struct App {
     pub cached_journal_tags: Vec<TagInfo>,
     pub executor: actions::ActionExecutor,
     pub keymap: Keymap,
-    original_edit_content: Option<String>,
+    pub original_edit_content: Option<String>,
     pub calendar_store: CalendarStore,
-    runtime_handle: Option<Handle>,
-    calendar_rx: Option<mpsc::Receiver<CalendarFetchResult>>,
-    calendar_tx: Option<mpsc::Sender<CalendarFetchResult>>,
+    pub calendar_state: CalendarState,
+    pub show_calendar_sidebar: bool,
+    pub runtime_handle: Option<Handle>,
+    pub calendar_rx: Option<mpsc::Receiver<crate::calendar::CalendarFetchResult>>,
+    pub calendar_tx: Option<mpsc::Sender<crate::calendar::CalendarFetchResult>>,
 }
 
 impl App {
@@ -327,6 +331,8 @@ impl App {
             keymap,
             original_edit_content: None,
             calendar_store: CalendarStore::new(),
+            calendar_state: CalendarState::new(date),
+            show_calendar_sidebar: true,
             runtime_handle,
             calendar_rx,
             calendar_tx,
@@ -336,6 +342,7 @@ impl App {
             app.clamp_selection_to_visible();
         }
 
+        app.refresh_calendar_cache();
         app.trigger_calendar_fetch();
 
         Ok(app)
@@ -390,6 +397,7 @@ impl App {
         };
         if let Ok(result) = rx.try_recv() {
             update_store(&mut self.calendar_store, result);
+            self.refresh_calendar_cache();
         }
     }
 
@@ -578,7 +586,8 @@ impl App {
             .map(|t| t.name.clone())
             .collect();
 
-        self.hint_state = HintContext::compute(&input, mode, &tag_names, &[]);
+        let hint = HintContext::compute(&input, mode, &tag_names, &[]);
+        self.hint_state = hint.with_previous_selection(&self.hint_state);
     }
 
     /// Clear any active hints.

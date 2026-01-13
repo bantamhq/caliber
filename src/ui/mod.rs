@@ -1,3 +1,5 @@
+mod autocomplete;
+mod calendar;
 mod container;
 mod context;
 mod daily;
@@ -15,7 +17,7 @@ mod rows;
 mod scroll;
 mod scroll_indicator;
 mod shared;
-mod theme;
+pub(crate) mod theme;
 mod view_model;
 mod views;
 

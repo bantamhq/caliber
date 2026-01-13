@@ -140,7 +140,8 @@ pub fn truncate_text(text: &str, max_width: usize) -> String {
         current_width += ch_width;
     }
 
-    format!("{result}{ellipsis}")
+    let trimmed = result.trim_end();
+    format!("{trimmed}{ellipsis}")
 }
 
 /// Split text into (content, trailing_tags) if tags exist at end
@@ -168,10 +169,16 @@ pub fn truncate_with_tags(text: &str, max_width: usize) -> String {
     }
 
     let content_width = max_width - tag_width;
-    if content.width() <= content_width {
-        text.to_string()
+    let trimmed_content = content.trim_end();
+
+    if trimmed_content.is_empty() {
+        return truncate_text(tags, max_width);
+    }
+
+    if trimmed_content.width() <= content_width {
+        format!("{} {}", trimmed_content, tags)
     } else {
-        format!("{} {}", truncate_text(content, content_width), tags)
+        format!("{} {}", truncate_text(trimmed_content, content_width), tags)
     }
 }
 

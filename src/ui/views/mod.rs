@@ -6,6 +6,8 @@ pub use self::daily::build_daily_view_spec;
 pub use self::filter::build_filter_view_spec;
 
 mod daily;
+
+pub(crate) use daily::list_content_width_for_daily;
 mod filter;
 
 pub struct ViewSpec {

@@ -16,6 +16,8 @@ pub struct ContainerConfig {
     pub title: Option<RatatuiLine<'static>>,
     pub border_color: Color,
     pub focused_border_color: Option<Color>,
+    pub padded: bool,
+    pub borders: Borders,
 }
 
 pub struct ContainerLayout {
@@ -46,7 +48,7 @@ pub fn render_container_in_area(
     };
 
     let mut block = Block::default()
-        .borders(Borders::ALL)
+        .borders(config.borders)
         .border_style(Style::default().fg(border_color));
 
     if let Some(title) = config.title.clone() {
@@ -56,7 +58,11 @@ pub fn render_container_in_area(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let content_area = padded_content_area(inner);
+    let content_area = if config.padded {
+        padded_content_area(inner)
+    } else {
+        inner
+    };
 
     ContainerLayout {
         main_area: area,

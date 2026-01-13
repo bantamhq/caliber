@@ -82,14 +82,34 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             InputMode::Selection(_) => app.selection_jump_to_last(),
             _ => app.jump_to_last(),
         },
-        PrevPeriod => {
+        PrevWeek => {
             if matches!(app.view, ViewMode::Daily(_)) {
-                app.prev_day()?;
+                app.prev_week()?;
             }
         }
-        NextPeriod => {
+        NextWeek => {
             if matches!(app.view, ViewMode::Daily(_)) {
-                app.next_day()?;
+                app.next_week()?;
+            }
+        }
+        PrevMonth => {
+            if matches!(app.view, ViewMode::Daily(_)) {
+                app.prev_month()?;
+            }
+        }
+        NextMonth => {
+            if matches!(app.view, ViewMode::Daily(_)) {
+                app.next_month()?;
+            }
+        }
+        PrevYear => {
+            if matches!(app.view, ViewMode::Daily(_)) {
+                app.prev_year()?;
+            }
+        }
+        NextYear => {
+            if matches!(app.view, ViewMode::Daily(_)) {
+                app.next_year()?;
             }
         }
         GotoToday => {
@@ -179,6 +199,11 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         ToggleJournal => {
             app.toggle_journal()?;
         }
+        ToggleCalendarSidebar => {
+            if matches!(app.view, ViewMode::Daily(_)) {
+                app.toggle_calendar_sidebar();
+            }
+        }
         FilterQuickAdd => app.filter_quick_add(),
         Refresh => {
             app.refresh_filter()?;
@@ -239,6 +264,15 @@ pub fn handle_normal_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
 }
 
 pub fn handle_edit_key(app: &mut App, key: KeyEvent) {
+    if matches!(key.code, KeyCode::Up | KeyCode::Down) && app.hint_state.is_active() {
+        if key.code == KeyCode::Down {
+            app.hint_state.select_next();
+        } else {
+            app.hint_state.select_prev();
+        }
+        return;
+    }
+
     let spec = KeySpec::from_event(&key);
     if let Some(action) = app.keymap.get(KeyContext::Edit, &spec) {
         let _ = dispatch_action(app, action);

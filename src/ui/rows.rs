@@ -204,7 +204,8 @@ pub fn build_edit_rows_with_prefix_width(
     text_width: usize,
     suffix: Option<Span<'static>>,
 ) -> Vec<RowModel> {
-    let wrapped = wrap_text(text, text_width);
+    let wrap_width = text_width.saturating_sub(1).max(1);
+    let wrapped = wrap_text(text, wrap_width);
 
     if wrapped.is_empty() {
         return vec![RowModel::new(

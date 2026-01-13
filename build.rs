@@ -89,23 +89,6 @@ fn to_pascal_case(s: &str) -> String {
         .collect()
 }
 
-fn format_key_for_display(key: &str) -> String {
-    match key {
-        "down" => "↓".to_string(),
-        "up" => "↑".to_string(),
-        "left" => "←".to_string(),
-        "right" => "→".to_string(),
-        "ret" => "Enter".to_string(),
-        "esc" => "Esc".to_string(),
-        "tab" => "Tab".to_string(),
-        "backspace" => "Bksp".to_string(),
-        "space" => "Space".to_string(),
-        "S-tab" => "Shift+Tab".to_string(),
-        _ if key.starts_with("S-") => format!("Shift+{}", &key[2..]),
-        _ => key.to_string(),
-    }
-}
-
 fn expand_contexts(contexts: &[String]) -> Vec<String> {
     let mut expanded = Vec::new();
     for ctx in contexts {
@@ -160,6 +143,8 @@ fn is_valid_key_spec(s: &str) -> bool {
             | "right"
             | "home"
             | "end"
+            | "pageup"
+            | "pagedown"
             | "space"
     ) || remaining.len() == 1
         || (remaining.starts_with('f')
@@ -567,7 +552,7 @@ fn generate_filter_syntax_table(filters: &[FilterDef]) -> String {
 
 fn generate_readme(
     manifest_dir: &Path,
-    actions: &[ActionDef],
+    _actions: &[ActionDef],
     commands: &[CommandDef],
     filters: &[FilterDef],
 ) {

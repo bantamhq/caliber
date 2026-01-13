@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use ratatui::text::Line as RatatuiLine;
 
 use crate::dispatch::Keymap;

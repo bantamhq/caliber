@@ -1,4 +1,5 @@
 use ratatui::style::Color;
+use ratatui::widgets::Borders;
 
 use crate::app::App;
 
@@ -16,6 +17,8 @@ pub fn build_filter_view_spec(
         title: None,
         border_color: Color::Reset,
         focused_border_color: None,
+        padded: true,
+        borders: Borders::ALL,
     };
     let list = build_filter_list(app, context.content_width);
 

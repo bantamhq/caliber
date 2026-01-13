@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use ratatui::style::Color;
 
 pub const BORDER_DAILY: Color = Color::White;
@@ -47,6 +49,11 @@ pub const HELP_FOOTER: Color = Color::White;
 pub const HINT_BORDER: Color = Color::Gray;
 pub const HINT_GUIDANCE: Color = Color::Gray;
 pub const HINT_DESC: Color = Color::Gray;
+pub const HINT_TAG: Color = Color::Yellow;
+pub const HINT_COMMAND: Color = Color::Blue;
+pub const HINT_FILTER: Color = Color::Magenta;
+pub const HINT_DATE: Color = Color::Red;
+pub const HINT_SAVED_FILTER: Color = Color::Magenta;
 
 pub const POPUP_BORDER: Color = Color::Blue;
 pub const POPUP_TITLE: Color = Color::Blue;

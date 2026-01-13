@@ -39,13 +39,33 @@ default_keys = ["G"]
 contexts = ["shared_normal", "selection"]
 
 [[action]]
-key_action_id = "prev_period"
+key_action_id = "prev_week"
+default_keys = ["J", "pageup"]
+contexts = ["daily_normal"]
+
+[[action]]
+key_action_id = "next_week"
+default_keys = ["K", "pagedown"]
+contexts = ["daily_normal"]
+
+[[action]]
+key_action_id = "prev_month"
 default_keys = ["["]
 contexts = ["daily_normal"]
 
 [[action]]
-key_action_id = "next_period"
+key_action_id = "next_month"
 default_keys = ["]"]
+contexts = ["daily_normal"]
+
+[[action]]
+key_action_id = "prev_year"
+default_keys = ["{"]
+contexts = ["daily_normal"]
+
+[[action]]
+key_action_id = "next_year"
+default_keys = ["}"]
 contexts = ["daily_normal"]
 
 [[action]]
@@ -167,6 +187,11 @@ contexts = ["daily_normal"]
 key_action_id = "autocomplete"
 default_keys = ["tab"]
 contexts = ["edit"]
+
+[[action]]
+key_action_id = "toggle_calendar_sidebar"
+default_keys = ["\\"]
+contexts = ["daily_normal"]
 
 [[action]]
 key_action_id = "quit"
