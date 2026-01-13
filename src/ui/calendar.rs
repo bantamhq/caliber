@@ -18,21 +18,16 @@ pub const CALENDAR_HEIGHT: u16 = 7;
 const CALENDAR_RIGHT_PADDING: u16 = 0;
 const CALENDAR_BORDER_PADDING: u16 = 2;
 
-pub struct CalendarModel {
+pub struct CalendarModel<'a> {
     pub selected: NaiveDate,
     pub display_month: NaiveDate,
-    pub day_cache: HashMap<NaiveDate, DayInfo>,
+    pub day_cache: &'a HashMap<NaiveDate, DayInfo>,
 }
 
-impl CalendarModel {
+impl CalendarModel<'_> {
     #[must_use]
     pub fn panel_width() -> u16 {
         CALENDAR_WIDTH + CALENDAR_RIGHT_PADDING + CALENDAR_BORDER_PADDING
-    }
-
-    #[must_use]
-    pub fn panel_height() -> u16 {
-        CALENDAR_HEIGHT + CALENDAR_BORDER_PADDING
     }
 }
 
@@ -46,11 +41,11 @@ fn to_time_date(date: NaiveDate) -> Date {
     .unwrap()
 }
 
-pub fn render_calendar(f: &mut Frame<'_>, model: &CalendarModel, area: Rect) {
+pub fn render_calendar(f: &mut Frame<'_>, model: &CalendarModel<'_>, area: Rect) {
     let today = Local::now().date_naive();
     let mut events = CalendarEventStore::default();
 
-    for (date, info) in &model.day_cache {
+    for (date, info) in model.day_cache {
         if *date == model.selected || *date == today {
             continue;
         }

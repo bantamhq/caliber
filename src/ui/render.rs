@@ -21,6 +21,10 @@ use super::theme;
 use super::view_model::{PanelContent, build_view_model};
 
 pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
+    if app.active_sidebar().is_some() {
+        app.ensure_agenda_cache();
+    }
+
     let base_context = RenderContext::new(f.area());
     let sidebar_width = match app.active_sidebar() {
         Some(SidebarType::Calendar) => CalendarModel::panel_width(),
@@ -29,8 +33,12 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
                 .main_area
                 .width
                 .saturating_sub(theme::AGENDA_MIN_GUTTER);
-            let agenda = build_agenda_widget(app, max_width as usize, true);
-            (agenda.required_width() as u16 + theme::AGENDA_BORDER_WIDTH as u16).min(max_width)
+            if let Some(ref cache) = app.agenda_cache {
+                let agenda = build_agenda_widget(cache, max_width as usize, true);
+                (agenda.required_width() as u16 + theme::AGENDA_BORDER_WIDTH as u16).min(max_width)
+            } else {
+                0
+            }
         }
         None => 0,
     };
@@ -54,9 +62,6 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
             match &panel.content {
                 PanelContent::EntryList(list) => {
                     render_list(f, list, &container_layout);
-                }
-                PanelContent::Calendar(model) => {
-                    render_calendar(f, model, container_layout.content_area);
                 }
                 PanelContent::Empty => {}
             }
@@ -246,7 +251,7 @@ fn render_calendar_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
     let calendar_model = CalendarModel {
         selected: calendar_state.selected,
         display_month: calendar_state.display_month,
-        day_cache: calendar_state.day_cache.clone(),
+        day_cache: &calendar_state.day_cache,
     };
     render_calendar(f, &calendar_model, calendar_layout.content_area);
 
@@ -260,10 +265,12 @@ fn render_calendar_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
     };
 
     let upcoming_layout = render_container_in_area(f, upcoming_area, &upcoming_config, false);
-    let agenda = build_agenda_widget(app, upcoming_layout.content_area.width as usize, false);
-    let lines = agenda.render_lines();
-    let content = Paragraph::new(lines);
-    f.render_widget(content, upcoming_layout.content_area);
+    if let Some(ref cache) = app.agenda_cache {
+        let agenda = build_agenda_widget(cache, upcoming_layout.content_area.width as usize, false);
+        let lines = agenda.render_lines();
+        let content = Paragraph::new(lines);
+        f.render_widget(content, upcoming_layout.content_area);
+    }
 }
 
 fn render_agenda_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
@@ -277,8 +284,10 @@ fn render_agenda_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
     };
 
     let layout = render_container_in_area(f, sidebar_area, &config, false);
-    let agenda = build_agenda_widget(app, layout.content_area.width as usize, true);
-    let lines = agenda.render_lines();
-    let content = Paragraph::new(lines);
-    f.render_widget(content, layout.content_area);
+    if let Some(ref cache) = app.agenda_cache {
+        let agenda = build_agenda_widget(cache, layout.content_area.width as usize, true);
+        let lines = agenda.render_lines();
+        let content = Paragraph::new(lines);
+        f.render_widget(content, layout.content_area);
+    }
 }

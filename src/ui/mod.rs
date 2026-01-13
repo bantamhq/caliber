@@ -1,4 +1,4 @@
-mod agenda_widget;
+pub(crate) mod agenda_widget;
 mod autocomplete;
 mod calendar;
 mod container;

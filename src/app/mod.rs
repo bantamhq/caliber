@@ -25,6 +25,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::calendar::{CalendarStore, fetch_all_calendars, get_visible_calendar_ids, update_store};
+use crate::ui::agenda_widget::{AgendaCache, collect_agenda_cache};
 
 use self::calendar::CalendarState;
 
@@ -281,6 +282,7 @@ pub struct App {
     pub calendar_store: CalendarStore,
     pub calendar_state: CalendarState,
     pub active_sidebar: Option<SidebarType>,
+    pub agenda_cache: Option<AgendaCache>,
     pub runtime_handle: Option<Handle>,
     pub calendar_rx: Option<mpsc::Receiver<crate::calendar::CalendarFetchResult>>,
     pub calendar_tx: Option<mpsc::Sender<crate::calendar::CalendarFetchResult>>,
@@ -355,6 +357,7 @@ impl App {
             calendar_store: CalendarStore::new(),
             calendar_state: CalendarState::new(date),
             active_sidebar: Some(SidebarType::Calendar),
+            agenda_cache: None,
             runtime_handle,
             calendar_rx,
             calendar_tx,
@@ -426,7 +429,21 @@ impl App {
         if let Ok(result) = rx.try_recv() {
             update_store(&mut self.calendar_store, result);
             self.refresh_calendar_cache();
+            self.invalidate_agenda_cache();
         }
+    }
+
+    pub fn ensure_agenda_cache(&mut self) {
+        if self.agenda_cache.is_none() {
+            self.agenda_cache = Some(collect_agenda_cache(
+                &self.calendar_store,
+                self.active_path(),
+            ));
+        }
+    }
+
+    pub fn invalidate_agenda_cache(&mut self) {
+        self.agenda_cache = None;
     }
 
     /// Returns the number of calendar events for the current date.
@@ -520,6 +537,7 @@ impl App {
         {
             self.set_status(format!("Failed to save: {e}"));
         }
+        self.invalidate_agenda_cache();
     }
 
     pub fn undo(&mut self) {

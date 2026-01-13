@@ -1,6 +1,5 @@
 use crate::app::{App, InputMode};
 
-use super::calendar::CalendarModel;
 use super::container::ContainerConfig;
 use super::context::RenderContext;
 use super::header::HeaderModel;
@@ -40,7 +39,6 @@ impl PanelModel {
 
 pub enum PanelContent {
     EntryList(ListModel),
-    Calendar(CalendarModel),
     Empty,
 }
 

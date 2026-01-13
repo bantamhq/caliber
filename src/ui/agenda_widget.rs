@@ -1,31 +1,44 @@
+use std::path::Path;
+
 use chrono::{Local, NaiveDate};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
-use crate::app::App;
+use crate::calendar::CalendarStore;
 use crate::storage::{self, EntryType, SourceType};
 
 use super::shared::truncate_text;
 use super::theme;
 
+#[derive(Clone)]
 pub struct AgendaDayModel {
     pub date: NaiveDate,
     pub entries: Vec<AgendaEntryModel>,
 }
 
+#[derive(Clone)]
 pub struct AgendaEntryModel {
     pub prefix: char,
     pub text: String,
+    pub text_with_time: Option<String>,
     pub style: Style,
 }
 
-pub struct AgendaWidgetModel {
+#[derive(Clone)]
+pub struct AgendaCache {
     pub days: Vec<AgendaDayModel>,
-    pub width: usize,
+    pub max_width: usize,
+    pub max_width_with_times: usize,
 }
 
-impl AgendaWidgetModel {
+pub struct AgendaWidgetModel<'a> {
+    pub days: &'a [AgendaDayModel],
+    pub width: usize,
+    pub show_times: bool,
+}
+
+impl AgendaWidgetModel<'_> {
     #[must_use]
     pub fn required_width(&self) -> usize {
         self.width
@@ -49,7 +62,12 @@ impl AgendaWidgetModel {
                 let prefix = format!(" {} ", entry.prefix);
                 let prefix_width = prefix.width();
                 let max_text = content_width.saturating_sub(prefix_width);
-                let text = truncate_text(&entry.text, max_text);
+                let text = if self.show_times {
+                    entry.text_with_time.as_deref().unwrap_or(&entry.text)
+                } else {
+                    &entry.text
+                };
+                let text = truncate_text(text, max_text);
                 lines.push(Line::from(vec![
                     Span::styled(prefix, entry.style),
                     Span::styled(text, entry.style),
@@ -61,27 +79,51 @@ impl AgendaWidgetModel {
     }
 }
 
-pub fn build_agenda_widget(app: &App, width: usize, show_times: bool) -> AgendaWidgetModel {
+pub fn build_agenda_widget<'a>(
+    cache: &'a AgendaCache,
+    width: usize,
+    show_times: bool,
+) -> AgendaWidgetModel<'a> {
+    let max_width = if show_times {
+        cache.max_width_with_times
+    } else {
+        cache.max_width
+    };
+    AgendaWidgetModel {
+        days: &cache.days,
+        width: width.min(max_width),
+        show_times,
+    }
+}
+
+pub fn collect_agenda_cache(calendar_store: &CalendarStore, path: &Path) -> AgendaCache {
     let today = Local::now().date_naive();
-    let path = app.active_path();
     let mut days = Vec::new();
     let mut max_width = theme::AGENDA_DATE_WIDTH;
+    let mut max_width_with_times = theme::AGENDA_DATE_WIDTH;
     let mut total_entries = 0usize;
 
     for day_offset in 0..theme::AGENDA_MAX_DAYS_SEARCH {
         let date = today + chrono::Duration::days(day_offset);
         let mut entries = Vec::new();
 
-        for event in app.calendar_store.events_for_date(date) {
-            let text = if !show_times || event.is_all_day {
-                event.title.clone()
+        for event in calendar_store.events_for_date(date) {
+            let text = event.title.clone();
+            let text_with_time = if event.is_all_day {
+                None
             } else {
-                format!("{} {}", event.start.format("%l:%M%P"), event.title)
+                Some(format!("{} {}", event.start.format("%l:%M%P"), event.title))
             };
-            max_width = max_width.max(text.width() + theme::AGENDA_ENTRY_PADDING);
+            let entry_width = text.width() + theme::AGENDA_ENTRY_PADDING;
+            max_width = max_width.max(entry_width);
+            let time_width = text_with_time
+                .as_ref()
+                .map_or(entry_width, |t| t.width() + theme::AGENDA_ENTRY_PADDING);
+            max_width_with_times = max_width_with_times.max(time_width);
             entries.push(AgendaEntryModel {
                 prefix: theme::GLYPH_AGENDA_CALENDAR,
                 text,
+                text_with_time,
                 style: Style::default(),
             });
         }
@@ -96,10 +138,13 @@ pub fn build_agenda_widget(app: &App, width: usize, show_times: bool) -> AgendaW
                 let (prefix, style) =
                     projected_entry_prefix_and_style(&entry.source_type, &entry.entry_type);
                 let text = truncate_to_first_tag(&entry.content);
-                max_width = max_width.max(text.width() + theme::AGENDA_ENTRY_PADDING);
+                let entry_width = text.width() + theme::AGENDA_ENTRY_PADDING;
+                max_width = max_width.max(entry_width);
+                max_width_with_times = max_width_with_times.max(entry_width);
                 entries.push(AgendaEntryModel {
                     prefix,
                     text,
+                    text_with_time: None,
                     style,
                 });
             }
@@ -112,10 +157,13 @@ pub fn build_agenda_widget(app: &App, width: usize, show_times: bool) -> AgendaW
                         continue;
                     }
                     let text = truncate_to_first_tag(&raw.content);
-                    max_width = max_width.max(text.width() + theme::AGENDA_ENTRY_PADDING);
+                    let entry_width = text.width() + theme::AGENDA_ENTRY_PADDING;
+                    max_width = max_width.max(entry_width);
+                    max_width_with_times = max_width_with_times.max(entry_width);
                     entries.push(AgendaEntryModel {
                         prefix: theme::GLYPH_AGENDA_EVENT,
                         text,
+                        text_with_time: None,
                         style: Style::default().add_modifier(Modifier::ITALIC),
                     });
                 }
@@ -132,9 +180,10 @@ pub fn build_agenda_widget(app: &App, width: usize, show_times: bool) -> AgendaW
         }
     }
 
-    AgendaWidgetModel {
+    AgendaCache {
         days,
-        width: width.min(max_width),
+        max_width,
+        max_width_with_times,
     }
 }
 
