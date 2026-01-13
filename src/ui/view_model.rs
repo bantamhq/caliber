@@ -18,6 +18,7 @@ pub struct ViewModel {
     pub cursor: CursorModel,
     pub header: HeaderModel,
     pub focused_panel: Option<PanelId>,
+    pub primary_list_panel: Option<PanelId>,
 }
 
 pub struct PanelModel {
@@ -85,5 +86,6 @@ pub fn build_view_model(app: &App, context: &RenderContext, prep: RenderPrep) ->
         },
         header: view_spec.header,
         focused_panel: view_spec.focused_panel,
+        primary_list_panel: view_spec.primary_list_panel,
     }
 }

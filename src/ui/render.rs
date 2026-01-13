@@ -27,12 +27,12 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
         if let Some(panel) = view_model.panels.get(panel_id) {
             let focused = view_model.focused_panel == Some(panel_id);
             let container_layout = render_container_in_area(f, rect, &panel.config, focused);
-            if panel_id.0 == 0 {
+            if view_model.primary_list_panel == Some(panel_id) {
                 list_content_area = Some(container_layout.content_area);
             }
             match &panel.content {
                 PanelContent::EntryList(list) => {
-                    render_list(f, list.clone(), &container_layout);
+                    render_list(f, list, &container_layout);
                 }
                 PanelContent::Calendar(model) => {
                     render_calendar(f, model, container_layout.content_area);

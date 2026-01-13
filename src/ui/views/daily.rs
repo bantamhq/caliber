@@ -1,13 +1,13 @@
-use ratatui::style::Color;
 use ratatui::text::Line as RatatuiLine;
 use ratatui::widgets::Borders;
 
 use crate::app::App;
 
 use super::super::calendar::CalendarModel;
-use super::super::container::ContainerConfig;
+use super::super::container::{ContainerConfig, content_area_for};
 use super::super::daily::build_daily_list;
 use super::super::layout::{LayoutNode, PanelId};
+use super::super::theme;
 use super::super::view_model::{PanelContent, PanelModel};
 use super::ViewSpec;
 
@@ -15,13 +15,7 @@ pub fn build_daily_view_spec(
     app: &App,
     context: &super::super::context::RenderContext,
 ) -> ViewSpec {
-    let list_config = ContainerConfig {
-        title: None,
-        border_color: Color::Reset,
-        focused_border_color: None,
-        padded: true,
-        borders: Borders::ALL,
-    };
+    let list_config = list_container_config();
     let calendar_config = ContainerConfig {
         title: Some(RatatuiLine::from(
             app.calendar_state()
@@ -29,14 +23,14 @@ pub fn build_daily_view_spec(
                 .format(" %B %Y ")
                 .to_string(),
         )),
-        border_color: Color::Reset,
+        border_color: theme::BORDER_DAILY,
         focused_border_color: None,
         padded: false,
         borders: Borders::ALL,
     };
     let blank_config = ContainerConfig {
         title: None,
-        border_color: Color::Reset,
+        border_color: theme::BORDER_DAILY,
         focused_border_color: None,
         padded: false,
         borders: Borders::ALL,
@@ -54,7 +48,7 @@ pub fn build_daily_view_spec(
         list_width = 1;
     }
 
-    let list_content_width = list_content_width_for_daily(total_width, show_calendar_sidebar);
+    let list_content_width = list_content_width_for_daily(context, show_calendar_sidebar);
     let list = build_daily_list(app, list_content_width);
 
     let list_panel = PanelModel::new(PanelId(0), list_config, PanelContent::EntryList(list));
@@ -102,12 +96,30 @@ pub fn build_daily_view_spec(
         ),
         panels: vec![list_panel, calendar_panel, blank_panel],
         focused_panel: Some(PanelId(0)),
+        primary_list_panel: Some(PanelId(0)),
         header: super::super::header::HeaderModel::new(),
     }
 }
 
-pub fn list_content_width_for_daily(total_width: u16, show_calendar_sidebar: bool) -> usize {
-    let total_width = total_width.max(1);
+pub(crate) fn list_content_width_for_daily(
+    context: &super::super::context::RenderContext,
+    show_calendar_sidebar: bool,
+) -> usize {
+    list_panel_content_area(context, show_calendar_sidebar).width as usize
+}
+
+pub(crate) fn list_content_height_for_daily(
+    context: &super::super::context::RenderContext,
+    show_calendar_sidebar: bool,
+) -> usize {
+    list_panel_content_area(context, show_calendar_sidebar).height as usize
+}
+
+fn list_panel_content_area(
+    context: &super::super::context::RenderContext,
+    show_calendar_sidebar: bool,
+) -> ratatui::layout::Rect {
+    let total_width = context.main_area.width.max(1);
     let calendar_width = if show_calendar_sidebar {
         CalendarModel::panel_width().min(total_width.saturating_sub(1))
     } else {
@@ -117,6 +129,23 @@ pub fn list_content_width_for_daily(total_width: u16, show_calendar_sidebar: boo
     if list_width == 0 {
         list_width = 1;
     }
-    let sidebar_adjust = if show_calendar_sidebar { 1 } else { 0 };
-    list_width.saturating_sub(4 + sidebar_adjust) as usize
+
+    let list_area = ratatui::layout::Rect {
+        x: context.main_area.x,
+        y: context.main_area.y,
+        width: list_width,
+        height: context.main_area.height,
+    };
+
+    content_area_for(list_area, &list_container_config())
+}
+
+fn list_container_config() -> ContainerConfig {
+    ContainerConfig {
+        title: None,
+        border_color: theme::BORDER_DAILY,
+        focused_border_color: Some(theme::BORDER_FOCUSED),
+        padded: true,
+        borders: Borders::ALL,
+    }
 }

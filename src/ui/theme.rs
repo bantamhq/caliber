@@ -4,7 +4,7 @@ use ratatui::style::Color;
 
 pub const BORDER_DAILY: Color = Color::White;
 pub const BORDER_FILTER: Color = Color::Magenta;
-pub const BORDER_FOCUSED: Color = Color::Cyan;
+pub const BORDER_FOCUSED: Color = Color::White;
 
 pub const STATUS_FG: Color = Color::Black;
 pub const STATUS_BG: Color = Color::Yellow;

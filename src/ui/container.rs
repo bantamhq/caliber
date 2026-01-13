@@ -55,14 +55,9 @@ pub fn render_container_in_area(
         block = block.title_top(title);
     }
 
-    let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let content_area = if config.padded {
-        padded_content_area(inner)
-    } else {
-        inner
-    };
+    let content_area = content_area_for(area, config);
 
     ContainerLayout {
         main_area: area,
@@ -70,10 +65,19 @@ pub fn render_container_in_area(
     }
 }
 
-pub fn render_list(f: &mut Frame<'_>, list: ListModel, layout: &ContainerLayout) {
+pub fn content_area_for(area: Rect, config: &ContainerConfig) -> Rect {
+    let inner = Block::default().borders(config.borders).inner(area);
+    if config.padded {
+        padded_content_area(inner)
+    } else {
+        inner
+    }
+}
+
+pub fn render_list(f: &mut Frame<'_>, list: &ListModel, layout: &ContainerLayout) {
     let scroll_offset = list.scroll.offset;
     let total_lines = list.scroll.total;
-    let lines = list.into_lines();
+    let lines = list.lines();
 
     #[allow(clippy::cast_possible_truncation)]
     let content = Paragraph::new(lines).scroll((scroll_offset as u16, 0));

@@ -8,7 +8,10 @@ use unicode_width::UnicodeWidthStr;
 
 use super::context::RenderContext;
 use super::scroll::{CursorContext, ensure_selected_visible};
-use super::views::list_content_width_for_daily;
+use super::views::{
+    list_content_height_for_daily, list_content_height_for_filter, list_content_width_for_daily,
+    list_content_width_for_filter,
+};
 
 pub struct RenderPrep {
     pub edit_cursor: Option<CursorContext>,
@@ -20,26 +23,29 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
     let filter_total_lines = app.filter_total_lines();
     let visible_entry_count = app.visible_entry_count();
     let calendar_event_count = app.calendar_event_count();
+    let show_calendar_sidebar = app.show_calendar_sidebar();
 
     match &mut app.view {
         ViewMode::Filter(state) => {
+            let scroll_height = list_content_height_for_filter(layout);
             ensure_selected_visible(
                 &mut state.scroll_offset,
                 filter_visual_line,
                 filter_total_lines,
-                layout.scroll_height,
+                scroll_height,
             );
             if state.selected == 0 {
                 state.scroll_offset = 0;
             }
         }
         ViewMode::Daily(state) => {
+            let scroll_height = list_content_height_for_daily(layout, show_calendar_sidebar);
             let fixed_lines = DAILY_HEADER_LINES + calendar_event_count;
             ensure_selected_visible(
                 &mut state.scroll_offset,
                 state.selected + fixed_lines,
                 visible_entry_count + fixed_lines,
-                layout.scroll_height,
+                scroll_height,
             );
             if state.selected == 0 {
                 state.scroll_offset = 0;
@@ -56,7 +62,7 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                     unreachable!()
                 };
                 let prefix_width = entry_type.prefix().len();
-                let text_width = layout.content_width.saturating_sub(prefix_width);
+                let text_width = list_content_width_for_filter(layout).saturating_sub(prefix_width);
                 let wrap_width = text_width.saturating_sub(1).max(1);
                 let (cursor_row, cursor_col) = cursor_position_in_wrap(
                     buffer.content(),
@@ -76,8 +82,7 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                 };
                 state.entries.get(*filter_index).map(|filter_entry| {
                     let prefix_width = filter_entry.entry_type.prefix().len();
-                    let text_width = layout
-                        .content_width
+                    let text_width = list_content_width_for_filter(layout)
                         .saturating_sub(prefix_width + DATE_SUFFIX_WIDTH);
                     let wrap_width = text_width.saturating_sub(1).max(1);
                     let (cursor_row, cursor_col) = cursor_position_in_wrap(
@@ -104,10 +109,8 @@ pub fn prepare_render(app: &mut App, layout: &RenderContext) -> RenderPrep {
                     }
                 })
                 .map(|entry_type| {
-                    let list_content_width = list_content_width_for_daily(
-                        layout.main_area.width,
-                        app.show_calendar_sidebar(),
-                    );
+                    let list_content_width =
+                        list_content_width_for_daily(layout, show_calendar_sidebar);
 
                     let prefix_width = entry_type.prefix().width();
                     let text_width = list_content_width.saturating_sub(prefix_width);
