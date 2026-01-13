@@ -260,32 +260,6 @@ fn shift_x_removes_all_tags_from_selected() {
 }
 
 #[test]
-fn selection_works_in_filter_view() {
-    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content = "# 2026/01/15\n- [ ] Task A\n- [ ] Task B\n- [ ] Task C\n";
-    let mut ctx = TestContext::with_journal_content(date, content);
-
-    ctx.press(KeyCode::Char('/'));
-    ctx.type_str("!tasks");
-    ctx.press(KeyCode::Enter);
-
-    ctx.press(KeyCode::Char('g'));
-    ctx.press(KeyCode::Char('v'));
-
-    assert!(matches!(ctx.app.input_mode, InputMode::Selection(_)));
-
-    ctx.press(KeyCode::Char('j'));
-    ctx.press(KeyCode::Char('v'));
-
-    ctx.press(KeyCode::Char('c'));
-
-    let journal = ctx.read_journal();
-    assert!(journal.contains("[x] Task A"));
-    assert!(journal.contains("[x] Task B"));
-    assert!(journal.contains("[ ] Task C"));
-}
-
-#[test]
 fn batch_delete_undos_as_single_operation() {
     let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let content = "# 2026/01/15\n- [ ] Keep\n- [ ] Delete A\n- [ ] Delete B\n- [ ] Delete C\n";

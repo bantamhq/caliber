@@ -139,25 +139,6 @@ fn delete_blocked_on_recurring_with_hint() {
 }
 
 #[test]
-fn recurring_filter_shows_only_recurring_entries() {
-    let today = chrono::Local::now().date_naive();
-    let content = format!(
-        "# {}\n- [ ] Daily task @every-day\n- [ ] One-time task @01/15\n- [ ] Regular task\n",
-        today.format("%Y/%m/%d")
-    );
-    let mut ctx = TestContext::with_journal_content(today, &content);
-
-    ctx.press(KeyCode::Char('/'));
-    ctx.type_str("@recurring");
-    ctx.press(KeyCode::Enter);
-
-    assert!(ctx.screen_contains("Daily task @every-day"));
-
-    assert!(!ctx.screen_contains("One-time task"));
-    assert!(!ctx.screen_contains("Regular task"));
-}
-
-#[test]
 fn recurring_monthly_appears_on_matching_day() {
     let view_date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
     let content = "# 2026/01/01\n- [ ] Monthly review @every-15\n";

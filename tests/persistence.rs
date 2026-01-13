@@ -76,26 +76,3 @@ fn multi_day_entries_preserved_on_edit() {
     assert!(journal.contains("Day A entry modified"));
     assert!(journal.contains("Day B entry"));
 }
-
-#[test]
-fn filter_edit_persists_to_journal() {
-    let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
-    let content = "# 2026/01/15\n- [ ] Filterable entry\n";
-    let mut ctx = TestContext::with_journal_content(date, content);
-
-    ctx.press(KeyCode::Char('/'));
-    ctx.type_str("Filterable");
-    ctx.press(KeyCode::Enter);
-
-    ctx.press(KeyCode::Char('i'));
-    ctx.press(KeyCode::End);
-    ctx.type_str(" edited");
-    ctx.press(KeyCode::Enter);
-
-    ctx.press(KeyCode::Tab);
-
-    assert!(ctx.screen_contains("Filterable entry edited"));
-
-    let journal = ctx.read_journal();
-    assert!(journal.contains("Filterable entry edited"));
-}

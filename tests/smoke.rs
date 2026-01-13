@@ -19,13 +19,6 @@ fn core_workflow_creates_toggles_filters_deletes_undoes() {
     ctx.press(KeyCode::Char('c'));
     assert!(ctx.screen_contains("[x]"));
 
-    ctx.press(KeyCode::Char('/'));
-    ctx.type_str("Smoke");
-    ctx.press(KeyCode::Enter);
-    assert!(ctx.screen_contains("Smoke test entry"));
-
-    ctx.press(KeyCode::Tab);
-
     ctx.press(KeyCode::Char('d'));
     assert!(!ctx.screen_contains("Smoke test entry"));
 

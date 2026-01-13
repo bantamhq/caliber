@@ -176,8 +176,7 @@ fn item_styles(is_selected: bool, is_available: bool) -> (Style, Style) {
     };
 
     let name_style = if is_selected {
-        Style::default()
-            .add_modifier(Modifier::REVERSED | Modifier::BOLD | base_modifier)
+        Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD | base_modifier)
     } else {
         Style::default()
             .fg(theme::PALETTE_COMMAND)
@@ -424,13 +423,14 @@ pub fn render_command_palette(f: &mut Frame<'_>, model: CommandPaletteModel, are
                 let gap = available.saturating_sub(name_width + count_width);
 
                 lines.push(RatatuiLine::from(vec![
-                    Span::styled(
-                        format!("{}{}", " ".repeat(padding), tag_name),
-                        name_style,
-                    ),
+                    Span::styled(format!("{}{}", " ".repeat(padding), tag_name), name_style),
                     Span::styled(
                         " ".repeat(gap),
-                        if is_selected { Style::default().add_modifier(Modifier::REVERSED) } else { Style::default() },
+                        if is_selected {
+                            Style::default().add_modifier(Modifier::REVERSED)
+                        } else {
+                            Style::default()
+                        },
                     ),
                     Span::styled(
                         format!("{}{}", count_str, " ".repeat(padding)),

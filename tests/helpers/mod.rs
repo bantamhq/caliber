@@ -82,31 +82,24 @@ impl TestContext {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
-        if self.app.help_visible {
-            handlers::handle_help_key(&mut self.app, key);
-        } else {
-            match &self.app.input_mode {
-                InputMode::Prompt(_) => {
-                    let _ = handlers::handle_prompt_key(&mut self.app, key);
-                }
-                InputMode::Normal => {
-                    let _ = handlers::handle_normal_key(&mut self.app, key);
-                }
-                InputMode::Edit(_) => {
-                    handlers::handle_edit_key(&mut self.app, key);
-                }
-                InputMode::Reorder => {
-                    handlers::handle_reorder_key(&mut self.app, key);
-                }
-                InputMode::Confirm(_) => {
-                    let _ = handlers::handle_confirm_key(&mut self.app, key.code);
-                }
-                InputMode::Selection(_) => {
-                    let _ = handlers::handle_selection_key(&mut self.app, key);
-                }
-                InputMode::Interface(_) => {
-                    let _ = handlers::handle_interface_key(&mut self.app, key);
-                }
+        match &self.app.input_mode {
+            InputMode::Normal => {
+                let _ = handlers::handle_normal_key(&mut self.app, key);
+            }
+            InputMode::Edit(_) => {
+                handlers::handle_edit_key(&mut self.app, key);
+            }
+            InputMode::Reorder => {
+                handlers::handle_reorder_key(&mut self.app, key);
+            }
+            InputMode::Confirm(_) => {
+                let _ = handlers::handle_confirm_key(&mut self.app, key.code);
+            }
+            InputMode::Selection(_) => {
+                let _ = handlers::handle_selection_key(&mut self.app, key);
+            }
+            InputMode::CommandPalette(_) => {
+                let _ = handlers::handle_command_palette_key(&mut self.app, key);
             }
         }
     }
@@ -114,7 +107,7 @@ impl TestContext {
     pub fn render_daily(&mut self) -> Vec<String> {
         let context = ui::RenderContext::for_test(80, 24);
         let _ = ui::prepare_render(&mut self.app, &context);
-        ui::build_daily_list(&self.app, context.content_width)
+        ui::build_daily_list(&self.app, context.main_area.width as usize)
             .into_lines()
             .iter()
             .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
@@ -124,7 +117,7 @@ impl TestContext {
     pub fn render_filter(&mut self) -> Vec<String> {
         let context = ui::RenderContext::for_test(80, 24);
         let _ = ui::prepare_render(&mut self.app, &context);
-        ui::build_filter_list(&self.app, context.content_width)
+        ui::build_filter_list(&self.app, context.main_area.width as usize)
             .into_lines()
             .iter()
             .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
@@ -140,15 +133,6 @@ impl TestContext {
 
     pub fn screen_contains(&mut self, text: &str) -> bool {
         self.render_current().iter().any(|line| line.contains(text))
-    }
-
-    pub fn render_footer(&self) -> String {
-        let line = ui::render_footer(&self.app);
-        line.spans.iter().map(|s| s.content.as_ref()).collect()
-    }
-
-    pub fn footer_contains(&self, text: &str) -> bool {
-        self.render_footer().contains(text)
     }
 
     pub fn find_line(&mut self, text: &str) -> Option<String> {
