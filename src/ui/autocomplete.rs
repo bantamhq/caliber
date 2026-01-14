@@ -5,12 +5,14 @@ use ratatui::text::{Line as RatatuiLine, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
-use crate::app::{App, HintContext};
+use crate::app::{App, HintContext, HintItem};
 
 use super::scroll::CursorContext;
 use super::theme;
 
-const MAX_SUGGESTIONS: usize = 5;
+const DROPDOWN_TEXT_WIDTH: usize = 15;
+
+pub const MAX_SUGGESTIONS: usize = 5;
 
 pub fn render_autocomplete_dropdown(
     f: &mut Frame<'_>,
@@ -28,9 +30,7 @@ pub fn render_autocomplete_dropdown(
     }
 
     let selected_index = app.hint_state.selected_index();
-    let window_start = selected_index.saturating_sub(selected_index % MAX_SUGGESTIONS);
-    let window_end = (window_start + MAX_SUGGESTIONS).min(items.len());
-    let window = &items[window_start..window_end];
+    let window_len = items.len().min(MAX_SUGGESTIONS);
 
     let cursor_line = cursor.entry_start_line + cursor.cursor_row;
     let scroll_offset = app.scroll_offset();
@@ -57,14 +57,13 @@ pub fn render_autocomplete_dropdown(
         return;
     }
 
-    let desired_text_width = 15usize;
-    let mut width = (desired_text_width + 2) as u16;
+    let mut width = (DROPDOWN_TEXT_WIDTH + 2) as u16;
     let available_width = content_area.width - (start_x - content_area.x);
     if width > available_width {
         width = available_width.max(1);
     }
 
-    let mut height = (window.len() as u16).saturating_add(2);
+    let mut height = (window_len as u16).saturating_add(2);
     let available_height = if show_above {
         start_y.saturating_sub(content_area.y) + 1
     } else {
@@ -87,38 +86,12 @@ pub fn render_autocomplete_dropdown(
         height,
     };
 
-    let highlight_color = app.hint_state.color();
     let text_width = width.saturating_sub(2).max(1) as usize;
-    let lines: Vec<RatatuiLine<'static>> = window
-        .iter()
-        .enumerate()
-        .map(|(index, item)| {
-            let is_selected = window_start + index == selected_index;
-            let mut style = Style::default().fg(highlight_color);
-            if !item.selectable {
-                style = style.dim();
-            }
-            if is_selected {
-                style = style.reversed();
-            }
-            let truncated = truncate_item(&item.label, text_width);
-            RatatuiLine::from(Span::styled(truncated, style))
-        })
-        .collect();
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::HINT_BORDER));
-
-    f.render_widget(Clear, area);
-    f.render_widget(block.clone(), area);
-
-    let inner = block.inner(area);
-    let paragraph = Paragraph::new(lines);
-    f.render_widget(paragraph, inner);
+    let lines = build_dropdown_lines(&items, selected_index, app.hint_state.color(), text_width);
+    render_dropdown_box(f, area, lines);
 }
 
-fn token_display_len(hint: &HintContext) -> usize {
+pub fn token_display_len(hint: &HintContext) -> usize {
     match hint {
         HintContext::Tags { prefix, .. } => 1 + prefix.width(),
         HintContext::Commands { prefix, .. } => 1 + prefix.width(),
@@ -131,7 +104,7 @@ fn token_display_len(hint: &HintContext) -> usize {
     }
 }
 
-fn truncate_item(item: &str, width: usize) -> String {
+pub fn truncate_item(item: &str, width: usize) -> String {
     if item.width() <= width {
         return item.to_string();
     }
@@ -147,4 +120,45 @@ fn truncate_item(item: &str, width: usize) -> String {
         current_width += ch_width;
     }
     format!("{result}…")
+}
+
+pub fn build_dropdown_lines(
+    items: &[HintItem],
+    selected_index: usize,
+    highlight_color: ratatui::style::Color,
+    text_width: usize,
+) -> Vec<RatatuiLine<'static>> {
+    let window_start = selected_index.saturating_sub(selected_index % MAX_SUGGESTIONS);
+    let window_end = (window_start + MAX_SUGGESTIONS).min(items.len());
+    let window = &items[window_start..window_end];
+
+    window
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let is_selected = window_start + index == selected_index;
+            let mut style = Style::default().fg(highlight_color);
+            if !item.selectable {
+                style = style.dim();
+            }
+            if is_selected {
+                style = style.reversed();
+            }
+            let truncated = truncate_item(&item.label, text_width);
+            RatatuiLine::from(Span::styled(truncated, style))
+        })
+        .collect()
+}
+
+pub fn render_dropdown_box(f: &mut Frame<'_>, area: Rect, lines: Vec<RatatuiLine<'static>>) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::HINT_BORDER));
+
+    f.render_widget(Clear, area);
+    f.render_widget(block.clone(), area);
+
+    let inner = block.inner(area);
+    let paragraph = Paragraph::new(lines);
+    f.render_widget(paragraph, inner);
 }

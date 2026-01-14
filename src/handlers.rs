@@ -49,6 +49,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             InputMode::Reorder => app.cancel_reorder_mode(),
             InputMode::Selection(_) => app.cancel_selection_mode(),
             InputMode::CommandPalette(_) => app.close_command_palette(),
+            InputMode::FilterPrompt => app.cancel_filter_prompt(),
             InputMode::Normal | InputMode::Confirm(_) => {
                 if matches!(app.view, ViewMode::Filter(_)) {
                     app.cancel_filter();
@@ -222,6 +223,9 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         }
         Quit => {
             app.should_quit = true;
+        }
+        FilterPrompt => {
+            app.enter_filter_prompt()?;
         }
         NoOp => {}
     }
@@ -463,5 +467,42 @@ pub fn handle_selection_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
     if let Some(action) = app.keymap.get(KeyContext::Selection, &spec) {
         dispatch_action(app, action)?;
     }
+    Ok(())
+}
+
+pub fn handle_filter_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
+    if matches!(key.code, KeyCode::Up | KeyCode::Down) && app.hint_state.is_active() {
+        if key.code == KeyCode::Down {
+            app.hint_state.select_next();
+        } else {
+            app.hint_state.select_prev();
+        }
+        return Ok(());
+    }
+
+    match key.code {
+        KeyCode::Enter => {
+            app.accept_hint();
+            app.submit_filter_prompt()?;
+        }
+        KeyCode::Esc => {
+            app.cancel_filter_prompt();
+        }
+        KeyCode::Tab => {
+            if app.accept_hint()
+                && let ViewMode::Filter(state) = &mut app.view
+            {
+                state.query_buffer.insert_char(' ');
+            }
+            app.update_hints();
+        }
+        _ => {
+            if let ViewMode::Filter(state) = &mut app.view {
+                handle_text_input(&mut state.query_buffer, key);
+            }
+            app.update_hints();
+        }
+    }
+
     Ok(())
 }

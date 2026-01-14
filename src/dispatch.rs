@@ -486,6 +486,7 @@ fn parse_action_id(s: &str) -> Option<KeyActionId> {
         "selection" => Some(KeyActionId::Selection),
         "selection_extend_range" => Some(KeyActionId::SelectionExtendRange),
         "toggle_filter_view" => Some(KeyActionId::ToggleFilterView),
+        "filter_prompt" => Some(KeyActionId::FilterPrompt),
         "toggle_journal" => Some(KeyActionId::ToggleJournal),
         "filter_quick_add" => Some(KeyActionId::FilterQuickAdd),
         "refresh" => Some(KeyActionId::Refresh),

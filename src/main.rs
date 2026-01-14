@@ -163,6 +163,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 InputMode::CommandPalette(_) => {
                     handlers::handle_command_palette_key(&mut app, key)?;
                 }
+                InputMode::FilterPrompt => handlers::handle_filter_prompt_key(&mut app, key)?,
             }
         }
 

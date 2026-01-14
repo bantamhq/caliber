@@ -13,7 +13,7 @@ mod selection_ops;
 mod tag_ops;
 
 pub use entry_ops::{DeleteTarget, EntryLocation, TagRemovalTarget, ToggleTarget, YankTarget};
-pub use hints::{HintContext, HintMode};
+pub use hints::{HintContext, HintItem, HintMode};
 
 use std::collections::{BTreeSet, HashMap};
 use std::io;
@@ -224,6 +224,7 @@ pub enum InputMode {
     Selection(SelectionState),
     Confirm(ConfirmContext),
     CommandPalette(CommandPaletteState),
+    FilterPrompt,
 }
 
 /// Where to insert a new entry
@@ -621,10 +622,23 @@ impl App {
 
     /// Update hints based on current input buffer and mode.
     pub fn update_hints(&mut self) {
-        let (input, mode) = match &self.input_mode {
+        let (input, mode, saved_filters) = match &self.input_mode {
             InputMode::Edit(_) => {
                 if let Some(ref buffer) = self.edit_buffer {
-                    (buffer.content().to_string(), HintMode::Entry)
+                    (buffer.content().to_string(), HintMode::Entry, vec![])
+                } else {
+                    self.hint_state = HintContext::Inactive;
+                    return;
+                }
+            }
+            InputMode::FilterPrompt => {
+                if let ViewMode::Filter(state) = &self.view {
+                    let filters: Vec<String> = self.config.filters.keys().cloned().collect();
+                    (
+                        state.query_buffer.content().to_string(),
+                        HintMode::Filter,
+                        filters,
+                    )
                 } else {
                     self.hint_state = HintContext::Inactive;
                     return;
@@ -644,7 +658,7 @@ impl App {
             .map(|t| t.name.clone())
             .collect();
 
-        let hint = HintContext::compute(&input, mode, &tag_names, &[]);
+        let hint = HintContext::compute(&input, mode, &tag_names, &saved_filters);
         self.hint_state = hint.with_previous_selection(&self.hint_state);
     }
 
@@ -685,14 +699,22 @@ impl App {
             return false;
         }
 
-        if let InputMode::Edit(_) = &mut self.input_mode {
-            if let Some(ref mut buffer) = self.edit_buffer {
-                for c in completion.chars() {
-                    buffer.insert_char(c);
+        match &mut self.input_mode {
+            InputMode::Edit(_) => {
+                if let Some(ref mut buffer) = self.edit_buffer {
+                    for c in completion.chars() {
+                        buffer.insert_char(c);
+                    }
                 }
             }
-        } else {
-            return false;
+            InputMode::FilterPrompt => {
+                if let ViewMode::Filter(state) = &mut self.view {
+                    for c in completion.chars() {
+                        state.query_buffer.insert_char(c);
+                    }
+                }
+            }
+            _ => return false,
         }
 
         self.clear_hints();

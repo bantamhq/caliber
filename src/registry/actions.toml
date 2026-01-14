@@ -149,6 +149,11 @@ default_keys = ["tab"]
 contexts = ["daily_normal", "filter_normal"]
 
 [[action]]
+key_action_id = "filter_prompt"
+default_keys = ["/"]
+contexts = ["shared_normal"]
+
+[[action]]
 key_action_id = "toggle_journal"
 default_keys = ["`"]
 contexts = ["shared_normal"]

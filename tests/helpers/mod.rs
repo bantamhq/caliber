@@ -101,6 +101,9 @@ impl TestContext {
             InputMode::CommandPalette(_) => {
                 let _ = handlers::handle_command_palette_key(&mut self.app, key);
             }
+            InputMode::FilterPrompt => {
+                let _ = handlers::handle_filter_prompt_key(&mut self.app, key);
+            }
         }
     }
 

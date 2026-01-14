@@ -5,7 +5,7 @@ use ratatui::text::{Line as RatatuiLine, Span};
 use ratatui::widgets::{Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
-use crate::app::{App, SidebarType, ViewMode};
+use crate::app::{App, InputMode, SidebarType, ViewMode};
 
 use super::agenda_widget::{AgendaVariant, build_agenda_widget};
 use super::autocomplete::render_autocomplete_dropdown;
@@ -86,6 +86,11 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
             content_area,
         );
         render_autocomplete_dropdown(f, app, cursor, content_area);
+    }
+
+    // Render filter prompt autocomplete (positioned below heading)
+    if matches!(app.input_mode, InputMode::FilterPrompt) {
+        render_filter_prompt_autocomplete(f, app, &context);
     }
 
     let selected_tab = match &app.view {
@@ -170,6 +175,8 @@ fn render_view_heading(f: &mut Frame<'_>, context: &RenderContext, app: &App) {
     let heading_row = heading_layout[0];
     let rule_row = heading_layout[1];
 
+    let is_filter_prompt = matches!(app.input_mode, InputMode::FilterPrompt);
+
     let (label, color) = match &app.view {
         ViewMode::Daily(_) => {
             let date_label =
@@ -177,7 +184,12 @@ fn render_view_heading(f: &mut Frame<'_>, context: &RenderContext, app: &App) {
             (date_label, theme::MODE_DAILY)
         }
         ViewMode::Filter(state) => {
-            let filter_label = format!("Filter: {}", state.query);
+            let query_text = if is_filter_prompt {
+                state.query_buffer.content().to_string()
+            } else {
+                state.query.clone()
+            };
+            let filter_label = format!("Filter: {}", query_text);
             (filter_label, theme::MODE_FILTER)
         }
     };
@@ -192,6 +204,16 @@ fn render_view_heading(f: &mut Frame<'_>, context: &RenderContext, app: &App) {
     ];
     let heading_line = RatatuiLine::from(line_spans);
     f.render_widget(Paragraph::new(heading_line), heading_row);
+
+    // Set cursor position when in filter prompt mode
+    if is_filter_prompt && let ViewMode::Filter(state) = &app.view {
+        let prefix = "Filter: ";
+        let cursor_x = heading_row.x
+            + theme::HEADING_PADDING as u16
+            + prefix.width() as u16
+            + state.query_buffer.cursor_display_pos() as u16;
+        f.set_cursor_position((cursor_x, heading_row.y));
+    }
 
     let rule_width = rule_row.width as usize;
     let highlight_start = theme::HEADING_PADDING;
@@ -298,4 +320,53 @@ fn render_agenda_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
         let content = Paragraph::new(lines);
         f.render_widget(content, layout.content_area);
     }
+}
+
+fn render_filter_prompt_autocomplete(f: &mut Frame<'_>, app: &App, context: &RenderContext) {
+    use super::autocomplete::{
+        MAX_SUGGESTIONS, build_dropdown_lines, render_dropdown_box, token_display_len,
+    };
+
+    if !app.hint_state.is_active() {
+        return;
+    }
+
+    let items = app.hint_state.display_items("");
+    if items.is_empty() {
+        return;
+    }
+
+    let ViewMode::Filter(state) = &app.view else {
+        return;
+    };
+
+    let prefix = "Filter: ";
+    let cursor_x = context.heading_area.x
+        + theme::HEADING_PADDING as u16
+        + prefix.width() as u16
+        + state.query_buffer.cursor_display_pos() as u16;
+
+    let token_len = token_display_len(&app.hint_state) as u16;
+    let start_x = cursor_x.saturating_sub(token_len + 1);
+    let start_y = context.heading_area.y + 2;
+
+    let window_len = items.len().min(MAX_SUGGESTIONS);
+    let width = 20u16;
+    let height = (window_len as u16) + 2;
+
+    let area = Rect {
+        x: start_x,
+        y: start_y,
+        width,
+        height,
+    };
+
+    let text_width = width.saturating_sub(2) as usize;
+    let lines = build_dropdown_lines(
+        &items,
+        app.hint_state.selected_index(),
+        app.hint_state.color(),
+        text_width,
+    );
+    render_dropdown_box(f, area, lines);
 }

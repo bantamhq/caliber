@@ -1,5 +1,5 @@
 pub(crate) mod agenda_widget;
-mod autocomplete;
+pub(crate) mod autocomplete;
 mod calendar;
 mod container;
 mod context;

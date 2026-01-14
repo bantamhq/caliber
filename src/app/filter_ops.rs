@@ -119,4 +119,54 @@ impl App {
         }
         Ok(())
     }
+
+    pub fn enter_filter_prompt(&mut self) -> io::Result<()> {
+        if matches!(self.view, ViewMode::Daily(_)) {
+            self.execute_filter()?;
+        }
+
+        if let ViewMode::Filter(state) = &mut self.view {
+            let mut query = state.query.clone();
+            if !query.is_empty() {
+                query.push(' ');
+            }
+            state.query_buffer = CursorBuffer::new(query);
+        }
+
+        self.input_mode = InputMode::FilterPrompt;
+        self.refresh_tag_cache();
+        self.update_hints();
+        Ok(())
+    }
+
+    pub fn submit_filter_prompt(&mut self) -> io::Result<()> {
+        let ViewMode::Filter(state) = &mut self.view else {
+            self.input_mode = InputMode::Normal;
+            return Ok(());
+        };
+
+        let new_query = state.query_buffer.content().trim().to_string();
+        let needs_refresh = new_query != state.query;
+        state.query = new_query;
+
+        if needs_refresh {
+            self.refresh_filter()?;
+        }
+
+        if let ViewMode::Filter(state) = &self.view {
+            self.last_filter_query = Some(state.query.clone());
+        }
+
+        self.clear_hints();
+        self.input_mode = InputMode::Normal;
+        Ok(())
+    }
+
+    pub fn cancel_filter_prompt(&mut self) {
+        if let ViewMode::Filter(state) = &mut self.view {
+            state.query_buffer = CursorBuffer::new(state.query.clone());
+        }
+        self.clear_hints();
+        self.input_mode = InputMode::Normal;
+    }
 }
