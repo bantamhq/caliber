@@ -499,6 +499,7 @@ fn parse_action_id(s: &str) -> Option<KeyActionId> {
         "autocomplete" => Some(KeyActionId::Autocomplete),
         "toggle_calendar_sidebar" => Some(KeyActionId::ToggleCalendarSidebar),
         "toggle_agenda" => Some(KeyActionId::ToggleAgenda),
+        "date_picker" => Some(KeyActionId::DatePicker),
         "quit" => Some(KeyActionId::Quit),
         "no_op" => Some(KeyActionId::NoOp),
         _ => None,

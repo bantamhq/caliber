@@ -86,7 +86,14 @@ pub fn render_autocomplete_dropdown(
     };
 
     let text_width = width.saturating_sub(2).max(1) as usize;
-    let lines = build_dropdown_lines(&items, selected_index, app.hint_state.color(), text_width);
+    let scroll_offset = app.hint_state.scroll_offset();
+    let lines = build_dropdown_lines(
+        &items,
+        selected_index,
+        scroll_offset,
+        app.hint_state.color(),
+        text_width,
+    );
     render_dropdown_box(f, area, lines);
 }
 
@@ -124,18 +131,18 @@ pub fn truncate_item(item: &str, width: usize) -> String {
 pub fn build_dropdown_lines(
     items: &[HintItem],
     selected_index: usize,
+    scroll_offset: usize,
     highlight_color: ratatui::style::Color,
     text_width: usize,
 ) -> Vec<RatatuiLine<'static>> {
-    let window_start = selected_index.saturating_sub(selected_index % MAX_SUGGESTIONS);
-    let window_end = (window_start + MAX_SUGGESTIONS).min(items.len());
-    let window = &items[window_start..window_end];
+    let window_end = (scroll_offset + MAX_SUGGESTIONS).min(items.len());
+    let window = &items[scroll_offset..window_end];
 
     window
         .iter()
         .enumerate()
         .map(|(index, item)| {
-            let is_selected = window_start + index == selected_index;
+            let is_selected = scroll_offset + index == selected_index;
             let mut style = Style::default().fg(highlight_color);
             if !item.selectable {
                 style = style.dim();

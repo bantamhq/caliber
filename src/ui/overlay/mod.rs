@@ -19,6 +19,12 @@ use super::theme;
 pub struct OverlayModel {
     pub confirm: Option<ConfirmModel>,
     pub command_palette: Option<CommandPaletteModel>,
+    pub date_picker: Option<DatePickerModel>,
+}
+
+pub struct DatePickerModel {
+    pub buffer: String,
+    pub cursor_pos: usize,
 }
 
 pub struct OverlayLayout<'a> {
@@ -513,11 +519,46 @@ pub fn render_command_palette(
     }
 }
 
+pub fn render_date_picker(f: &mut Frame<'_>, model: DatePickerModel, area: Rect) {
+    let popup_area = centered_rect_max(16, 3, area);
+    f.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .title(" Go to Date ")
+        .borders(Borders::ALL);
+
+    let inner = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+
+    let cursor_char = if model.cursor_pos < model.buffer.len() {
+        model.buffer.chars().nth(model.cursor_pos).unwrap_or(' ')
+    } else {
+        ' '
+    };
+    let before_cursor: String = model.buffer.chars().take(model.cursor_pos).collect();
+    let after_cursor: String = model.buffer.chars().skip(model.cursor_pos + 1).collect();
+
+    let input_spans = vec![
+        Span::raw(" "),
+        Span::styled(&before_cursor, Style::default().fg(Color::White)),
+        Span::styled(
+            cursor_char.to_string(),
+            Style::default().fg(Color::Black).bg(Color::White),
+        ),
+        Span::styled(after_cursor, Style::default().fg(Color::White)),
+    ];
+    let input_line = Paragraph::new(RatatuiLine::from(input_spans));
+    f.render_widget(input_line, inner);
+}
+
 pub fn render_overlays(f: &mut Frame<'_>, overlays: OverlayModel, layout: OverlayLayout<'_>) {
     if let Some(confirm) = overlays.confirm {
         render_confirm_modal(f, confirm, layout.screen_area);
     }
     if let Some(palette) = overlays.command_palette {
         render_command_palette(f, palette, layout.screen_area, layout.surface);
+    }
+    if let Some(date_picker) = overlays.date_picker {
+        render_date_picker(f, date_picker, layout.screen_area);
     }
 }

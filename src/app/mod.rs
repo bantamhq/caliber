@@ -1,6 +1,7 @@
 pub mod actions;
 mod calendar;
 mod command;
+mod date_picker;
 mod edit_mode;
 mod entry_ops;
 mod filter_ops;
@@ -219,6 +220,12 @@ pub enum ConfirmContext {
     DeleteTag(String),
 }
 
+/// State for the quick date picker overlay
+#[derive(Clone, Debug)]
+pub struct DatePickerState {
+    pub buffer: CursorBuffer,
+}
+
 /// What keyboard handler to use
 #[derive(Clone, Debug)]
 pub enum InputMode {
@@ -229,6 +236,7 @@ pub enum InputMode {
     Confirm(ConfirmContext),
     CommandPalette(CommandPaletteState),
     FilterPrompt,
+    DatePicker(DatePickerState),
 }
 
 /// Where to insert a new entry
@@ -542,6 +550,10 @@ impl App {
             text: msg.into(),
             is_error: true,
         });
+    }
+
+    pub fn clear_status(&mut self) {
+        self.status_message = None;
     }
 
     pub fn execute_action(&mut self, action: Box<dyn actions::Action>) -> io::Result<()> {

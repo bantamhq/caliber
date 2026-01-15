@@ -8,7 +8,7 @@ use super::context::RenderContext;
 use super::header::HeaderModel;
 use super::layout::{LayoutNode, PanelId};
 use super::model::ListModel;
-use super::overlay::{CommandPaletteModel, ConfirmModel, OverlayModel};
+use super::overlay::{CommandPaletteModel, ConfirmModel, DatePickerModel, OverlayModel};
 use super::prep::RenderPrep;
 use super::scroll::CursorContext;
 use super::views::build_view_spec;
@@ -74,6 +74,13 @@ pub fn build_view_model(app: &App, context: &RenderContext, prep: RenderPrep) ->
             InputMode::CommandPalette(state) => {
                 Some(CommandPaletteModel::new(state, &app.cached_journal_tags))
             }
+            _ => None,
+        },
+        date_picker: match &app.input_mode {
+            InputMode::DatePicker(state) => Some(DatePickerModel {
+                buffer: state.buffer.content().to_string(),
+                cursor_pos: state.buffer.cursor_char_pos(),
+            }),
             _ => None,
         },
     };

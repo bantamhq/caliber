@@ -151,6 +151,20 @@ impl App {
         };
 
         let new_query = state.query_buffer.content().trim().to_string();
+
+        let (expanded, unknown_filters) =
+            storage::expand_saved_filters(&new_query, &self.config.filters);
+        let mut filter = storage::parse_filter_query(&expanded);
+        filter.invalid_tokens.extend(unknown_filters);
+
+        if !filter.invalid_tokens.is_empty() {
+            self.set_error(format!(
+                "Unknown filter: {}",
+                filter.invalid_tokens.join(", ")
+            ));
+            return Ok(());
+        }
+
         let needs_refresh = new_query != state.query;
         state.query = new_query;
 

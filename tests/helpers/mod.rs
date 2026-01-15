@@ -107,6 +107,9 @@ impl TestContext {
             InputMode::FilterPrompt => {
                 let _ = handlers::handle_filter_prompt_key(&mut self.app, key);
             }
+            InputMode::DatePicker(_) => {
+                let _ = handlers::handle_date_picker_key(&mut self.app, key);
+            }
         }
     }
 

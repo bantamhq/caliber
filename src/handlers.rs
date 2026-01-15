@@ -50,6 +50,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             InputMode::Selection(_) => app.cancel_selection_mode(),
             InputMode::CommandPalette(_) => app.close_command_palette(),
             InputMode::FilterPrompt => app.cancel_filter_prompt(),
+            InputMode::DatePicker(_) => app.close_date_picker(),
             InputMode::Normal | InputMode::Confirm(_) => {}
         },
         MoveDown => match &app.input_mode {
@@ -236,6 +237,11 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         }
         FilterPrompt => {
             app.enter_filter_prompt()?;
+        }
+        DatePicker => {
+            if app.is_daily_view() {
+                app.open_date_picker();
+            }
         }
         NoOp => {}
     }
@@ -510,9 +516,36 @@ pub fn handle_filter_prompt_key(app: &mut App, key: KeyEvent) -> io::Result<()> 
             if let ViewMode::Filter(state) = &mut app.view {
                 handle_text_input(&mut state.query_buffer, key);
             }
+            app.clear_status();
             app.update_hints();
         }
     }
 
+    Ok(())
+}
+
+pub fn handle_date_picker_key(app: &mut App, key: KeyEvent) -> io::Result<()> {
+    match key.code {
+        KeyCode::Enter => app.submit_date_picker()?,
+        KeyCode::Esc => app.close_date_picker(),
+        _ => {
+            let InputMode::DatePicker(state) = &mut app.input_mode else {
+                return Ok(());
+            };
+            match key.code {
+                KeyCode::Char(c) if c.is_ascii_digit() || c == '/' => {
+                    if state.buffer.content().len() < 10 {
+                        state.buffer.insert_char(c);
+                    }
+                }
+                KeyCode::Backspace => {
+                    state.buffer.delete_char_before();
+                }
+                KeyCode::Left => state.buffer.move_left(),
+                KeyCode::Right => state.buffer.move_right(),
+                _ => {}
+            }
+        }
+    }
     Ok(())
 }

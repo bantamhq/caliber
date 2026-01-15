@@ -407,6 +407,7 @@ fn render_filter_prompt_autocomplete(f: &mut Frame<'_>, app: &App, context: &Ren
     let lines = build_dropdown_lines(
         &items,
         app.hint_state.selected_index(),
+        app.hint_state.scroll_offset(),
         app.hint_state.color(),
         text_width,
     );

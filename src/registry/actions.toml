@@ -219,6 +219,11 @@ default_keys = [","]
 contexts = ["shared_normal"]
 
 [[action]]
+key_action_id = "date_picker"
+default_keys = ["\\"]
+contexts = ["daily_normal"]
+
+[[action]]
 key_action_id = "quit"
 default_keys = ["C-q"]
 contexts = ["shared_normal"]

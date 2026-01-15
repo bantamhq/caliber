@@ -176,6 +176,9 @@ fn run_app<B: ratatui::backend::Backend>(
                 InputMode::FilterPrompt => {
                     handlers::handle_filter_prompt_key(&mut app, key)?;
                 }
+                InputMode::DatePicker(_) => {
+                    handlers::handle_date_picker_key(&mut app, key)?;
+                }
             }
         }
 

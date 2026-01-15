@@ -32,6 +32,7 @@ pub enum HintContext {
         prefix: String,
         matches: Vec<String>,
         selected: usize,
+        scroll_offset: usize,
     },
     /// Command hints (from registry)
     Commands {
@@ -43,12 +44,14 @@ pub enum HintContext {
         prefix: String,
         matches: Vec<&'static FilterSyntax>,
         selected: usize,
+        scroll_offset: usize,
     },
     /// Date operation hints (@on:, @before:, @after:, @overdue)
     DateOps {
         prefix: String,
         matches: Vec<&'static FilterSyntax>,
         selected: usize,
+        scroll_offset: usize,
     },
     /// Date value hints (entry dates or filter date values)
     DateValues {
@@ -56,12 +59,14 @@ pub enum HintContext {
         scope: DateScope,
         matches: Vec<&'static DateValue>,
         selected: usize,
+        scroll_offset: usize,
     },
     /// Saved filter hints ($name)
     SavedFilters {
         prefix: String,
         matches: Vec<String>,
         selected: usize,
+        scroll_offset: usize,
     },
     /// Negation hints - wraps inner context for recursive hints
     Negation { inner: Box<HintContext> },
@@ -272,6 +277,7 @@ impl HintContext {
                 prefix,
                 matches,
                 selected: 0,
+                scroll_offset: 0,
             };
         }
 
@@ -308,6 +314,7 @@ impl HintContext {
                 scope: DateScope::Entry,
                 matches,
                 selected,
+                scroll_offset: 0,
             });
         }
 
@@ -341,6 +348,7 @@ impl HintContext {
             scope: DateScope::Entry,
             matches,
             selected,
+            scroll_offset: 0,
         })
     }
 
@@ -393,6 +401,7 @@ impl HintContext {
                 prefix,
                 matches,
                 selected: 0,
+                scroll_offset: 0,
             };
         }
 
@@ -414,6 +423,7 @@ impl HintContext {
                 prefix: type_prefix.to_string(),
                 matches,
                 selected: 0,
+                scroll_offset: 0,
             };
         }
 
@@ -436,6 +446,7 @@ impl HintContext {
                 prefix: content_prefix.to_string(),
                 matches,
                 selected: 0,
+                scroll_offset: 0,
             };
         }
 
@@ -455,6 +466,7 @@ impl HintContext {
                 prefix: filter_prefix.to_string(),
                 matches,
                 selected: 0,
+                scroll_offset: 0,
             };
         }
 
@@ -473,6 +485,7 @@ impl HintContext {
                 prefix,
                 matches,
                 selected,
+                ..
             } => matches
                 .get(*selected)
                 .map(|t| Self::suffix_after(t, prefix.len())),
@@ -483,6 +496,7 @@ impl HintContext {
                 prefix,
                 matches,
                 selected,
+                ..
             } => matches
                 .get(*selected)
                 .map(|f| Self::suffix_after(f.syntax, 1 + prefix.len())),
@@ -490,6 +504,7 @@ impl HintContext {
                 prefix,
                 matches,
                 selected,
+                ..
             } => matches
                 .get(*selected)
                 .map(|f| Self::suffix_after(f.syntax, 1 + prefix.len())),
@@ -513,6 +528,7 @@ impl HintContext {
                 prefix,
                 matches,
                 selected,
+                ..
             } => matches
                 .get(*selected)
                 .map(|f| Self::suffix_after(f, prefix.len())),
@@ -541,11 +557,13 @@ impl HintContext {
                 prefix,
                 matches,
                 selected,
+                ..
             } if !prefix.is_empty() => matches.get(*selected).map(|f| f.help),
             Self::DateOps {
                 prefix,
                 matches,
                 selected,
+                ..
             } if !prefix.is_empty() => matches.get(*selected).map(|f| f.help),
             Self::DateValues {
                 prefix,
@@ -669,29 +687,52 @@ impl HintContext {
         items.iter().position(|item| item.selectable).unwrap_or(0)
     }
 
+    const VISIBLE_HINTS: usize = 5;
+
+    fn adjust_scroll_offset(selected: usize, scroll_offset: &mut usize) {
+        if selected >= *scroll_offset + Self::VISIBLE_HINTS {
+            *scroll_offset = selected + 1 - Self::VISIBLE_HINTS;
+        }
+        if selected < *scroll_offset {
+            *scroll_offset = selected;
+        }
+    }
+
     pub fn select_next(&mut self) {
         match self {
             Self::Tags {
-                matches, selected, ..
+                matches,
+                selected,
+                scroll_offset,
+                ..
             } => {
                 if !matches.is_empty() {
                     *selected = (*selected + 1).min(matches.len().saturating_sub(1));
+                    Self::adjust_scroll_offset(*selected, scroll_offset);
                 }
             }
             Self::FilterTypes {
-                matches, selected, ..
+                matches,
+                selected,
+                scroll_offset,
+                ..
             }
             | Self::DateOps {
-                matches, selected, ..
+                matches,
+                selected,
+                scroll_offset,
+                ..
             } => {
                 if !matches.is_empty() {
                     *selected = (*selected + 1).min(matches.len().saturating_sub(1));
+                    Self::adjust_scroll_offset(*selected, scroll_offset);
                 }
             }
             Self::DateValues {
                 matches,
                 scope,
                 selected,
+                scroll_offset,
                 ..
             } => {
                 let items = Self::date_display_items(scope, matches);
@@ -704,14 +745,19 @@ impl HintContext {
                         .find(|(_, item)| item.selectable)
                     {
                         *selected = index;
+                        Self::adjust_scroll_offset(*selected, scroll_offset);
                     }
                 }
             }
             Self::SavedFilters {
-                matches, selected, ..
+                matches,
+                selected,
+                scroll_offset,
+                ..
             } => {
                 if !matches.is_empty() {
                     *selected = (*selected + 1).min(matches.len().saturating_sub(1));
+                    Self::adjust_scroll_offset(*selected, scroll_offset);
                 }
             }
             _ => {}
@@ -720,16 +766,34 @@ impl HintContext {
 
     pub fn select_prev(&mut self) {
         match self {
-            Self::Tags { selected, .. }
-            | Self::FilterTypes { selected, .. }
-            | Self::DateOps { selected, .. }
-            | Self::SavedFilters { selected, .. } => {
+            Self::Tags {
+                selected,
+                scroll_offset,
+                ..
+            }
+            | Self::FilterTypes {
+                selected,
+                scroll_offset,
+                ..
+            }
+            | Self::DateOps {
+                selected,
+                scroll_offset,
+                ..
+            }
+            | Self::SavedFilters {
+                selected,
+                scroll_offset,
+                ..
+            } => {
                 *selected = selected.saturating_sub(1);
+                Self::adjust_scroll_offset(*selected, scroll_offset);
             }
             Self::DateValues {
                 matches,
                 scope,
                 selected,
+                scroll_offset,
                 ..
             } => {
                 if *selected == 0 {
@@ -744,6 +808,7 @@ impl HintContext {
                     .find(|(_, item)| item.selectable)
                 {
                     *selected = index;
+                    Self::adjust_scroll_offset(*selected, scroll_offset);
                 }
             }
             _ => {}
@@ -758,14 +823,20 @@ impl HintContext {
                     prefix,
                     matches,
                     selected: _,
+                    ..
                 },
-                HintContext::Tags { selected, .. },
+                HintContext::Tags {
+                    selected,
+                    scroll_offset,
+                    ..
+                },
             ) => {
                 let selected = (*selected).min(matches.len().saturating_sub(1));
                 HintContext::Tags {
                     prefix,
                     matches,
                     selected,
+                    scroll_offset: *scroll_offset,
                 }
             }
             (
@@ -773,14 +844,20 @@ impl HintContext {
                     prefix,
                     matches,
                     selected: _,
+                    ..
                 },
-                HintContext::FilterTypes { selected, .. },
+                HintContext::FilterTypes {
+                    selected,
+                    scroll_offset,
+                    ..
+                },
             ) => {
                 let selected = (*selected).min(matches.len().saturating_sub(1));
                 HintContext::FilterTypes {
                     prefix,
                     matches,
                     selected,
+                    scroll_offset: *scroll_offset,
                 }
             }
             (
@@ -788,14 +865,20 @@ impl HintContext {
                     prefix,
                     matches,
                     selected: _,
+                    ..
                 },
-                HintContext::DateOps { selected, .. },
+                HintContext::DateOps {
+                    selected,
+                    scroll_offset,
+                    ..
+                },
             ) => {
                 let selected = (*selected).min(matches.len().saturating_sub(1));
                 HintContext::DateOps {
                     prefix,
                     matches,
                     selected,
+                    scroll_offset: *scroll_offset,
                 }
             }
             (
@@ -804,8 +887,13 @@ impl HintContext {
                     scope,
                     matches,
                     selected: _,
+                    ..
                 },
-                HintContext::DateValues { selected, .. },
+                HintContext::DateValues {
+                    selected,
+                    scroll_offset,
+                    ..
+                },
             ) => {
                 let items = Self::date_display_items(&scope, &matches);
                 let mut selected = (*selected).min(items.len().saturating_sub(1));
@@ -817,6 +905,7 @@ impl HintContext {
                     scope,
                     matches,
                     selected,
+                    scroll_offset: *scroll_offset,
                 }
             }
             (
@@ -824,14 +913,20 @@ impl HintContext {
                     prefix,
                     matches,
                     selected: _,
+                    ..
                 },
-                HintContext::SavedFilters { selected, .. },
+                HintContext::SavedFilters {
+                    selected,
+                    scroll_offset,
+                    ..
+                },
             ) => {
                 let selected = (*selected).min(matches.len().saturating_sub(1));
                 HintContext::SavedFilters {
                     prefix,
                     matches,
                     selected,
+                    scroll_offset: *scroll_offset,
                 }
             }
             (next, _) => next,
@@ -846,6 +941,18 @@ impl HintContext {
             | Self::DateOps { selected, .. }
             | Self::DateValues { selected, .. }
             | Self::SavedFilters { selected, .. } => *selected,
+            _ => 0,
+        }
+    }
+
+    #[must_use]
+    pub fn scroll_offset(&self) -> usize {
+        match self {
+            Self::Tags { scroll_offset, .. }
+            | Self::FilterTypes { scroll_offset, .. }
+            | Self::DateOps { scroll_offset, .. }
+            | Self::DateValues { scroll_offset, .. }
+            | Self::SavedFilters { scroll_offset, .. } => *scroll_offset,
             _ => 0,
         }
     }
