@@ -571,6 +571,7 @@ impl App {
                 return Err(e);
             }
         }
+        self.refresh_calendar_cache();
         Ok(())
     }
 
@@ -581,6 +582,7 @@ impl App {
             self.set_status(format!("Failed to save: {e}"));
         }
         self.invalidate_agenda_cache();
+        self.refresh_calendar_cache();
     }
 
     pub fn undo(&mut self) {
@@ -595,6 +597,7 @@ impl App {
             Ok(None) => {}
             Err(e) => self.set_status(format!("Undo failed: {e}")),
         }
+        self.refresh_calendar_cache();
     }
 
     pub fn redo(&mut self) -> io::Result<()> {
@@ -609,6 +612,7 @@ impl App {
             Ok(None) => {}
             Err(e) => self.set_status(format!("Redo failed: {e}")),
         }
+        self.refresh_calendar_cache();
         Ok(())
     }
 

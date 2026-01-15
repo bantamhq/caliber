@@ -12,13 +12,6 @@ pub const EDIT_PRIMARY: Color = Color::Green;
 pub const TAG: Color = Color::Yellow;
 pub const PROJECTED_DATE: Color = Color::Red;
 
-// Calendar (independent set)
-pub const CALENDAR_TASK: Color = Color::Yellow;
-pub const CALENDAR_EVENT: Color = Color::Magenta;
-pub const CALENDAR_ENTRY: Color = Color::Blue;
-pub const CALENDAR_TODAY: Color = Color::Cyan;
-pub const CALENDAR_OTHER: Color = Color::Gray;
-
 // Confirm dialog (semantic)
 pub const CONFIRM_YES: Color = Color::Green;
 pub const CONFIRM_NO: Color = Color::Red;

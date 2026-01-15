@@ -5,11 +5,11 @@ use ratatui::widgets::calendar::{CalendarEventStore, Monthly};
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Style, Stylize},
+    style::{Color, Style, Stylize},
 };
 use time::{Date, Month};
 
-use crate::storage::DayInfo;
+use crate::storage::{DayInfo, JournalSlot};
 
 use super::theme;
 
@@ -22,6 +22,7 @@ pub struct CalendarModel<'a> {
     pub selected: NaiveDate,
     pub display_month: NaiveDate,
     pub day_cache: &'a HashMap<NaiveDate, DayInfo>,
+    pub journal_slot: JournalSlot,
 }
 
 impl CalendarModel<'_> {
@@ -43,51 +44,45 @@ fn to_time_date(date: NaiveDate) -> Date {
 
 pub fn render_calendar(f: &mut Frame<'_>, model: &CalendarModel<'_>, area: Rect) {
     let today = Local::now().date_naive();
+    let context_primary = theme::context_primary(model.journal_slot);
     let mut events = CalendarEventStore::default();
 
+    // Style non-selected, non-today days
+    // Priority (highest to lowest):
+    //   3. Today - context primary color
+    //   2. Overdue tasks - PROJECTED_DATE (red)
+    //   1. Has content - white
+    //   0. No content - dimmed (default_style)
     for (date, info) in model.day_cache {
         if *date == model.selected || *date == today {
             continue;
         }
         if info.has_entries || info.has_calendar_events {
-            let style = if info.has_incomplete_tasks {
-                Style::new().fg(theme::CALENDAR_TASK).not_dim()
-            } else if info.has_events {
-                Style::new().fg(theme::CALENDAR_EVENT).not_dim()
-            } else if info.has_calendar_events {
-                Style::new().fg(theme::CALENDAR_ENTRY).not_dim()
+            let style = if info.has_overdue_tasks {
+                Style::new().fg(theme::PROJECTED_DATE).not_dim()
             } else {
-                Style::new().fg(theme::CALENDAR_OTHER).not_dim()
+                Style::new().fg(Color::White).not_dim()
             };
             events.add(to_time_date(*date), style);
         }
     }
 
+    // Today (priority 3) - uses context primary color
     if today.month() == model.display_month.month()
         && today.year() == model.display_month.year()
         && today != model.selected
     {
-        events.add(
-            to_time_date(today),
-            Style::new().fg(theme::CALENDAR_TODAY).not_dim(),
-        );
+        events.add(to_time_date(today), Style::new().fg(context_primary).not_dim());
     }
 
+    // Selected day - same priority logic but reversed
     let selected_info = model.day_cache.get(&model.selected);
     let selected_style = if model.selected == today {
-        Style::new().fg(theme::CALENDAR_TODAY).reversed().not_dim()
-    } else if selected_info
-        .map(|i| i.has_incomplete_tasks)
-        .unwrap_or(false)
-    {
-        Style::new().fg(theme::CALENDAR_TASK).reversed().not_dim()
-    } else if selected_info.map(|i| i.has_events).unwrap_or(false) {
-        Style::new().fg(theme::CALENDAR_EVENT).reversed().not_dim()
-    } else if selected_info
-        .map(|i| i.has_calendar_events)
-        .unwrap_or(false)
-    {
-        Style::new().fg(theme::CALENDAR_ENTRY).reversed().not_dim()
+        Style::new().fg(context_primary).reversed().not_dim()
+    } else if selected_info.is_some_and(|i| i.has_overdue_tasks) {
+        Style::new().fg(theme::PROJECTED_DATE).reversed().not_dim()
+    } else if selected_info.is_some_and(|i| i.has_entries || i.has_calendar_events) {
+        Style::new().fg(Color::White).reversed().not_dim()
     } else {
         Style::new().reversed().not_dim()
     };
@@ -101,8 +96,8 @@ pub fn render_calendar(f: &mut Frame<'_>, model: &CalendarModel<'_>, area: Rect)
     };
 
     let calendar = Monthly::new(to_time_date(model.display_month), events)
-        .show_weekdays_header(Style::new().fg(theme::CALENDAR_OTHER).dim().bold())
-        .default_style(Style::new().fg(theme::CALENDAR_OTHER).dim());
+        .show_weekdays_header(Style::new().fg(Color::White).dim().bold())
+        .default_style(Style::new().fg(Color::White).dim());
 
     f.render_widget(calendar, calendar_area);
 }
