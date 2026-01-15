@@ -71,9 +71,11 @@ pub fn build_view_model(app: &App, context: &RenderContext, prep: RenderPrep) ->
             _ => None,
         },
         command_palette: match &app.input_mode {
-            InputMode::CommandPalette(state) => {
-                Some(CommandPaletteModel::new(state, &app.cached_journal_tags))
-            }
+            InputMode::CommandPalette(state) => Some(CommandPaletteModel::new(
+                state,
+                &app.cached_journal_tags,
+                app.journal_context.project_path(),
+            )),
             _ => None,
         },
         date_picker: match &app.input_mode {

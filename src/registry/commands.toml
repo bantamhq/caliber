@@ -12,28 +12,28 @@ group = "General"
 help = "Open scratchpad for quick notes"
 
 [[command]]
-name = "open-config"
-group = "Configuration"
-help = "Open base config in default editor (creates if missing)"
-
-[[command]]
-name = "open-hub-config"
-group = "Configuration"
-help = "Open hub config in default editor (creates if missing)"
-
-[[command]]
-name = "open-project-config"
-group = "Configuration"
-help = "Open project config in default editor (creates if missing)"
-
-[[command]]
 name = "reload-config"
 group = "Configuration"
-help = "Reload configuration from disk"
+help = "Reload configuration after editing"
 
 [[command]]
-name = "open-journal"
-group = "Journal"
+name = "edit-config"
+group = "Edit"
+help = "Open base config in default editor"
+
+[[command]]
+name = "edit-hub-config"
+group = "Edit"
+help = "Open hub config in default editor"
+
+[[command]]
+name = "edit-project-config"
+group = "Edit"
+help = "Open project config in default editor"
+
+[[command]]
+name = "edit-journal"
+group = "Edit"
 help = "Open current journal in default editor"
 
 [[command]]

@@ -23,13 +23,13 @@ impl App {
             "scratchpad" => {
                 self.open_in_editor(&self.config.get_scratchpad_path())?;
             }
-            "open-config" => {
+            "edit-config" => {
                 self.open_in_editor(&get_config_path())?;
             }
-            "open-hub-config" => {
+            "edit-hub-config" => {
                 self.open_in_editor(&get_hub_config_path())?;
             }
-            "open-project-config" => {
+            "edit-project-config" => {
                 if let Some(project_path) = self.journal_context.project_path() {
                     let config_path = project_path
                         .parent()
@@ -52,7 +52,7 @@ impl App {
                     self.set_error("Failed to reload configuration");
                 }
             }
-            "open-journal" => {
+            "edit-journal" => {
                 let path = self.journal_context.active_path().to_path_buf();
                 self.open_in_editor(&path)?;
             }
@@ -116,7 +116,6 @@ impl App {
             return;
         }
 
-        // Append to .gitignore
         let mut file = match OpenOptions::new()
             .create(true)
             .append(true)

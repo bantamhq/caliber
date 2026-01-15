@@ -47,6 +47,7 @@ pub struct PaletteProject {
     pub name: String,
     pub path: String,
     pub available: bool,
+    pub is_current: bool,
 }
 
 pub struct PaletteTag {
@@ -63,16 +64,28 @@ impl ConfirmModel {
 
 impl CommandPaletteModel {
     #[must_use]
-    pub fn new(state: &CommandPaletteState, tags: &[TagInfo]) -> Self {
+    pub fn new(
+        state: &CommandPaletteState,
+        tags: &[TagInfo],
+        current_project_path: Option<&std::path::Path>,
+    ) -> Self {
         let registry = ProjectRegistry::load();
         let projects = registry
             .projects
             .iter()
             .filter(|p| !p.hide_from_registry)
-            .map(|p| PaletteProject {
-                name: p.name.clone(),
-                path: p.root.display().to_string(),
-                available: p.available,
+            .map(|p| {
+                let is_current = current_project_path
+                    .map(|cp| {
+                        cp.starts_with(&p.root) || p.root.starts_with(cp.parent().unwrap_or(cp))
+                    })
+                    .unwrap_or(false);
+                PaletteProject {
+                    name: p.name.clone(),
+                    path: p.root.display().to_string(),
+                    available: p.available,
+                    is_current,
+                }
             })
             .collect();
 
@@ -238,6 +251,43 @@ fn padded_area(area: Rect, padding: u16) -> Rect {
     }
 }
 
+struct PaletteItem<'a> {
+    name: &'a str,
+    description: &'a str,
+    is_selected: bool,
+    is_available: bool,
+}
+
+fn build_palette_item_line(
+    item: PaletteItem<'_>,
+    list_width: usize,
+    padding: usize,
+    bg: Color,
+    muted: Color,
+) -> RatatuiLine<'static> {
+    let (name_style, desc_style) = item_styles(item.is_selected, item.is_available, bg, muted);
+    let available = list_width.saturating_sub(padding * 2);
+    let name_width = item.name.len();
+    let desc_width = item.description.len();
+    let gap = available.saturating_sub(name_width + desc_width);
+
+    RatatuiLine::from(vec![
+        Span::styled(format!("{}{}", " ".repeat(padding), item.name), name_style),
+        Span::styled(
+            " ".repeat(gap),
+            if item.is_selected {
+                Style::default().bg(bg).add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default().bg(bg)
+            },
+        ),
+        Span::styled(
+            format!("{}{}", item.description, " ".repeat(padding)),
+            desc_style.remove_modifier(Modifier::BOLD),
+        ),
+    ])
+}
+
 pub fn render_command_palette(
     f: &mut Frame<'_>,
     model: CommandPaletteModel,
@@ -371,6 +421,12 @@ pub fn render_command_palette(
     let mut lines = Vec::new();
     let mut selected_line = None;
 
+    let muted = theme::secondary_text(surface);
+    let header_style = Style::default()
+        .fg(Color::Cyan)
+        .bg(bg)
+        .add_modifier(Modifier::BOLD);
+
     match model.mode {
         CommandPaletteMode::Commands => {
             let commands = filtered_commands(model.mode);
@@ -386,81 +442,126 @@ pub fn render_command_palette(
                     }
                     current_group = command.group;
                     let group_line = padded_line(command.group, list_width, padding);
-                    lines.push(RatatuiLine::from(Span::styled(
-                        group_line,
-                        Style::default()
-                            .fg(Color::Cyan)
-                            .bg(bg)
-                            .add_modifier(Modifier::BOLD),
-                    )));
+                    lines.push(RatatuiLine::from(Span::styled(group_line, header_style)));
                 }
 
                 let is_selected = index == model.selected;
-                let (name_style, desc_style) =
-                    item_styles(is_selected, true, bg, theme::secondary_text(surface));
-
                 if is_selected {
                     selected_line = Some(lines.len());
                 }
 
-                let name_line = padded_line(&title_case(command.name), list_width, padding);
-                lines.push(RatatuiLine::from(Span::styled(name_line, name_style)));
-                let desc_line = padded_line(command.help, list_width, padding);
-                lines.push(RatatuiLine::from(Span::styled(desc_line, desc_style)));
+                let name = title_case(command.name);
+                lines.push(build_palette_item_line(
+                    PaletteItem {
+                        name: &name,
+                        description: command.help,
+                        is_selected,
+                        is_available: true,
+                    },
+                    list_width,
+                    padding,
+                    bg,
+                    muted,
+                ));
             }
         }
         CommandPaletteMode::Projects => {
-            for (index, project) in model.projects.iter().enumerate() {
-                let is_selected = index == model.selected;
-                let (name_style, desc_style) = item_styles(
-                    is_selected,
-                    project.available,
-                    bg,
-                    theme::secondary_text(surface),
-                );
+            let current_project = model.projects.iter().position(|p| p.is_current);
+            let other_projects: Vec<_> = model
+                .projects
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| !p.is_current)
+                .collect();
 
+            let header_line = padded_line("Current Project", list_width, padding);
+            lines.push(RatatuiLine::from(Span::styled(header_line, header_style)));
+
+            if let Some(idx) = current_project {
+                let project = &model.projects[idx];
+                let is_selected = idx == model.selected;
                 if is_selected {
                     selected_line = Some(lines.len());
                 }
+                lines.push(build_palette_item_line(
+                    PaletteItem {
+                        name: &project.name,
+                        description: &project.path,
+                        is_selected,
+                        is_available: project.available,
+                    },
+                    list_width,
+                    padding,
+                    bg,
+                    muted,
+                ));
+            } else {
+                let empty_line = padded_line("No project loaded", list_width, padding);
+                lines.push(RatatuiLine::from(Span::styled(
+                    empty_line,
+                    Style::default().fg(muted).bg(bg),
+                )));
+            }
 
-                let name_line = padded_line(&project.name, list_width, padding);
-                lines.push(RatatuiLine::from(Span::styled(name_line, name_style)));
-                let desc_line = padded_line(&project.path, list_width, padding);
-                lines.push(RatatuiLine::from(Span::styled(desc_line, desc_style)));
+            lines.push(RatatuiLine::styled(
+                " ".repeat(list_width),
+                Style::default().bg(bg),
+            ));
+
+            let header_line = padded_line("Additional Projects", list_width, padding);
+            lines.push(RatatuiLine::from(Span::styled(header_line, header_style)));
+
+            if other_projects.is_empty() {
+                let empty_line = padded_line("No additional projects", list_width, padding);
+                lines.push(RatatuiLine::from(Span::styled(
+                    empty_line,
+                    Style::default().fg(muted).bg(bg),
+                )));
+            } else {
+                for (index, project) in other_projects {
+                    let is_selected = index == model.selected;
+                    if is_selected {
+                        selected_line = Some(lines.len());
+                    }
+                    lines.push(build_palette_item_line(
+                        PaletteItem {
+                            name: &project.name,
+                            description: &project.path,
+                            is_selected,
+                            is_available: project.available,
+                        },
+                        list_width,
+                        padding,
+                        bg,
+                        muted,
+                    ));
+                }
             }
         }
         CommandPaletteMode::Tags => {
+            let header_line = padded_line("All Tags", list_width, padding);
+            lines.push(RatatuiLine::from(Span::styled(header_line, header_style)));
+
             for (index, tag) in model.tags.iter().enumerate() {
                 let is_selected = index == model.selected;
-                let (name_style, count_style) =
-                    item_styles(is_selected, true, bg, theme::secondary_text(surface));
-
                 if is_selected {
                     selected_line = Some(lines.len());
                 }
 
                 let tag_name = format!("#{}", tag.name);
                 let count_str = format!("({})", tag.count);
-                let available = list_width.saturating_sub(padding * 2);
-                let name_width = tag_name.len();
-                let count_width = count_str.len();
-                let gap = available.saturating_sub(name_width + count_width);
-
-                lines.push(RatatuiLine::from(vec![
-                    Span::styled(format!("{}{}", " ".repeat(padding), tag_name), name_style),
-                    Span::styled(
-                        " ".repeat(gap),
-                        if is_selected {
-                            Style::default().bg(bg).add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default().bg(bg)
-                        },
-                    ),
-                    Span::styled(
-                        format!("{}{}", count_str, " ".repeat(padding)),
-                        count_style.remove_modifier(Modifier::BOLD),
-                    ),
-                ]));
+                lines.push(build_palette_item_line(
+                    PaletteItem {
+                        name: &tag_name,
+                        description: &count_str,
+                        is_selected,
+                        is_available: true,
+                    },
+                    list_width,
+                    padding,
+                    bg,
+                    muted,
+                ));
             }
         }
     }
@@ -469,7 +570,7 @@ pub fn render_command_palette(
         let empty_line = padded_line(empty_message(model.mode), list_width, padding);
         lines.push(RatatuiLine::from(Span::styled(
             empty_line,
-            Style::default().fg(theme::secondary_text(surface)).bg(bg),
+            Style::default().fg(muted).bg(bg),
         )));
     }
 
@@ -523,9 +624,7 @@ pub fn render_date_picker(f: &mut Frame<'_>, model: DatePickerModel, area: Rect)
     let popup_area = centered_rect_max(16, 3, area);
     f.render_widget(Clear, popup_area);
 
-    let block = Block::default()
-        .title(" Go to Date ")
-        .borders(Borders::ALL);
+    let block = Block::default().title(" Go to Date ").borders(Borders::ALL);
 
     let inner = block.inner(popup_area);
     f.render_widget(block, popup_area);
