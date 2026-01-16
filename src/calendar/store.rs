@@ -24,19 +24,9 @@ impl CalendarEvent {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub enum CalendarFetchStatus {
-    #[default]
-    NotStarted,
-    Fetching,
-    Ready,
-    Error(String),
-}
-
 #[derive(Debug, Default)]
 pub struct CalendarStore {
     events_by_date: HashMap<NaiveDate, Vec<CalendarEvent>>,
-    pub fetch_status: CalendarFetchStatus,
     pub visible_calendar_count: usize,
 }
 
@@ -63,7 +53,6 @@ impl CalendarStore {
 
     pub fn clear(&mut self) {
         self.events_by_date.clear();
-        self.fetch_status = CalendarFetchStatus::NotStarted;
         self.visible_calendar_count = 0;
     }
 
@@ -84,14 +73,5 @@ impl CalendarStore {
         }
 
         self.visible_calendar_count = visible_count;
-        self.fetch_status = CalendarFetchStatus::Ready;
-    }
-
-    pub fn set_fetching(&mut self) {
-        self.fetch_status = CalendarFetchStatus::Fetching;
-    }
-
-    pub fn set_error(&mut self, message: String) {
-        self.fetch_status = CalendarFetchStatus::Error(message);
     }
 }

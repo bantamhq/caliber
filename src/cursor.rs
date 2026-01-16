@@ -53,6 +53,12 @@ impl CursorBuffer {
         self.cursor_char_pos += 1;
     }
 
+    pub fn insert_str(&mut self, s: &str) {
+        let byte_pos = self.cursor_byte_pos();
+        self.content.insert_str(byte_pos, s);
+        self.cursor_char_pos += s.chars().count();
+    }
+
     pub fn delete_char_before(&mut self) -> bool {
         if self.cursor_char_pos == 0 {
             return false;

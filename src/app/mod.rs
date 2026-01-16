@@ -499,8 +499,6 @@ impl App {
             return;
         }
 
-        self.calendar_store.set_fetching();
-
         let config = self.config.clone();
         let Some(tx) = self.calendar_tx.clone() else {
             return;
