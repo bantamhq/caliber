@@ -397,7 +397,23 @@ impl App {
             .collect();
 
         storage::save_day_lines(date, &path, &lines)?;
+        let pasted_count = entries.len();
         self.refresh_affected_views(date)?;
+
+        // Move cursor to the last pasted entry
+        if date == self.current_date {
+            let last_pasted_line = insert_pos + pasted_count - 1;
+            if let Some(actual_idx) = self
+                .entry_indices
+                .iter()
+                .position(|&idx| idx == last_pasted_line)
+            {
+                let visible_idx = self.actual_to_visible_index(actual_idx);
+                if let ViewMode::Daily(state) = &mut self.view {
+                    state.selected = visible_idx;
+                }
+            }
+        }
 
         let target = super::actions::PasteTarget {
             date,
@@ -472,7 +488,7 @@ impl App {
         self.move_current_entry_to_date(today)
     }
 
-    pub fn move_current_entry_to_tomorrow(&mut self) -> io::Result<()> {
+    pub fn defer_current_entry(&mut self) -> io::Result<()> {
         let tomorrow = chrono::Local::now()
             .date_naive()
             .checked_add_days(Days::new(1))

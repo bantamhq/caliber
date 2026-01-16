@@ -77,8 +77,8 @@ description = "Delete selected entry"
 category = "entries"
 
 [[help]]
-actions = ["move_to_today", "move_to_tomorrow"]
-description = "Move entry to today/tomorrow"
+actions = ["move_to_today", "defer"]
+description = "Bring to today / Defer to tomorrow"
 category = "entries"
 
 [[help]]

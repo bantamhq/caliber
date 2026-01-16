@@ -26,6 +26,12 @@ impl CommandPaletteState {
         self.selected = 0;
     }
 
+    pub fn clamp_selection(&mut self, count: usize) {
+        if self.selected >= count && count > 0 {
+            self.selected = count - 1;
+        }
+    }
+
     pub fn select_prev_tab(&mut self) {
         self.mode = match self.mode {
             CommandPaletteMode::Commands => CommandPaletteMode::Tags,
@@ -195,7 +201,9 @@ impl App {
         registry.remove(&project.id);
         registry.save()?;
         self.set_status(format!("Removed '{}' from registry", project.name));
-        self.close_command_palette();
+        if let InputMode::CommandPalette(state) = &mut self.input_mode {
+            state.clamp_selection(visible_projects().len());
+        }
         Ok(())
     }
 
@@ -229,7 +237,9 @@ impl App {
 
         set_hide_from_registry(&project.path, true)?;
         self.set_status(format!("Hidden '{}' from palette", project.name));
-        self.close_command_palette();
+        if let InputMode::CommandPalette(state) = &mut self.input_mode {
+            state.clamp_selection(visible_projects().len());
+        }
         Ok(())
     }
 }

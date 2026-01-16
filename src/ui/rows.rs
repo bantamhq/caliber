@@ -20,24 +20,32 @@ pub fn build_calendar_row(
     event: &CalendarEvent,
     width: usize,
     show_calendar_name: bool,
+    is_past: bool,
 ) -> RowModel {
     let prefix = "* ";
     let prefix_width = prefix.width();
-    let indicator = theme::GLYPH_CALENDAR.to_string();
+    let glyph = if is_past { theme::GLYPH_CALENDAR_PAST } else { theme::GLYPH_CALENDAR };
+    let indicator = glyph.to_string();
 
     let content = format_calendar_event(event, show_calendar_name);
     let available = width.saturating_sub(prefix_width);
     let display_text = truncate_with_tags(&content, available);
 
+    let base_style = Style::default().italic();
     let content_style = if event.is_cancelled || event.is_declined {
-        Style::default().italic().crossed_out()
+        base_style.crossed_out()
+    } else if is_past {
+        base_style.dim()
     } else {
-        Style::default().italic()
+        base_style
     };
     let (_, rest_of_prefix) = split_prefix(prefix);
 
+    let indicator_base = Style::default().fg(event.color);
+    let indicator_style = if is_past { indicator_base.dim() } else { indicator_base };
+
     RowModel::new(
-        Some(Span::styled(indicator, Style::default().fg(event.color))),
+        Some(Span::styled(indicator, indicator_style)),
         Some(Span::styled(rest_of_prefix, content_style)),
         style_content(&display_text, content_style),
         None,

@@ -17,12 +17,23 @@ pub fn build_daily_list(app: &App, width: usize) -> ListModel {
 
     let mut rows = Vec::new();
 
+    let hidden_count = app.hidden_completed_count();
+    if app.hide_completed && hidden_count > 0 {
+        let message = format!("[{hidden_count} hidden entries]");
+        rows.push(rows::build_message_row(&message, Style::default().dim()));
+    }
+
     let calendar_events = app.calendar_store.events_for_date(app.current_date);
     let show_calendar_name = app.calendar_store.visible_calendar_count > 1;
-    let calendar_event_count = calendar_events.len();
+    let mut calendar_event_count = 0;
 
     for event in calendar_events {
-        rows.push(rows::build_calendar_row(event, width, show_calendar_name));
+        let is_past = event.is_past();
+        if app.hide_completed && is_past {
+            continue;
+        }
+        calendar_event_count += 1;
+        rows.push(rows::build_calendar_row(event, width, show_calendar_name, is_past));
     }
 
     let mut visible_projected_idx = 0;
@@ -93,14 +104,16 @@ pub fn build_daily_list(app: &App, width: usize) -> ListModel {
         }
     }
 
-    if calendar_event_count == 0 && visible_projected_idx == 0 && visible_entry_idx == 0 {
-        let has_hidden = app.hide_completed && app.hidden_completed_count() > 0;
-        let message = if has_hidden {
-            "(No visible entries - press z to show completed or Enter to add)"
-        } else {
-            "(No entries - press Enter to add)"
-        };
-        rows.push(rows::build_message_row(message, Style::default().dim()));
+    // Show empty state only for truly empty days (hidden entries indicator is shown at top)
+    if calendar_event_count == 0
+        && visible_projected_idx == 0
+        && visible_entry_idx == 0
+        && hidden_count == 0
+    {
+        rows.push(rows::build_message_row(
+            "(No entries - press Enter to add)",
+            Style::default().dim(),
+        ));
     }
 
     ListModel::from_rows(None, rows, app.scroll_offset())

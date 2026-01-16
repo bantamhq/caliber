@@ -104,7 +104,7 @@ default_keys = ["T"]
 contexts = ["shared_normal", "selection"]
 
 [[action]]
-key_action_id = "move_to_tomorrow"
+key_action_id = "defer"
 default_keys = [">"]
 contexts = ["shared_normal", "selection"]
 
@@ -191,7 +191,7 @@ contexts = ["edit"]
 [[action]]
 key_action_id = "reorder_mode"
 default_keys = ["r"]
-contexts = ["daily_normal"]
+contexts = ["daily_normal", "reorder"]
 
 [[action]]
 key_action_id = "tidy_entries"

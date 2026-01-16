@@ -92,6 +92,7 @@ pub const GLYPH_SCROLL_UP: &str = "▲";
 pub const GLYPH_SCROLL_DOWN: &str = "▼";
 pub const GLYPH_SCROLL_BOTH: &str = "▲▼";
 pub const GLYPH_CALENDAR: char = '●';
+pub const GLYPH_CALENDAR_PAST: char = '○';
 pub const GLYPH_AGENDA_EVENT: char = '*';
 pub const GLYPH_AGENDA_RECURRING: char = '↪';
 pub const GLYPH_AGENDA_FALLBACK: char = '•';

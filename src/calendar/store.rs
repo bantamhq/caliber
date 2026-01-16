@@ -17,6 +17,13 @@ pub struct CalendarEvent {
     pub color: Color,
 }
 
+impl CalendarEvent {
+    #[must_use]
+    pub fn is_past(&self) -> bool {
+        self.end < Local::now()
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum CalendarFetchStatus {
     #[default]

@@ -2,7 +2,9 @@ use std::io;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, ConfirmContext, InputMode, InsertPosition, SelectedItem, ViewMode};
+use crate::app::{
+    App, CommandPaletteMode, ConfirmContext, InputMode, InsertPosition, SelectedItem, ViewMode,
+};
 use crate::config::Config;
 use crate::cursor::CursorBuffer;
 use crate::dispatch::KeySpec;
@@ -86,12 +88,8 @@ fn dispatch_entry_operation(app: &mut App, action: KeyActionId) -> io::Result<()
                 App::move_current_entry_to_today,
             )?;
         }
-        MoveToTomorrow => {
-            dispatch_entry_op(
-                app,
-                App::move_selected_to_tomorrow,
-                App::move_current_entry_to_tomorrow,
-            )?;
+        Defer => {
+            dispatch_entry_op(app, App::defer_selected, App::defer_current_entry)?;
         }
         Yank => {
             dispatch_entry_op(
@@ -161,7 +159,7 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         ToggleComplete
             | Delete
             | MoveToToday
-            | MoveToTomorrow
+            | Defer
             | Yank
             | RemoveLastTag
             | RemoveAllTags
@@ -247,7 +245,13 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             app.clear_hints();
             app.commit_and_add_new();
         }
-        ReorderMode => app.enter_reorder_mode(),
+        ReorderMode => {
+            if matches!(app.input_mode, InputMode::Reorder) {
+                app.save_reorder_mode();
+            } else {
+                app.enter_reorder_mode();
+            }
+        }
         TidyEntries => app.tidy_entries(),
         Hide => app.toggle_hide_completed(),
         Autocomplete => {
@@ -414,7 +418,7 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
     };
 
     match key {
-        KeyCode::Char('y') | KeyCode::Char('Y') => match context {
+        KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => match context {
             ConfirmContext::CreateProjectJournal => {
                 let root = if app.in_git_repo {
                     storage::find_git_root()
@@ -467,9 +471,14 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
                 app.confirm_delete_tag(&tag)?;
             }
         },
-        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-            app.set_status("Staying on Hub journal");
-            app.input_mode = InputMode::Normal;
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => match context {
+            ConfirmContext::CreateProjectJournal => {
+                app.set_status("Staying on Hub journal");
+                app.input_mode = InputMode::Normal;
+            }
+            ConfirmContext::DeleteTag(_) => {
+                app.open_palette(CommandPaletteMode::Tags);
+            }
         }
         _ => {}
     }

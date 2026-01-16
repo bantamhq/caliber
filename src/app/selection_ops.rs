@@ -477,8 +477,7 @@ impl App {
         self.move_selected_to_date(today)
     }
 
-    /// Move all selected entries to tomorrow
-    pub fn move_selected_to_tomorrow(&mut self) -> io::Result<()> {
+    pub fn defer_selected(&mut self) -> io::Result<()> {
         let tomorrow = chrono::Local::now()
             .date_naive()
             .checked_add_days(Days::new(1))

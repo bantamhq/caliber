@@ -112,6 +112,9 @@ pub fn collect_agenda_cache(calendar_store: &CalendarStore, path: &Path) -> Agen
         let mut entries = Vec::new();
 
         for event in calendar_store.events_for_date(date) {
+            if event.is_past() {
+                continue;
+            }
             let text = event.title.clone();
             let text_with_time = if event.is_all_day {
                 None
@@ -136,7 +139,6 @@ pub fn collect_agenda_cache(calendar_store: &CalendarStore, path: &Path) -> Agen
             });
         }
 
-        // Show recurring events in agenda (all projected entries are now recurring)
         if let Ok(projected) = storage::collect_projected_entries_for_date(date, path) {
             for entry in projected
                 .iter()

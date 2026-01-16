@@ -28,13 +28,11 @@ pub(super) fn filter_done_today_recurring(projected: Vec<Entry>, lines: &[Line])
 }
 
 impl App {
-    /// Helper to check if a raw entry should be shown given hide_completed setting.
     #[must_use]
     pub fn should_show_raw_entry(&self, entry: &RawEntry) -> bool {
         !self.hide_completed || !matches!(entry.entry_type, EntryType::Task { completed: true })
     }
 
-    /// Helper to check if an entry should be shown given hide_completed setting.
     #[must_use]
     pub fn should_show_entry(&self, entry: &Entry) -> bool {
         !self.hide_completed || !matches!(entry.entry_type, EntryType::Task { completed: true })
@@ -49,7 +47,6 @@ impl App {
         self.view.scroll_offset_mut()
     }
 
-    /// Count visible projected entries (accounting for hide_completed).
     #[must_use]
     pub fn visible_projected_count(&self) -> usize {
         let ViewMode::Daily(state) = &self.view else {
@@ -66,7 +63,6 @@ impl App {
         }
     }
 
-    /// Count visible entries before the given index (accounting for hide_completed).
     #[must_use]
     pub fn visible_entries_before(&self, entry_index: usize) -> usize {
         if !self.hide_completed {
@@ -84,7 +80,6 @@ impl App {
             .count()
     }
 
-    /// Count visible projected entries before the given index (accounting for hide_completed).
     #[must_use]
     pub fn visible_projected_before(&self, projected_index: usize) -> usize {
         let ViewMode::Daily(state) = &self.view else {
@@ -119,11 +114,128 @@ impl App {
     }
 
     pub fn toggle_hide_completed(&mut self) {
-        self.hide_completed = !self.hide_completed;
+        let ViewMode::Daily(state) = &mut self.view else {
+            self.hide_completed = !self.hide_completed;
+            return;
+        };
+
+        let old_selected = state.selected;
 
         if self.hide_completed {
-            self.clamp_selection_to_visible();
+            // Turning OFF hide - find where current selection maps to
+            let new_selected = self.find_selection_after_unhide(old_selected);
+            self.hide_completed = false;
+            if let ViewMode::Daily(state) = &mut self.view {
+                state.selected = new_selected;
+                state.scroll_offset = 0;
+            }
+        } else {
+            // Turning ON hide - find where current selection maps to
+            self.hide_completed = true;
+            let new_selected = self.find_selection_after_hide(old_selected);
+            if let ViewMode::Daily(state) = &mut self.view {
+                state.selected = new_selected;
+                state.scroll_offset = 0;
+            }
         }
+    }
+
+    fn find_selection_after_unhide(&self, old_visible_idx: usize) -> usize {
+        let ViewMode::Daily(state) = &self.view else {
+            return 0;
+        };
+
+        // When hide was ON, only non-completed entries were visible
+        // Find which actual entry was at old_visible_idx, return its actual index
+        let mut visible_idx = 0;
+        let mut actual_idx = 0;
+
+        // Check projected entries
+        for entry in &state.projected_entries {
+            let is_completed = matches!(entry.entry_type, EntryType::Task { completed: true });
+            if !is_completed {
+                if visible_idx == old_visible_idx {
+                    return actual_idx;
+                }
+                visible_idx += 1;
+            }
+            actual_idx += 1;
+        }
+
+        // Check regular entries
+        for &line_idx in &self.entry_indices {
+            if let Line::Entry(raw_entry) = &self.lines[line_idx] {
+                let is_completed = matches!(raw_entry.entry_type, EntryType::Task { completed: true });
+                if !is_completed {
+                    if visible_idx == old_visible_idx {
+                        return actual_idx;
+                    }
+                    visible_idx += 1;
+                }
+                actual_idx += 1;
+            }
+        }
+
+        // Fallback to same index
+        old_visible_idx
+    }
+
+    fn find_selection_after_hide(&self, old_visible_idx: usize) -> usize {
+        let ViewMode::Daily(state) = &self.view else {
+            return 0;
+        };
+
+        // When hide was OFF, all entries were visible, so old_visible_idx = actual position
+        // Now hide is ON, find where that entry maps to (or first visible after it)
+        let mut actual_idx = 0;
+        let mut new_visible_idx = 0;
+        let mut found_target = false;
+        let mut first_visible_at_or_after = None;
+
+        // Check projected entries
+        for entry in &state.projected_entries {
+            let is_visible_now = self.should_show_entry(entry);
+
+            if actual_idx == old_visible_idx {
+                found_target = true;
+                if is_visible_now {
+                    return new_visible_idx;
+                }
+            }
+
+            if is_visible_now {
+                if found_target && first_visible_at_or_after.is_none() {
+                    first_visible_at_or_after = Some(new_visible_idx);
+                }
+                new_visible_idx += 1;
+            }
+            actual_idx += 1;
+        }
+
+        // Check regular entries
+        for &line_idx in &self.entry_indices {
+            if let Line::Entry(raw_entry) = &self.lines[line_idx] {
+                let is_visible_now = self.should_show_raw_entry(raw_entry);
+
+                if actual_idx == old_visible_idx {
+                    found_target = true;
+                    if is_visible_now {
+                        return new_visible_idx;
+                    }
+                }
+
+                if is_visible_now {
+                    if found_target && first_visible_at_or_after.is_none() {
+                        first_visible_at_or_after = Some(new_visible_idx);
+                    }
+                    new_visible_idx += 1;
+                }
+                actual_idx += 1;
+            }
+        }
+
+        // Return first visible entry at or after the old selection, or 0
+        first_visible_at_or_after.unwrap_or(0)
     }
 
     pub(super) fn clamp_selection_to_visible(&mut self) {
@@ -142,7 +254,6 @@ impl App {
         state.scroll_offset = 0;
     }
 
-    /// Returns the currently selected item, accounting for hidden completed entries.
     #[must_use]
     pub fn get_selected_item(&self) -> SelectedItem<'_> {
         match &self.view {
@@ -226,6 +337,12 @@ impl App {
             return 0;
         };
 
+        let hidden_calendar = self
+            .calendar_store
+            .events_for_date(self.current_date)
+            .iter()
+            .filter(|e| e.is_past())
+            .count();
         let hidden_projected = state
             .projected_entries
             .iter()
@@ -242,10 +359,9 @@ impl App {
                 }
             })
             .count();
-        hidden_projected + hidden_regular
+        hidden_calendar + hidden_projected + hidden_regular
     }
 
-    /// Converts an actual entry index to a visible index (accounting for projected entries and hidden completed)
     #[must_use]
     pub(super) fn actual_to_visible_index(&self, actual_entry_idx: usize) -> usize {
         let ViewMode::Daily(state) = &self.view else {
@@ -405,7 +521,6 @@ impl App {
     pub fn go_to_source(&mut self, source_date: NaiveDate, line_index: usize) -> io::Result<()> {
         self.goto_day(source_date)?;
 
-        // Find and select the entry at the given line index
         if let Some(actual_idx) = self.entry_indices.iter().position(|&idx| idx == line_index) {
             let visible_idx = self.actual_to_visible_index(actual_idx);
             if let ViewMode::Daily(state) = &mut self.view {
