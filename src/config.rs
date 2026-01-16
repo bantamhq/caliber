@@ -172,6 +172,7 @@ pub struct Config {
 
 /// Raw config for deserialization - all fields are Option to distinguish "not set" from "set to default"
 #[derive(Debug, Clone, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 struct RawConfig {
     pub hub_file: Option<String>,
     pub journal_file: Option<String>,
@@ -472,7 +473,14 @@ pub fn get_default_journal_path() -> PathBuf {
 fn load_raw_config(path: PathBuf) -> io::Result<RawConfig> {
     if path.exists() {
         let content = fs::read_to_string(&path)?;
-        toml::from_str(&content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        match toml::from_str(&content) {
+            Ok(config) => Ok(config),
+            Err(e) => {
+                eprintln!("Warning: Failed to parse {}: {}", path.display(), e);
+                eprintln!("Using default configuration");
+                Ok(RawConfig::default())
+            }
+        }
     } else {
         Ok(RawConfig::default())
     }
