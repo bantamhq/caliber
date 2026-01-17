@@ -164,6 +164,9 @@ impl App {
                 if let Line::Entry(raw_entry) = &mut self.lines[line_idx] {
                     raw_entry.toggle_complete();
                     self.save();
+                    if self.hide_completed {
+                        self.clamp_selection_to_visible();
+                    }
                 }
             }
             ToggleTarget::Filter { index, entry } => {
