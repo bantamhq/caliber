@@ -23,9 +23,9 @@ impl HintContext {
             } => matches
                 .get(*selected)
                 .map(|t| suffix_after(t, prefix.len())),
-            Self::Commands { prefix, matches } => matches
-                .first()
-                .map(|c| suffix_after(c.name, prefix.len())),
+            Self::Commands { prefix, matches } => {
+                matches.first().map(|c| suffix_after(c.name, prefix.len()))
+            }
             Self::FilterTypes {
                 prefix,
                 matches,

@@ -63,7 +63,9 @@ pub fn item_styles(
     };
 
     if is_selected {
-        let base = Style::default().bg(bg).add_modifier(Modifier::REVERSED | dim);
+        let base = Style::default()
+            .bg(bg)
+            .add_modifier(Modifier::REVERSED | dim);
         (base.add_modifier(Modifier::BOLD), base)
     } else {
         (

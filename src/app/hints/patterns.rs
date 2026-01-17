@@ -60,14 +60,12 @@ fn is_valid_d_prefix(input: &str) -> bool {
     if input == "d" {
         return true;
     }
-    input
-        .strip_prefix('d')
-        .is_some_and(|rest| {
-            !rest.is_empty()
-                && rest.len() <= 3
-                && rest.chars().all(|c| c.is_ascii_digit())
-                && !rest.starts_with('0')
-        })
+    input.strip_prefix('d').is_some_and(|rest| {
+        !rest.is_empty()
+            && rest.len() <= 3
+            && rest.chars().all(|c| c.is_ascii_digit())
+            && !rest.starts_with('0')
+    })
 }
 
 fn is_valid_every_number_prefix(input: &str) -> bool {

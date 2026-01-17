@@ -1,6 +1,4 @@
-use crate::registry::{
-    COMMANDS, DATE_VALUES, DateScope, FILTER_SYNTAX, FilterCategory,
-};
+use crate::registry::{COMMANDS, DATE_VALUES, DateScope, FILTER_SYNTAX, FilterCategory};
 
 use super::display::first_selectable_index;
 use super::patterns::{matches_date_value, strip_direction_suffix};
@@ -100,10 +98,7 @@ impl HintContext {
                 .iter()
                 .filter(|dv| dv.scopes.contains(&DateScope::Entry))
                 .collect();
-            let selected = first_selectable_index(&date_display_items(
-                &DateScope::Entry,
-                &matches,
-            ));
+            let selected = first_selectable_index(&date_display_items(&DateScope::Entry, &matches));
             return Some(Self::DateValues {
                 prefix: date_prefix.to_string(),
                 scope: DateScope::Entry,
@@ -136,8 +131,7 @@ impl HintContext {
             return None;
         }
 
-        let selected =
-            first_selectable_index(&date_display_items(&DateScope::Entry, &matches));
+        let selected = first_selectable_index(&date_display_items(&DateScope::Entry, &matches));
         Some(Self::DateValues {
             prefix: date_prefix.to_string(),
             scope: DateScope::Entry,

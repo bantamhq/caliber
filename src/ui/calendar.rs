@@ -84,7 +84,10 @@ pub fn render_calendar(f: &mut Frame<'_>, model: &CalendarModel<'_>, area: Rect)
     let selected_style = if model.selected == today {
         Style::default().fg(context_primary).reversed().not_dim()
     } else if selected_info.is_some_and(|i| i.has_incomplete_tasks) {
-        Style::default().fg(theme::CALENDAR_INCOMPLETE).reversed().not_dim()
+        Style::default()
+            .fg(theme::CALENDAR_INCOMPLETE)
+            .reversed()
+            .not_dim()
     } else if selected_info.is_some_and(|i| i.has_entries || i.has_calendar_events) {
         Style::default()
             .fg(theme::CALENDAR_TEXT)
