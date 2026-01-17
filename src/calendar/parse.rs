@@ -123,7 +123,8 @@ fn parse_event(
     let event_duration = end - start;
     let is_multi_day = is_all_day && event_duration > Duration::days(1);
     let total_days = if is_multi_day {
-        (event_duration.num_days() as u8).max(1)
+        // Clamp before casting to avoid silent overflow for very long events
+        event_duration.num_days().clamp(1, 255) as u8
     } else {
         1
     };
@@ -298,16 +299,19 @@ fn expand_rrule(
         .parse()
         .map_err(|e| format!("Failed to parse RRULE '{rrule_str}': {e:?}"))?;
 
+    // Use earliest/latest to handle DST ambiguity, with error for non-existent times
     let range_start_dt = range_start
         .and_hms_opt(0, 0, 0)
-        .unwrap()
+        .expect("midnight is valid")
         .and_local_timezone(RRuleTz::Local(Local))
-        .unwrap();
+        .earliest()
+        .ok_or_else(|| format!("Cannot determine local time for {range_start} 00:00:00"))?;
     let range_end_dt = range_end
         .and_hms_opt(23, 59, 59)
-        .unwrap()
+        .expect("23:59:59 is valid")
         .and_local_timezone(RRuleTz::Local(Local))
-        .unwrap();
+        .latest()
+        .ok_or_else(|| format!("Cannot determine local time for {range_end} 23:59:59"))?;
 
     let occurrences = rrule_set
         .after(range_start_dt)
