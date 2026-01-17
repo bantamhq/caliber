@@ -178,6 +178,7 @@ impl KeySpec {
         }
 
         match &self.key {
+            Key::Char(' ') => s.push_str("space"),
             Key::Char(c) => s.push(*c),
             Key::Enter => s.push_str("ret"),
             Key::Esc => s.push_str("esc"),
@@ -454,7 +455,9 @@ fn shift_char(c: char) -> Option<char> {
     }
 }
 
-fn parse_action_id(s: &str) -> Option<KeyActionId> {
+/// Parse an action ID from its string representation.
+#[must_use]
+pub fn parse_action_id(s: &str) -> Option<KeyActionId> {
     match s {
         "submit" => Some(KeyActionId::Submit),
         "cancel" => Some(KeyActionId::Cancel),
@@ -476,6 +479,9 @@ fn parse_action_id(s: &str) -> Option<KeyActionId> {
         "edit" => Some(KeyActionId::Edit),
         "toggle_complete" => Some(KeyActionId::ToggleComplete),
         "delete" => Some(KeyActionId::Delete),
+        "delete_from_completed" => Some(KeyActionId::DeleteFromCompleted),
+        "move_to_today" => Some(KeyActionId::MoveToToday),
+        "defer" => Some(KeyActionId::Defer),
         "yank" => Some(KeyActionId::Yank),
         "paste" => Some(KeyActionId::Paste),
         "undo" => Some(KeyActionId::Undo),
@@ -488,6 +494,7 @@ fn parse_action_id(s: &str) -> Option<KeyActionId> {
         "toggle_filter_view" => Some(KeyActionId::ToggleFilterView),
         "filter_prompt" => Some(KeyActionId::FilterPrompt),
         "toggle_journal" => Some(KeyActionId::ToggleJournal),
+        "command_palette" => Some(KeyActionId::CommandPalette),
         "filter_quick_add" => Some(KeyActionId::FilterQuickAdd),
         "refresh" => Some(KeyActionId::Refresh),
         "save_and_new" => Some(KeyActionId::SaveAndNew),

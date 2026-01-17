@@ -75,6 +75,26 @@ pub fn scroll_indicator(surface: &Surface) -> Color {
     surface.muted_text
 }
 
+// Footer colors
+
+/// Footer hint keys - bright for visibility.
+#[must_use]
+pub fn footer_key(surface: &Surface) -> Color {
+    surface.muted_text
+}
+
+/// Footer hint text - dimmer than keys.
+#[must_use]
+pub fn footer_text(surface: &Surface) -> Color {
+    surface.gray4
+}
+
+/// Footer background.
+#[must_use]
+pub fn footer_bg(surface: &Surface) -> Color {
+    surface.gray1
+}
+
 // Glyphs
 pub const GLYPH_CURSOR: &str = "→";
 pub const GLYPH_SELECTED: &str = "◉";

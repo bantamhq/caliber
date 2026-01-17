@@ -38,13 +38,13 @@ pub struct AgendaCache {
     pub max_width_with_times: usize,
 }
 
-pub struct AgendaWidgetModel<'a> {
-    pub days: &'a [AgendaDayModel],
+pub struct AgendaWidgetModel {
+    pub days: Vec<AgendaDayModel>,
     pub width: usize,
     pub variant: AgendaVariant,
 }
 
-impl AgendaWidgetModel<'_> {
+impl AgendaWidgetModel {
     #[must_use]
     pub fn required_width(&self) -> usize {
         self.width
@@ -84,20 +84,76 @@ impl AgendaWidgetModel<'_> {
     }
 }
 
-pub fn build_agenda_widget<'a>(
-    cache: &'a AgendaCache,
+pub fn build_agenda_widget(
+    cache: &AgendaCache,
     width: usize,
+    height: usize,
     variant: AgendaVariant,
-) -> AgendaWidgetModel<'a> {
+) -> AgendaWidgetModel {
     let max_width = match variant {
         AgendaVariant::Full => cache.max_width_with_times,
         AgendaVariant::Mini => cache.max_width,
     };
+
+    // Calculate how many entries fit in the available height
+    let days = fit_entries_to_height(&cache.days, height, variant);
+
     AgendaWidgetModel {
-        days: &cache.days,
+        days,
         width: width.min(max_width),
         variant,
     }
+}
+
+/// Limit days/entries to fit within max_height lines.
+/// Full variant: 1 line per date header + 1 line per entry + 1 blank between days
+/// Mini variant: 1 line per date header + 1 line per entry
+fn fit_entries_to_height(
+    days: &[AgendaDayModel],
+    max_height: usize,
+    variant: AgendaVariant,
+) -> Vec<AgendaDayModel> {
+    let mut result = Vec::new();
+    let mut lines_used = 0;
+
+    for (i, day) in days.iter().enumerate() {
+        // Spacing before day (except first)
+        let spacing = if i > 0 && variant == AgendaVariant::Full {
+            1
+        } else {
+            0
+        };
+
+        // Date header takes 1 line
+        let header_lines = 1;
+
+        // Check if we can fit at least the header + 1 entry
+        let min_lines_needed = spacing + header_lines + 1;
+        if lines_used + min_lines_needed > max_height {
+            break;
+        }
+
+        lines_used += spacing + header_lines;
+
+        // Add as many entries as fit
+        let mut day_entries = Vec::new();
+        for entry in &day.entries {
+            if lines_used + 1 > max_height {
+                break;
+            }
+            day_entries.push(entry.clone());
+            lines_used += 1;
+        }
+
+        if !day_entries.is_empty() {
+            result.push(AgendaDayModel {
+                date: day.date,
+                entries: day_entries,
+            });
+        }
+    }
+
+    result
 }
 
 pub fn collect_agenda_cache(calendar_store: &CalendarStore, path: &Path) -> AgendaCache {

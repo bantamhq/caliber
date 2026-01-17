@@ -35,7 +35,9 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
                 .saturating_sub(theme::AGENDA_MIN_GUTTER);
             let min_width = CalendarModel::panel_width();
             if let Some(ref cache) = app.agenda_cache {
-                let agenda = build_agenda_widget(cache, max_width as usize, AgendaVariant::Full);
+                // Use large height for width calculation since we don't know layout yet
+                let agenda =
+                    build_agenda_widget(cache, max_width as usize, usize::MAX, AgendaVariant::Full);
                 (agenda.required_width() as u16 + theme::AGENDA_BORDER_WIDTH as u16)
                     .max(min_width)
                     .min(max_width)
@@ -101,11 +103,14 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
     render_footer_bar(
         f,
         context.footer_area,
-        &app.view,
-        &app.input_mode,
-        &journal_name,
-        journal_slot,
-        &app.surface,
+        FooterContext {
+            view: &app.view,
+            input_mode: &app.input_mode,
+            journal_name: &journal_name,
+            journal_slot,
+            surface: &app.surface,
+            keymap: &app.keymap,
+        },
     );
 
     render_overlays(
@@ -118,18 +123,30 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
     );
 }
 
-fn render_footer_bar(
-    f: &mut Frame<'_>,
-    area: Rect,
-    view: &ViewMode,
-    input_mode: &InputMode,
-    journal_name: &str,
+struct FooterContext<'a> {
+    view: &'a ViewMode,
+    input_mode: &'a InputMode,
+    journal_name: &'a str,
     journal_slot: crate::storage::JournalSlot,
-    surface: &super::surface::Surface,
-) {
-    use ratatui::layout::{Constraint, Direction, Layout};
+    surface: &'a super::surface::Surface,
+    keymap: &'a crate::dispatch::Keymap,
+}
 
-    let bg = surface.gray1;
+fn render_footer_bar(f: &mut Frame<'_>, area: Rect, ctx: FooterContext<'_>) {
+    let FooterContext {
+        view,
+        input_mode,
+        journal_name,
+        journal_slot,
+        surface,
+        keymap,
+    } = ctx;
+    use ratatui::layout::{Constraint, Direction, Layout};
+    use ratatui::text::Line as RatatuiLine;
+
+    use super::footer::{FooterMode, build_footer_spans, build_hints};
+
+    let bg = theme::footer_bg(surface);
 
     let (mode_label, mode_color) = match input_mode {
         InputMode::Edit(_) => (theme::LABEL_MODE_EDIT, theme::EDIT_PRIMARY),
@@ -155,12 +172,15 @@ fn render_footer_bar(
         .constraints([
             Constraint::Length(1),             // left padding (default bg)
             Constraint::Length(mode_width),    // mode indicator
-            Constraint::Min(0),                // flexible middle (gray bg)
+            Constraint::Length(2),             // spacer after mode
+            Constraint::Min(0),                // flexible middle for hints
+            Constraint::Length(1),             // spacer before journal
             Constraint::Length(journal_width), // journal indicator
             Constraint::Length(1),             // right padding (default bg)
         ])
         .split(area);
 
+    // Mode indicator
     f.render_widget(
         Paragraph::new(Span::styled(
             mode_text,
@@ -169,20 +189,44 @@ fn render_footer_bar(
         layout[1],
     );
 
+    // Spacer after mode
     f.render_widget(
-        Paragraph::new(Span::styled(
-            " ".repeat(layout[2].width as usize),
-            Style::default().bg(bg),
-        )),
+        Paragraph::new(Span::styled("  ", Style::default().bg(bg))),
         layout[2],
     );
 
+    // Build and render hints in the middle section
+    let hints_area = layout[3];
+    let footer_mode = FooterMode::from_input_mode(input_mode, view);
+    let hints = build_hints(footer_mode, keymap);
+
+    let key_style = Style::default().fg(theme::footer_key(surface)).bg(bg);
+    let text_style = Style::default().fg(theme::footer_text(surface)).bg(bg);
+
+    let mut spans = build_footer_spans(&hints, hints_area.width as usize, key_style, text_style);
+
+    // Pad remaining space with background
+    let used_width: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    let remaining = (hints_area.width as usize).saturating_sub(used_width);
+    if remaining > 0 {
+        spans.push(Span::styled(" ".repeat(remaining), Style::default().bg(bg)));
+    }
+
+    f.render_widget(Paragraph::new(RatatuiLine::from(spans)), hints_area);
+
+    // Spacer before journal
+    f.render_widget(
+        Paragraph::new(Span::styled(" ", Style::default().bg(bg))),
+        layout[4],
+    );
+
+    // Journal indicator
     f.render_widget(
         Paragraph::new(Span::styled(
             journal_text,
             Style::default().fg(theme::TEXT_ON_ACCENT).bg(journal_color),
         )),
-        layout[3],
+        layout[5],
     );
 }
 
@@ -316,6 +360,7 @@ fn render_calendar_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
         let agenda = build_agenda_widget(
             cache,
             upcoming_layout.content_area.width as usize,
+            upcoming_layout.content_area.height as usize,
             AgendaVariant::Mini,
         );
         let lines = agenda.render_lines();
@@ -340,6 +385,7 @@ fn render_agenda_sidebar(f: &mut Frame<'_>, app: &App, sidebar_area: Rect) {
         let agenda = build_agenda_widget(
             cache,
             layout.content_area.width as usize,
+            layout.content_area.height as usize,
             AgendaVariant::Full,
         );
         let lines = agenda.render_lines();

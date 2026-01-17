@@ -1,0 +1,66 @@
+# Footer hint definitions
+# Each footer references action IDs (keys resolve from keymap at runtime)
+# Order determines display priority (first = highest, truncates from end)
+# Use array for `actions` to combine related keys into one hint (e.g., j/k)
+
+[footer.normal]
+hints = [
+    { actions = ["new_entry_below", "new_entry_above"], text = "New" },
+    { actions = ["edit"], text = "Edit" },
+    { actions = ["toggle_complete"], text = "Toggle" },
+    { actions = ["delete"], text = "Delete" },
+    { actions = ["filter_prompt"], text = "Filter" },
+    { actions = ["command_palette"], text = "Palette" },
+    { actions = ["selection"], text = "Select" },
+    { actions = ["undo", "redo"], text = "Undo" },
+]
+
+[footer.edit]
+hints = [
+    { actions = ["submit"], text = "Save" },
+    { actions = ["cancel"], text = "Cancel" },
+    { actions = ["save_and_new"], text = "Save & New" },
+    { actions = ["autocomplete"], text = "Complete" },
+    { actions = ["cycle_entry_type"], text = "Cycle Type" },
+]
+
+[footer.reorder]
+hints = [
+    { actions = ["move_up", "move_down"], text = "Move" },
+    { actions = ["submit"], text = "Save" },
+    { actions = ["cancel"], text = "Cancel" },
+]
+
+[footer.selection]
+hints = [
+    { actions = ["selection"], text = "Toggle" },
+    { actions = ["selection_extend_range"], text = "Range" },
+    { actions = ["toggle_complete"], text = "Complete" },
+    { actions = ["delete"], text = "Delete" },
+    { actions = ["defer"], text = "Defer" },
+    { actions = ["cancel"], text = "Exit" },
+]
+
+[footer.command_palette_projects]
+hints = [
+    { actions = ["move_up", "move_down"], text = "Navigate" },
+    { actions = ["submit"], text = "Open" },
+    { actions = ["delete"], text = "Delete" },
+    { actions = ["cancel"], text = "Close" },
+]
+
+[footer.command_palette_tags]
+hints = [
+    { actions = ["move_up", "move_down"], text = "Navigate" },
+    { actions = ["submit"], text = "Filter" },
+    { actions = ["delete"], text = "Delete" },
+    { actions = ["hide"], text = "Hide" },
+    { actions = ["cancel"], text = "Close" },
+]
+
+[footer.filter_prompt]
+hints = [
+    { actions = ["submit"], text = "Search" },
+    { actions = ["cancel"], text = "Cancel" },
+    { actions = ["autocomplete"], text = "Complete" },
+]
