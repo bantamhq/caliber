@@ -557,26 +557,34 @@ pub fn render_command_palette(
             let header_line = padded_line("All Tags", list_width, padding);
             lines.push(RatatuiLine::from(Span::styled(header_line, header_style)));
 
-            for (index, tag) in model.tags.iter().enumerate() {
-                let is_selected = index == model.selected;
-                if is_selected {
-                    selected_line = Some(lines.len());
-                }
+            if model.tags.is_empty() {
+                let empty_line = padded_line(theme::LABEL_EMPTY_TAGS, list_width, padding);
+                lines.push(RatatuiLine::from(Span::styled(
+                    empty_line,
+                    Style::default().fg(muted).bg(bg),
+                )));
+            } else {
+                for (index, tag) in model.tags.iter().enumerate() {
+                    let is_selected = index == model.selected;
+                    if is_selected {
+                        selected_line = Some(lines.len());
+                    }
 
-                let tag_name = format!("#{}", tag.name);
-                let count_str = format!("({})", tag.count);
-                lines.push(build_palette_item_line(
-                    PaletteItem {
-                        name: &tag_name,
-                        description: &count_str,
-                        is_selected,
-                        is_available: true,
-                    },
-                    list_width,
-                    padding,
-                    bg,
-                    muted,
-                ));
+                    let tag_name = format!("#{}", tag.name);
+                    let count_str = format!("({})", tag.count);
+                    lines.push(build_palette_item_line(
+                        PaletteItem {
+                            name: &tag_name,
+                            description: &count_str,
+                            is_selected,
+                            is_available: true,
+                        },
+                        list_width,
+                        padding,
+                        bg,
+                        muted,
+                    ));
+                }
             }
         }
     }
