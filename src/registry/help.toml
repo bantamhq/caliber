@@ -162,8 +162,8 @@ category = "views"
 # =============================================================================
 
 [[help]]
-actions = "filter_quick_add"
-description = "Quick add entry in filter view"
+actions = "new_entry"
+description = "Add new entry"
 category = "filter"
 
 [[help]]

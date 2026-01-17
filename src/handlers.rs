@@ -177,10 +177,6 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
                 app.exit_edit();
             }
             InputMode::Reorder => app.save_reorder_mode(),
-            InputMode::Normal => match app.view {
-                ViewMode::Daily(_) => app.new_task(InsertPosition::Bottom),
-                ViewMode::Filter(_) => app.filter_quick_add(),
-            },
             _ => {}
         },
         Cancel => match &app.input_mode {
@@ -221,6 +217,10 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
             }
         }
         NewEntryAbove => app.new_task(InsertPosition::Above),
+        NewEntry => match app.view {
+            ViewMode::Daily(_) => app.new_task(InsertPosition::Bottom),
+            ViewMode::Filter(_) => app.filter_quick_add(),
+        },
         Edit => app.edit_current_entry(),
         Paste => app.paste_from_clipboard()?,
         Undo => app.undo(),
@@ -238,7 +238,6 @@ fn dispatch_action(app: &mut App, action: KeyActionId) -> io::Result<bool> {
         CommandPalette => app.toggle_command_palette(),
         ToggleCalendarSidebar => app.toggle_calendar_sidebar(),
         ToggleAgenda => app.toggle_agenda(),
-        FilterQuickAdd => app.filter_quick_add(),
         Refresh => app.refresh_filter()?,
         SaveAndNew => {
             app.accept_hint();
@@ -348,7 +347,7 @@ pub fn handle_command_palette_key(app: &mut App, key: KeyEvent) -> io::Result<()
             KeyActionId::Delete => {
                 app.palette_delete_selected()?;
             }
-            KeyActionId::DeleteFromCompleted => {
+            KeyActionId::DeleteTagFromCompleted => {
                 app.palette_delete_tag_from_completed();
             }
             KeyActionId::Hide => {

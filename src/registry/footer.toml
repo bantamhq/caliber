@@ -3,16 +3,28 @@
 # Order determines display priority (first = highest, truncates from end)
 # Use array for `actions` to combine related keys into one hint (e.g., j/k)
 
-[footer.normal]
+[footer.daily]
 hints = [
-    { actions = ["new_entry_below", "new_entry_above"], text = "New" },
+    { actions = ["move_left", "move_right"], text = "Day" },
+    { actions = ["new_entry"], text = "New" },
     { actions = ["edit"], text = "Edit" },
-    { actions = ["toggle_complete"], text = "Toggle" },
+    { actions = ["toggle_complete"], text = "Toggle task" },
     { actions = ["delete"], text = "Delete" },
-    { actions = ["filter_prompt"], text = "Filter" },
-    { actions = ["command_palette"], text = "Palette" },
     { actions = ["selection"], text = "Select" },
-    { actions = ["undo", "redo"], text = "Undo" },
+    { actions = ["undo", "redo"], text = "Undo/Redo" },
+    { actions = ["command_palette"], text = "Menu" },
+]
+
+[footer.filter]
+hints = [
+    { actions = ["filter_prompt"], text = "Filter" },
+    { actions = ["new_entry"], text = "New" },
+    { actions = ["edit"], text = "Edit" },
+    { actions = ["toggle_complete"], text = "Toggle task" },
+    { actions = ["delete"], text = "Delete" },
+    { actions = ["selection"], text = "Select" },
+    { actions = ["undo", "redo"], text = "Undo/Redo" },
+    { actions = ["command_palette"], text = "Menu" },
 ]
 
 [footer.edit]
@@ -20,7 +32,6 @@ hints = [
     { actions = ["submit"], text = "Save" },
     { actions = ["cancel"], text = "Cancel" },
     { actions = ["save_and_new"], text = "Save & New" },
-    { actions = ["autocomplete"], text = "Complete" },
     { actions = ["cycle_entry_type"], text = "Cycle Type" },
 ]
 
@@ -33,11 +44,8 @@ hints = [
 
 [footer.selection]
 hints = [
-    { actions = ["selection"], text = "Toggle" },
-    { actions = ["selection_extend_range"], text = "Range" },
-    { actions = ["toggle_complete"], text = "Complete" },
-    { actions = ["delete"], text = "Delete" },
-    { actions = ["defer"], text = "Defer" },
+    { actions = ["selection"], text = "Toggle Selection" },
+    { actions = ["selection_extend_range"], text = "Extend Range" },
     { actions = ["cancel"], text = "Exit" },
 ]
 

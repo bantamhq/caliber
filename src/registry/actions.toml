@@ -1,7 +1,7 @@
 [[action]]
 key_action_id = "submit"
 default_keys = ["ret"]
-contexts = ["daily_normal", "filter_normal", "edit", "reorder", "command_palette"]
+contexts = ["edit", "reorder", "command_palette"]
 
 [[action]]
 key_action_id = "cancel"
@@ -79,6 +79,11 @@ default_keys = ["o"]
 contexts = ["daily_normal"]
 
 [[action]]
+key_action_id = "new_entry"
+default_keys = ["ret"]
+contexts = ["daily_normal", "filter_normal"]
+
+[[action]]
 key_action_id = "new_entry_above"
 default_keys = ["O"]
 contexts = ["daily_normal"]
@@ -99,7 +104,7 @@ default_keys = ["d"]
 contexts = ["shared_normal", "selection", "command_palette"]
 
 [[action]]
-key_action_id = "delete_from_completed"
+key_action_id = "delete_tag_from_completed"
 default_keys = ["D"]
 contexts = ["command_palette"]
 
@@ -177,11 +182,6 @@ contexts = ["shared_normal"]
 key_action_id = "command_palette"
 default_keys = ["q"]
 contexts = ["shared_normal", "command_palette"]
-
-[[action]]
-key_action_id = "filter_quick_add"
-default_keys = ["ret"]
-contexts = ["filter_normal"]
 
 [[action]]
 key_action_id = "refresh"

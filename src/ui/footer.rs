@@ -35,7 +35,8 @@ static FOOTER_DATA: LazyLock<FooterFile> = LazyLock::new(|| {
 /// Which footer to display based on current mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FooterMode {
-    Normal,
+    Daily,
+    Filter,
     Edit,
     Reorder,
     Selection,
@@ -47,19 +48,28 @@ pub enum FooterMode {
 impl FooterMode {
     /// Determine the footer mode from app state
     #[must_use]
-    pub fn from_input_mode(input_mode: &InputMode, _view: &ViewMode) -> Self {
+    pub fn from_input_mode(input_mode: &InputMode, view: &ViewMode) -> Self {
         match input_mode {
-            InputMode::Normal => FooterMode::Normal,
+            InputMode::Normal => match view {
+                ViewMode::Daily(_) => FooterMode::Daily,
+                ViewMode::Filter(_) => FooterMode::Filter,
+            },
             InputMode::Edit(_) => FooterMode::Edit,
             InputMode::Reorder => FooterMode::Reorder,
             InputMode::Selection(_) => FooterMode::Selection,
             InputMode::CommandPalette(state) => match state.mode {
-                CommandPaletteMode::Commands => FooterMode::Normal, // No hints for commands
+                CommandPaletteMode::Commands => match view {
+                    ViewMode::Daily(_) => FooterMode::Daily,
+                    ViewMode::Filter(_) => FooterMode::Filter,
+                },
                 CommandPaletteMode::Projects => FooterMode::CommandPaletteProjects,
                 CommandPaletteMode::Tags => FooterMode::CommandPaletteTags,
             },
             InputMode::FilterPrompt => FooterMode::FilterPrompt,
-            InputMode::Confirm(_) | InputMode::DatePicker(_) => FooterMode::Normal,
+            InputMode::Confirm(_) | InputMode::DatePicker(_) => match view {
+                ViewMode::Daily(_) => FooterMode::Daily,
+                ViewMode::Filter(_) => FooterMode::Filter,
+            },
         }
     }
 
@@ -67,7 +77,8 @@ impl FooterMode {
     #[must_use]
     fn toml_key(self) -> &'static str {
         match self {
-            FooterMode::Normal => "normal",
+            FooterMode::Daily => "daily",
+            FooterMode::Filter => "filter",
             FooterMode::Edit => "edit",
             FooterMode::Reorder => "reorder",
             FooterMode::Selection => "selection",
@@ -81,7 +92,8 @@ impl FooterMode {
     #[must_use]
     fn key_context(self) -> KeyContext {
         match self {
-            FooterMode::Normal => KeyContext::DailyNormal,
+            FooterMode::Daily => KeyContext::DailyNormal,
+            FooterMode::Filter => KeyContext::FilterNormal,
             FooterMode::Edit => KeyContext::Edit,
             FooterMode::Reorder => KeyContext::Reorder,
             FooterMode::Selection => KeyContext::Selection,
@@ -209,7 +221,8 @@ mod tests {
     fn test_footer_data_loads() {
         // Just verify the TOML parses correctly
         let _ = &*FOOTER_DATA;
-        assert!(FOOTER_DATA.footer.contains_key("normal"));
+        assert!(FOOTER_DATA.footer.contains_key("daily"));
+        assert!(FOOTER_DATA.footer.contains_key("filter"));
         assert!(FOOTER_DATA.footer.contains_key("edit"));
     }
 }
