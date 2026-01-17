@@ -178,6 +178,9 @@ pub struct Config {
     /// Whether defer action should skip weekends (defer to Monday if today is Friday/Saturday)
     #[serde(default)]
     pub defer_skip_weekends: bool,
+    /// Whether to hide footer help hints
+    #[serde(default)]
+    pub hide_footer_help: bool,
 }
 
 /// Raw config for deserialization - all fields are Option to distinguish "not set" from "set to default".
@@ -204,6 +207,8 @@ struct RawConfig {
     pub sidebar_default: Option<SidebarDefault>,
     /// Whether defer action should skip weekends
     pub defer_skip_weekends: Option<bool>,
+    /// Whether to hide footer help hints
+    pub hide_footer_help: Option<bool>,
 }
 
 impl RawConfig {
@@ -228,6 +233,7 @@ impl RawConfig {
             calendar_visibility: self.calendar_visibility.unwrap_or_default(),
             sidebar_default: self.sidebar_default.unwrap_or_default(),
             defer_skip_weekends: self.defer_skip_weekends.unwrap_or(false),
+            hide_footer_help: self.hide_footer_help.unwrap_or(false),
         }
     }
 
@@ -255,6 +261,7 @@ impl RawConfig {
             calendar_visibility: base.calendar_visibility,
             sidebar_default: base.sidebar_default,
             defer_skip_weekends: self.defer_skip_weekends.or(base.defer_skip_weekends),
+            hide_footer_help: self.hide_footer_help.or(base.hide_footer_help),
         }
     }
 }

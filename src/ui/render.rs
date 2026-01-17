@@ -110,6 +110,7 @@ pub fn render_app(f: &mut Frame<'_>, app: &mut App) {
             journal_slot,
             surface: &app.surface,
             keymap: &app.keymap,
+            hide_help: app.config.hide_footer_help,
         },
     );
 
@@ -130,6 +131,7 @@ struct FooterContext<'a> {
     journal_slot: crate::storage::JournalSlot,
     surface: &'a super::surface::Surface,
     keymap: &'a crate::dispatch::Keymap,
+    hide_help: bool,
 }
 
 fn render_footer_bar(f: &mut Frame<'_>, area: Rect, ctx: FooterContext<'_>) {
@@ -140,6 +142,7 @@ fn render_footer_bar(f: &mut Frame<'_>, area: Rect, ctx: FooterContext<'_>) {
         journal_slot,
         surface,
         keymap,
+        hide_help,
     } = ctx;
     use ratatui::layout::{Constraint, Direction, Layout};
     use ratatui::text::Line as RatatuiLine;
@@ -197,20 +200,30 @@ fn render_footer_bar(f: &mut Frame<'_>, area: Rect, ctx: FooterContext<'_>) {
 
     // Build and render hints in the middle section
     let hints_area = layout[3];
-    let footer_mode = FooterMode::from_input_mode(input_mode, view);
-    let hints = build_hints(footer_mode, keymap);
 
-    let key_style = Style::default().fg(theme::footer_key(surface)).bg(bg);
-    let text_style = Style::default().fg(theme::footer_text(surface)).bg(bg);
+    let spans = if hide_help {
+        vec![Span::styled(
+            " ".repeat(hints_area.width as usize),
+            Style::default().bg(bg),
+        )]
+    } else {
+        let footer_mode = FooterMode::from_input_mode(input_mode, view);
+        let hints = build_hints(footer_mode, keymap);
 
-    let mut spans = build_footer_spans(&hints, hints_area.width as usize, key_style, text_style);
+        let key_style = Style::default().fg(theme::footer_key(surface)).bg(bg);
+        let text_style = Style::default().fg(theme::footer_text(surface)).bg(bg);
 
-    // Pad remaining space with background
-    let used_width: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-    let remaining = (hints_area.width as usize).saturating_sub(used_width);
-    if remaining > 0 {
-        spans.push(Span::styled(" ".repeat(remaining), Style::default().bg(bg)));
-    }
+        let mut spans =
+            build_footer_spans(&hints, hints_area.width as usize, key_style, text_style);
+
+        // Pad remaining space with background
+        let used_width: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+        let remaining = (hints_area.width as usize).saturating_sub(used_width);
+        if remaining > 0 {
+            spans.push(Span::styled(" ".repeat(remaining), Style::default().bg(bg)));
+        }
+        spans
+    };
 
     f.render_widget(Paragraph::new(RatatuiLine::from(spans)), hints_area);
 
