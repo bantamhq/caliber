@@ -1,0 +1,25 @@
+# Example profile configuration
+
+hide_completed = false
+sidebar_default = "calendar"
+
+[favorite_tags]
+1 = "feature"
+2 = "bug"
+3 = "marketing"
+4 = "idea"
+
+[filters]
+t = "!tasks"
+n = "!notes"
+next = "!tasks #next"
+
+[calendars.work]
+url = "file://calendars/work.ics"
+enabled = true
+color = "blue"
+
+[calendars.personal]
+url = "file://calendars/personal.ics"
+enabled = true
+color = "green"

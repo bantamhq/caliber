@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,93 @@ use serde::{Deserialize, Serialize};
 use crate::storage::find_git_root;
 
 const VALID_TIDY_TYPES: &[&str] = &["completed", "uncompleted", "notes", "events"];
+
+// Global profile context, initialized at startup
+static PROFILE: OnceLock<ProfileContext> = OnceLock::new();
+
+/// Profile context for overriding default paths.
+/// When set, all config and data files are loaded from the profile directory.
+#[derive(Debug, Clone)]
+pub struct ProfileContext {
+    /// Directory containing config.toml, hub_journal.md, etc.
+    pub config_dir: PathBuf,
+    /// Optional fake project root (profile/project/)
+    pub project_root: Option<PathBuf>,
+}
+
+impl ProfileContext {
+    /// Create a profile context from a profile directory path.
+    #[must_use]
+    pub fn from_path(profile_path: &Path) -> Self {
+        let profile_path = if profile_path.is_absolute() {
+            profile_path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_default()
+                .join(profile_path)
+        };
+
+        let project_root = profile_path.join("project");
+
+        ProfileContext {
+            config_dir: profile_path,
+            project_root: project_root
+                .join(".caliber")
+                .exists()
+                .then_some(project_root),
+        }
+    }
+
+    /// Create default profile context using standard paths.
+    #[must_use]
+    pub fn default_paths() -> Self {
+        ProfileContext {
+            config_dir: default_config_dir(),
+            project_root: None,
+        }
+    }
+}
+
+/// Initialize the global profile context. Must be called once at startup.
+pub fn init_profile(profile_path: Option<&Path>) {
+    let context = match profile_path {
+        Some(path) => ProfileContext::from_path(path),
+        None => ProfileContext::default_paths(),
+    };
+    let _ = PROFILE.set(context);
+}
+
+/// Get the current profile context.
+#[must_use]
+fn get_profile() -> &'static ProfileContext {
+    PROFILE.get_or_init(ProfileContext::default_paths)
+}
+
+/// Check if a custom profile is active.
+#[must_use]
+pub fn has_custom_profile() -> bool {
+    PROFILE
+        .get()
+        .is_some_and(|p| p.config_dir != default_config_dir())
+}
+
+/// Get the project root from the profile, if set.
+#[must_use]
+pub fn get_profile_project_root() -> Option<&'static Path> {
+    get_profile().project_root.as_deref()
+}
+
+/// Get the default config directory (without profile override).
+fn default_config_dir() -> PathBuf {
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        PathBuf::from(xdg).join("caliber")
+    } else {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".config")
+            .join("caliber")
+    }
+}
 
 /// Result of loading configuration, including any warnings.
 #[derive(Debug, Clone, Default)]
@@ -469,14 +557,7 @@ fn expand_tilde(path: &str) -> PathBuf {
 }
 
 pub fn get_config_dir() -> PathBuf {
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        PathBuf::from(xdg).join("caliber")
-    } else {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".config")
-            .join("caliber")
-    }
+    get_profile().config_dir.clone()
 }
 
 pub fn get_config_path() -> PathBuf {

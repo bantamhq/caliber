@@ -10,26 +10,32 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use caliber::app::{App, InputMode};
-use caliber::config::{self, Config, resolve_path};
+use caliber::config::{self, Config, get_profile_project_root, has_custom_profile, init_profile};
 use caliber::storage::{JournalContext, JournalSlot};
 use caliber::ui::surface::Surface;
-use caliber::{handlers, storage, ui};
+use caliber::{handlers, storage, testrun, ui};
 
 fn main() -> Result<(), io::Error> {
     let args: Vec<String> = std::env::args().collect();
+    let (testrun_path, remaining_args) = testrun::parse_arg(&args);
+    let (recorder_name, remaining_args) = parse_record_arg(&remaining_args);
+    let recorder = recorder_name.map(|name| {
+        let name = name.strip_suffix(".tape").unwrap_or(&name).to_string();
+        caliber::recorder::Recorder::new(name)
+    });
 
-    if args.get(1).map(String::as_str) == Some("init") {
+    let temp_dir = testrun_path
+        .as_ref()
+        .map(|source| testrun::create_temp_profile(source))
+        .transpose()?;
+
+    init_profile(temp_dir.as_deref().or(testrun_path.as_deref()));
+
+    if remaining_args.first().map(String::as_str) == Some("init") {
         return init_config();
     }
 
-    let cli_file = args.get(1).map(PathBuf::from);
-    let (project_path, active_slot) = if let Some(path) = cli_file.clone() {
-        // CLI path overrides project slot
-        (
-            Some(resolve_path(&path.to_string_lossy())),
-            JournalSlot::Project,
-        )
-    } else if let Some(path) = storage::detect_project_journal() {
+    let (project_path, active_slot) = if let Some(path) = detect_project_with_profile() {
         (Some(path), JournalSlot::Project)
     } else {
         (None, JournalSlot::Hub)
@@ -46,7 +52,6 @@ fn main() -> Result<(), io::Error> {
 
     let surface = Surface::from_terminal();
 
-    // Install panic hook to restore terminal state before displaying panic message
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = disable_raw_mode();
@@ -56,8 +61,6 @@ fn main() -> Result<(), io::Error> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    // Enable bracketed paste to capture Cmd+V as a single paste event
-    // Without this, pasted text arrives as individual key events causing issues
     execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -68,6 +71,7 @@ fn main() -> Result<(), io::Error> {
         journal_context,
         surface,
         config_load.warning,
+        recorder,
     );
 
     disable_raw_mode()?;
@@ -77,6 +81,10 @@ fn main() -> Result<(), io::Error> {
         DisableBracketedPaste
     )?;
     terminal.show_cursor()?;
+
+    if let Some(temp) = temp_dir {
+        testrun::cleanup(temp);
+    }
 
     if let Err(err) = res {
         eprintln!("Error: {err}");
@@ -114,6 +122,7 @@ fn run_app<B: ratatui::backend::Backend>(
     journal_context: JournalContext,
     surface: Surface,
     config_warning: Option<String>,
+    mut recorder: Option<caliber::recorder::Recorder>,
 ) -> io::Result<()> {
     let date = chrono::Local::now().date_naive();
 
@@ -127,13 +136,16 @@ fn run_app<B: ratatui::backend::Backend>(
         app.set_error(warning);
     }
 
-    // Project initialization flow for git repositories
-    if app.in_git_repo
+    if recorder.is_some() {
+        app.set_status("Recording to tape...");
+    }
+
+    if !has_custom_profile()
+        && app.in_git_repo
         && let Some(git_root) = storage::find_git_root()
     {
         let caliber_dir = git_root.join(".caliber");
 
-        // Auto-register existing projects
         if caliber_dir.exists() {
             let mut registry = storage::ProjectRegistry::load();
             if registry.find_by_path(&caliber_dir).is_none() {
@@ -142,13 +154,11 @@ fn run_app<B: ratatui::backend::Backend>(
             }
         }
 
-        // Auto-init new projects if enabled
         if app.journal_context.project_path().is_none() && app.config.auto_init_project {
             fs::create_dir_all(&caliber_dir)?;
 
             let journal_path = app.config.get_project_journal_path(&git_root);
             if !journal_path.exists() {
-                // Create parent directories if journal is at custom location
                 if let Some(parent) = journal_path.parent() {
                     fs::create_dir_all(parent)?;
                 }
@@ -168,7 +178,6 @@ fn run_app<B: ratatui::backend::Backend>(
     }
 
     loop {
-        // Check if we need a full terminal redraw (e.g., after returning from external editor)
         if app.needs_redraw {
             terminal.clear()?;
             app.needs_redraw = false;
@@ -181,6 +190,10 @@ fn run_app<B: ratatui::backend::Backend>(
         if event::poll(std::time::Duration::from_millis(16))? {
             match event::read()? {
                 Event::Key(key) => {
+                    if let Some(ref mut rec) = recorder {
+                        rec.record(key);
+                    }
+
                     app.status_message = None;
 
                     match &app.input_mode {
@@ -202,7 +215,6 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
                 Event::Paste(text) => {
                     if matches!(app.input_mode, InputMode::Edit(_)) {
-                        // Insert pasted text into edit buffer, taking only first line
                         let first_line = text.lines().next().unwrap_or(&text);
                         if let Some(ref mut buffer) = app.edit_buffer {
                             buffer.insert_str(first_line);
@@ -219,5 +231,42 @@ fn run_app<B: ratatui::backend::Backend>(
         }
     }
 
+    if let Some(rec) = recorder {
+        rec.save()?;
+    }
+
     Ok(())
+}
+
+fn detect_project_with_profile() -> Option<PathBuf> {
+    if let Some(project_root) = get_profile_project_root() {
+        let config_load = Config::load_merged_from(project_root).ok()?;
+        let journal_path = config_load.config.get_project_journal_path(project_root);
+        if journal_path.exists() {
+            return Some(journal_path);
+        }
+    }
+
+    storage::detect_project_journal()
+}
+
+fn parse_record_arg(args: &[String]) -> (Option<String>, Vec<String>) {
+    let Some(record_pos) = args.iter().position(|a| a == "--record") else {
+        return (None, args.to_vec());
+    };
+
+    let next_arg = args.get(record_pos + 1).filter(|s| !s.starts_with('-'));
+    let output = next_arg
+        .cloned()
+        .unwrap_or_else(|| "recording.tape".to_string());
+    let skip_count = if next_arg.is_some() { 2 } else { 1 };
+
+    let remaining = args
+        .iter()
+        .enumerate()
+        .filter(|&(i, _)| i < record_pos || i >= record_pos + skip_count)
+        .map(|(_, a)| a.clone())
+        .collect();
+
+    (Some(output), remaining)
 }

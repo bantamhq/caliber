@@ -4,6 +4,8 @@ pub mod config;
 pub mod cursor;
 pub mod dispatch;
 pub mod handlers;
+pub mod recorder;
 pub mod registry;
 pub mod storage;
+pub mod testrun;
 pub mod ui;

@@ -353,7 +353,7 @@ Caliber uses a markdown-compatible format:
 * An event
 
 # 2025/01/16
-- [ ] Follow up on review @1/20
+- [ ] Follow up on review
 - Meeting notes from standup #daily
 ```
 
