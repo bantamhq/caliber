@@ -86,8 +86,8 @@ pub fn detect_project_journal() -> Option<PathBuf> {
     }
 
     // Load merged config to get journal_file setting
-    let config = Config::load_merged_from(&root).ok()?;
-    let journal_path = config.get_project_journal_path(&root);
+    let config_load = Config::load_merged_from(&root).ok()?;
+    let journal_path = config_load.config.get_project_journal_path(&root);
 
     if journal_path.exists() {
         Some(journal_path)

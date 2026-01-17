@@ -1,6 +1,6 @@
 use std::io;
 
-use chrono::{Days, NaiveDate};
+use chrono::NaiveDate;
 
 use crate::storage::{self, Entry, EntryType, RawEntry, SourceType};
 
@@ -478,10 +478,7 @@ impl App {
     }
 
     pub fn defer_selected(&mut self) -> io::Result<()> {
-        let tomorrow = chrono::Local::now()
-            .date_naive()
-            .checked_add_days(Days::new(1))
-            .expect("tomorrow should be valid");
-        self.move_selected_to_date(tomorrow)
+        let target = self.next_defer_date();
+        self.move_selected_to_date(target)
     }
 }

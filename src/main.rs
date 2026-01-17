@@ -35,12 +35,12 @@ fn main() -> Result<(), io::Error> {
         (None, JournalSlot::Hub)
     };
 
-    let config = match active_slot {
+    let config_load = match active_slot {
         JournalSlot::Hub => Config::load_hub().unwrap_or_default(),
         JournalSlot::Project => Config::load_merged().unwrap_or_default(),
     };
 
-    let hub_path = config.get_hub_journal_path();
+    let hub_path = config_load.config.get_hub_journal_path();
 
     let journal_context = JournalContext::new(hub_path, project_path.clone(), active_slot);
 
@@ -54,7 +54,13 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run_app(&mut terminal, config, journal_context, surface);
+    let res = run_app(
+        &mut terminal,
+        config_load.config,
+        journal_context,
+        surface,
+        config_load.warning,
+    );
 
     disable_raw_mode()?;
     execute!(
@@ -99,6 +105,7 @@ fn run_app<B: ratatui::backend::Backend>(
     config: Config,
     journal_context: JournalContext,
     surface: Surface,
+    config_warning: Option<String>,
 ) -> io::Result<()> {
     let date = chrono::Local::now().date_naive();
 
@@ -107,6 +114,10 @@ fn run_app<B: ratatui::backend::Backend>(
     let runtime_handle = Some(runtime.handle().clone());
 
     let mut app = App::new_with_context(config, date, journal_context, runtime_handle, surface)?;
+
+    if let Some(warning) = config_warning {
+        app.set_error(warning);
+    }
 
     // Project initialization flow for git repositories
     if app.in_git_repo

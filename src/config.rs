@@ -10,6 +10,13 @@ use crate::storage::find_git_root;
 
 const VALID_TIDY_TYPES: &[&str] = &["completed", "uncompleted", "notes", "events"];
 
+/// Result of loading configuration, including any warnings.
+#[derive(Debug, Clone, Default)]
+pub struct ConfigLoad {
+    pub config: Config,
+    pub warning: Option<String>,
+}
+
 /// Configuration for a single calendar source.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalendarConfig {
@@ -168,9 +175,13 @@ pub struct Config {
     /// Default sidebar to show on launch
     #[serde(default)]
     pub sidebar_default: SidebarDefault,
+    /// Whether defer action should skip weekends (defer to Monday if today is Friday/Saturday)
+    #[serde(default)]
+    pub defer_skip_weekends: bool,
 }
 
-/// Raw config for deserialization - all fields are Option to distinguish "not set" from "set to default"
+/// Raw config for deserialization - all fields are Option to distinguish "not set" from "set to default".
+/// Unknown fields cause parse failure (to catch typos), but the app falls back to defaults gracefully.
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct RawConfig {
@@ -191,6 +202,8 @@ struct RawConfig {
     pub calendar_visibility: Option<CalendarVisibilityConfig>,
     /// Default sidebar to show on launch
     pub sidebar_default: Option<SidebarDefault>,
+    /// Whether defer action should skip weekends
+    pub defer_skip_weekends: Option<bool>,
 }
 
 impl RawConfig {
@@ -214,6 +227,7 @@ impl RawConfig {
             calendars: self.calendars.unwrap_or_default(),
             calendar_visibility: self.calendar_visibility.unwrap_or_default(),
             sidebar_default: self.sidebar_default.unwrap_or_default(),
+            defer_skip_weekends: self.defer_skip_weekends.unwrap_or(false),
         }
     }
 
@@ -240,6 +254,7 @@ impl RawConfig {
             calendars: base.calendars,
             calendar_visibility: base.calendar_visibility,
             sidebar_default: base.sidebar_default,
+            defer_skip_weekends: self.defer_skip_weekends.or(base.defer_skip_weekends),
         }
     }
 }
@@ -348,38 +363,37 @@ impl Config {
     }
 
     /// Load hub config (base + optional hub_config.toml overlay)
-    pub fn load_hub() -> io::Result<Self> {
-        let base = load_raw_config(get_config_path())?;
-
-        if let Some(hub) = load_hub_config() {
-            Ok(hub.merge_over(base).into_config())
-        } else {
-            Ok(base.into_config())
-        }
+    pub fn load_hub() -> io::Result<ConfigLoad> {
+        let (base, base_warning) = load_base_config();
+        let (config, overlay_warning) = apply_overlay(base, &get_hub_config_path(), "Hub");
+        Ok(ConfigLoad {
+            config,
+            warning: overlay_warning.or(base_warning),
+        })
     }
 
     /// Load project config (base + project config overlay)
-    pub fn load_merged() -> io::Result<Self> {
-        let base = load_raw_config(get_config_path())?;
-
-        if let Some(project) = load_project_config() {
-            Ok(project.merge_over(base).into_config())
-        } else {
-            Ok(base.into_config())
-        }
+    pub fn load_merged() -> io::Result<ConfigLoad> {
+        let (base, base_warning) = load_base_config();
+        let (config, overlay_warning) = match get_project_config_path() {
+            Some(path) => apply_overlay(base, &path, "Project"),
+            None => (base.into_config(), None),
+        };
+        Ok(ConfigLoad {
+            config,
+            warning: overlay_warning.or(base_warning),
+        })
     }
 
     /// Load project config from a specific project root path
-    pub fn load_merged_from(project_root: &Path) -> io::Result<Self> {
-        let base = load_raw_config(get_config_path())?;
-        let project_config_path = project_root.join(".caliber").join("config.toml");
-
-        if project_config_path.exists() {
-            let project = load_raw_config(project_config_path)?;
-            Ok(project.merge_over(base).into_config())
-        } else {
-            Ok(base.into_config())
-        }
+    pub fn load_merged_from(project_root: &Path) -> io::Result<ConfigLoad> {
+        let (base, base_warning) = load_base_config();
+        let project_path = project_root.join(".caliber").join("config.toml");
+        let (config, overlay_warning) = apply_overlay(base, &project_path, "Project");
+        Ok(ConfigLoad {
+            config,
+            warning: overlay_warning.or(base_warning),
+        })
     }
 
     pub fn init() -> io::Result<bool> {
@@ -470,48 +484,64 @@ pub fn get_default_journal_path() -> PathBuf {
     get_config_dir().join("hub_journal.md")
 }
 
-fn load_raw_config(path: PathBuf) -> io::Result<RawConfig> {
-    if path.exists() {
-        let content = fs::read_to_string(&path)?;
-        match toml::from_str(&content) {
-            Ok(config) => Ok(config),
-            Err(e) => {
-                eprintln!("Warning: Failed to parse {}: {}", path.display(), e);
-                eprintln!("Using default configuration");
-                Ok(RawConfig::default())
-            }
-        }
-    } else {
-        Ok(RawConfig::default())
+/// Try to parse a config file. Returns (config, error_message).
+fn try_load_raw_config(path: &Path) -> (Option<RawConfig>, Option<String>) {
+    if !path.exists() {
+        return (None, None);
+    }
+
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => return (None, Some(e.to_string())),
+    };
+
+    match toml::from_str(&content) {
+        Ok(config) => (Some(config), None),
+        Err(e) => (None, Some(e.message().to_string())),
     }
 }
 
-fn load_project_config() -> Option<RawConfig> {
+/// Load base config with error handling. Returns (config, warning).
+fn load_base_config() -> (RawConfig, Option<String>) {
+    let (config, err) = try_load_raw_config(&get_config_path());
+    match config {
+        Some(c) => (c, None),
+        None => (
+            RawConfig::default(),
+            err.map(|e| format!("Base config is malformed. Using defaults. Error: {e}")),
+        ),
+    }
+}
+
+/// Apply an overlay config over a base. Returns (final_config, warning).
+fn apply_overlay(
+    base: RawConfig,
+    overlay_path: &Path,
+    overlay_name: &str,
+) -> (Config, Option<String>) {
+    let (overlay, err) = try_load_raw_config(overlay_path);
+    match overlay {
+        Some(o) => (o.merge_over(base).into_config(), None),
+        None => (
+            base.into_config(),
+            err.map(|e| format!("{overlay_name} config is malformed. Using base config. Error: {e}")),
+        ),
+    }
+}
+
+fn get_project_config_path() -> Option<PathBuf> {
     if let Some(root) = find_git_root() {
         let path = root.join(".caliber").join("config.toml");
         if path.exists() {
-            let content = fs::read_to_string(&path).ok()?;
-            return toml::from_str(&content).ok();
+            return Some(path);
         }
-        return None;
     }
 
     let cwd = std::env::current_dir().ok()?;
     let path = cwd.join(".caliber").join("config.toml");
     if path.exists() {
-        let content = fs::read_to_string(&path).ok()?;
-        return toml::from_str(&content).ok();
+        return Some(path);
     }
 
     None
-}
-
-fn load_hub_config() -> Option<RawConfig> {
-    let path = get_hub_config_path();
-    if path.exists() {
-        let content = fs::read_to_string(&path).ok()?;
-        toml::from_str(&content).ok()
-    } else {
-        None
-    }
 }

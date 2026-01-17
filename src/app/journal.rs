@@ -41,17 +41,22 @@ impl App {
         self.save();
         self.journal_context.set_active_slot(slot);
 
-        let config = match slot {
+        let config_load = match slot {
             JournalSlot::Hub => Config::load_hub()?,
             JournalSlot::Project => Config::load_merged()?,
         };
-        self.apply_config(config);
+        self.apply_config(config_load.config);
 
         self.reset_journal_view()?;
-        self.set_status(match slot {
-            JournalSlot::Hub => "Switched to Hub journal",
-            JournalSlot::Project => "Switched to Project journal",
-        });
+
+        if let Some(warning) = config_load.warning {
+            self.set_error(warning);
+        } else {
+            self.set_status(match slot {
+                JournalSlot::Hub => "Switched to Hub journal",
+                JournalSlot::Project => "Switched to Project journal",
+            });
+        }
         Ok(())
     }
 
@@ -100,11 +105,16 @@ impl App {
             .set_project_path(project.journal_path());
         self.journal_context.set_active_slot(JournalSlot::Project);
 
-        let config = Config::load_merged_from(&project.root)?;
-        self.apply_config(config);
+        let config_load = Config::load_merged_from(&project.root)?;
+        self.apply_config(config_load.config);
 
         self.reset_journal_view()?;
-        self.set_status(format!("Switched to: {}", project.name));
+
+        if let Some(warning) = config_load.warning {
+            self.set_error(warning);
+        } else {
+            self.set_status(format!("Switched to: {}", project.name));
+        }
         Ok(())
     }
 

@@ -41,13 +41,17 @@ impl App {
                 }
             }
             "reload-config" => {
-                let config = match self.active_journal() {
+                let config_load = match self.active_journal() {
                     JournalSlot::Hub => Config::load_hub().ok(),
                     JournalSlot::Project => Config::load_merged().ok(),
                 };
-                if let Some(config) = config {
-                    self.apply_config(config);
-                    self.set_status("Configuration reloaded");
+                if let Some(config_load) = config_load {
+                    self.apply_config(config_load.config);
+                    if let Some(warning) = config_load.warning {
+                        self.set_error(warning);
+                    } else {
+                        self.set_status("Configuration reloaded");
+                    }
                 } else {
                     self.set_error("Failed to reload configuration");
                 }

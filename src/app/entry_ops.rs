@@ -1,6 +1,6 @@
 use std::io;
 
-use chrono::{Days, NaiveDate};
+use chrono::{Datelike, Days, NaiveDate, Weekday};
 
 use crate::cursor::CursorBuffer;
 use crate::storage::{
@@ -497,10 +497,26 @@ impl App {
     }
 
     pub fn defer_current_entry(&mut self) -> io::Result<()> {
-        let tomorrow = chrono::Local::now()
-            .date_naive()
-            .checked_add_days(Days::new(1))
-            .expect("tomorrow should be valid");
-        self.move_current_entry_to_date(tomorrow)
+        let target = self.next_defer_date();
+        self.move_current_entry_to_date(target)
+    }
+
+    /// Calculate the next defer date based on config.
+    /// If `defer_skip_weekends` is enabled, skips to Monday when deferring on Friday/Saturday.
+    #[must_use]
+    pub fn next_defer_date(&self) -> NaiveDate {
+        let today = chrono::Local::now().date_naive();
+        let days_to_add = if self.config.defer_skip_weekends {
+            match today.weekday() {
+                Weekday::Fri => 3, // Friday -> Monday
+                Weekday::Sat => 2, // Saturday -> Monday
+                _ => 1,
+            }
+        } else {
+            1
+        };
+        today
+            .checked_add_days(Days::new(days_to_add))
+            .expect("defer date should be valid")
     }
 }

@@ -406,10 +406,9 @@ impl App {
         let hide_completed = config.hide_completed;
         let sidebar_default = config.sidebar_default;
 
-        let keymap = Keymap::new(&config.keys).unwrap_or_else(|e| {
-            eprintln!("Invalid key config: {e}");
-            Keymap::default()
-        });
+        // Silently fall back to default keymap on invalid key config.
+        // Using eprintln here would corrupt the terminal during raw mode.
+        let keymap = Keymap::new(&config.keys).unwrap_or_default();
 
         let (calendar_tx, calendar_rx) = if runtime_handle.is_some() {
             let (tx, rx) = mpsc::channel(1);

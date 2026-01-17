@@ -40,8 +40,8 @@ impl ProjectInfo {
     pub fn journal_path(&self) -> PathBuf {
         use crate::config::Config;
 
-        if let Ok(config) = Config::load_merged_from(&self.root) {
-            config.get_project_journal_path(&self.root)
+        if let Ok(config_load) = Config::load_merged_from(&self.root) {
+            config_load.config.get_project_journal_path(&self.root)
         } else {
             self.path.join("journal.md")
         }
@@ -220,7 +220,7 @@ fn resolve_project_info(
 
     // Check config for custom journal location
     let journal_path = Config::load_merged_from(root)
-        .map(|c| c.get_project_journal_path(root))
+        .map(|c| c.config.get_project_journal_path(root))
         .unwrap_or_else(|_| caliber_path.join("journal.md"));
     let available = journal_path.exists();
 

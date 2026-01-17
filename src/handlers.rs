@@ -438,8 +438,8 @@ pub fn handle_confirm_key(app: &mut App, key: KeyCode) -> io::Result<()> {
                 }
 
                 // Load config to get custom journal path if configured
-                let config = Config::load_merged_from(&root).unwrap_or_default();
-                let journal_path = config.get_project_journal_path(&root);
+                let config_load = Config::load_merged_from(&root).unwrap_or_default();
+                let journal_path = config_load.config.get_project_journal_path(&root);
 
                 if !journal_path.exists() {
                     // Create parent directories if journal is at custom location
