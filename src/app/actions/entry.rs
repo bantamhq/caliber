@@ -54,6 +54,30 @@ impl Action for DeleteEntries {
             deleted_entries.push(entry_data);
         }
 
+        // Remove from state.entries for Filter targets in descending index order.
+        // This must happen after storage operations to avoid index shifting issues.
+        if let ViewMode::Filter(state) = &mut app.view {
+            let mut filter_indices: Vec<usize> = self
+                .targets
+                .iter()
+                .filter_map(|t| match t {
+                    DeleteTarget::Filter { index, .. } => Some(*index),
+                    _ => None,
+                })
+                .collect();
+            filter_indices.sort_by(|a, b| b.cmp(a)); // descending
+
+            for index in filter_indices {
+                if index < state.entries.len() {
+                    state.entries.remove(index);
+                }
+            }
+
+            if !state.entries.is_empty() && state.selected >= state.entries.len() {
+                state.selected = state.entries.len().saturating_sub(1);
+            }
+        }
+
         // Reverse so entries are in ascending order for restore
         deleted_entries.reverse();
 
@@ -243,22 +267,19 @@ fn execute_delete_raw(
             app.refresh_projected_entries();
             Ok(result)
         }
-        DeleteTarget::Filter { index, entry } => {
+        DeleteTarget::Filter { entry, .. } => {
             storage::delete_entry(entry.source_date, &path, entry.line_index)?;
 
+            // Adjust line_index for remaining entries from the same date.
+            // state.entries removal happens in DeleteEntries::execute to handle
+            // index ordering correctly when deleting multiple entries.
             if let ViewMode::Filter(state) = &mut app.view {
-                state.entries.remove(*index);
-
                 for filter_entry in &mut state.entries {
                     if filter_entry.source_date == entry.source_date
                         && filter_entry.line_index > entry.line_index
                     {
                         filter_entry.line_index -= 1;
                     }
-                }
-
-                if !state.entries.is_empty() && state.selected >= state.entries.len() {
-                    state.selected = state.entries.len() - 1;
                 }
             }
 
